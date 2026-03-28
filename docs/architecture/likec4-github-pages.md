@@ -1,15 +1,14 @@
 # LikeC4 on GitHub Pages
 
-Статический LikeC4-site публикуется в GitHub Pages из ветки `gh-pages`.
-
-Такой режим не зависит от GitHub Actions workflow и подходит для project site
-репозитория `SergeyDubovitsky/wm`.
+Статический LikeC4-site публикуется в GitHub Pages через GitHub Actions workflow
+[`deploy-likec4-pages.yml`](/Users/srgi0/projects/web-monitoring/.github/workflows/deploy-likec4-pages.yml).
 
 ## Источник публикации
 
-- Pages source: ветка `gh-pages`
-- Pages path: `/`
+- Pages source: custom GitHub Actions workflow
+- deploy branch: `main`
 - base path для LikeC4 build: `/wm/`
+- build output: `arch/dist`
 
 ## Публичный URL
 
@@ -30,8 +29,13 @@ npm run build -- --base /wm/
 
 ## Обновление публикации
 
-Чтобы опубликовать новую версию сайта, нужно:
+Workflow публикует сайт автоматически при push в `main`, если изменилось
+что-то внутри `arch/`, а также поддерживает ручной запуск через
+`workflow_dispatch`.
 
-1. собрать свежий static output в [`arch/dist`](/Users/srgi0/projects/web-monitoring/arch/dist)
-2. синхронизировать содержимое `arch/dist/` в корень ветки `gh-pages`
-3. оставить в ветке `gh-pages` файл `.nojekyll`, чтобы GitHub Pages раздавал site как обычную статику
+Внутри workflow:
+
+1. `actions/configure-pages@v5` получает правильный `base_path`
+2. `likec4/actions@v1` собирает static site из [`arch`](/Users/srgi0/projects/web-monitoring/arch)
+3. `actions/upload-pages-artifact@v4` загружает `arch/dist`
+4. `actions/deploy-pages@v4` публикует артефакт в environment `github-pages`

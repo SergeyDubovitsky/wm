@@ -2,7 +2,7 @@ deployment {
     environment demo-stand 'Demo Stand' {
         description 'Фактический demo-стенд по данным ETS-проекта "Выстовка" и connection memo от 2026-03-28.'
 
-        network-zone local-lan 'Local LAN 192.168.1.0/24' {
+        network-zone local-lan 'Local LAN 192.0.2.0/24' {
             description 'Локальная сеть demo-стенда с KNX/IP роутером и TP-линией 1.1; используется как целевая сеть удаленного подключения Edge Telemetry Agent.'
 
             knxnet-ip-backbone = fieldbus-segment 'KNXnet/IP Backbone' {
@@ -10,7 +10,7 @@ deployment {
                 description 'IP-магистраль ETS-проекта: магистральная область 0.0 и главная линия 1.0 без прикладных устройств.'
 
                 knx-router = instanceOf field-protocol-gateways.knx-router 'Weinzierl KNX IP Router 751' {
-                    technology '192.168.1.177:3671 / UDP / TUNNELING / individual address 1.1.0'
+                    technology '192.0.2.177:3671 / UDP / TUNNELING / individual address 1.1.0'
                     description 'Локальная точка входа в KNX/IP и маршрутизатор в TP-линию 1.1.'
                 }
             }
@@ -45,8 +45,8 @@ deployment {
             description 'Внешний маршрут для удаленной диагностики стенда.'
 
             public-knx-endpoint = network-endpoint 'Public KNX/IP endpoint' {
-                technology '89.175.14.234:7171 / UDP / NAT'
-                description 'Публичная точка входа с пробросом на локальный KNX/IP роутер 192.168.1.177:3671.'
+                technology '203.0.113.234:7171 / UDP / NAT'
+                description 'Публичная точка входа с пробросом на локальный KNX/IP роутер 192.0.2.177:3671.'
             }
         }
 

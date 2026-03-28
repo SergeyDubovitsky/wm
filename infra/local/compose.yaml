@@ -1,0 +1,51 @@
+name: web-monitoring-local
+
+services:
+  mqtt-broker:
+    image: ${MOSQUITTO_IMAGE:-eclipse-mosquitto:2}
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    command: ["/bin/sh", "/mosquitto/config/start-mosquitto.sh"]
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/config/start-mosquitto.sh:/mosquitto/config/start-mosquitto.sh:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mosquitto_sub -h 127.0.0.1 -p 1883 -u \"$${MQTT_USERNAME}\" -P \"$${MQTT_PASSWORD}\" -C 1 -W 3 -t '$$SYS/broker/version' >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana-oss}
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    depends_on:
+      mqtt-broker:
+        condition: service_healthy
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_PLUGINS_PREINSTALL: grafana-mqtt-datasource@${GRAFANA_MQTT_PLUGIN_VERSION:-1.3.1}
+      MQTT_DATASOURCE_URI: tcp://mqtt-broker:1883
+      GRAFANA_DASHBOARDS_PATH: /var/lib/grafana/dashboards
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+volumes:
+  grafana-data:
+  mosquitto-data:
+  mosquitto-log:

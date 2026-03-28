@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import argparse
 
-from knx_demo.domain.profiles import DEFAULT_PROFILES, EndpointProfile, resolve_endpoint_profile
+from knx_demo.domain.profiles import DEFAULT_PROFILE_NAMES, EndpointProfile, resolve_endpoint_profile
 
 
 def add_connection_arguments(parser: argparse.ArgumentParser, profile_help: str) -> None:
     parser.add_argument(
         "--profile",
-        choices=sorted(DEFAULT_PROFILES),
+        choices=sorted(DEFAULT_PROFILE_NAMES),
         default="external",
         help=profile_help,
     )

@@ -1,11 +1,79 @@
 # Local Infrastructure
 
-Этот каталог зарезервирован под локальную инфраструктуру разработки:
+Этот каталог хранит локальную инфраструктуру разработки:
 
 - `compose.yaml`
 - конфиг `MQTT broker`
 - provisioning `Grafana`
 - другие shared dev services
 
-В этом change set каталог создается как часть новой monorepo-структуры.
-Наполнение сервисами будет добавлено следующим шагом.
+## Сервисы
+
+- `mqtt-broker` — `Eclipse Mosquitto` на `localhost:1883`
+- `grafana` — локальный UI на `http://localhost:3000`
+- `grafana-mqtt-datasource` — установленный datasource plugin для live-подписки на `MQTT`
+
+## Запуск
+
+```bash
+cd /Users/srgi0/projects/web-monitoring
+cp .env.example .env
+cd infra/local
+docker compose --env-file ../../.env up -d
+```
+
+Остановить стек:
+
+```bash
+docker compose down
+```
+
+## Файлы
+
+- `mosquitto/config/mosquitto.conf` — конфиг локального broker
+- `mosquitto/config/start-mosquitto.sh` — генерация `password_file` из `.env` и запуск broker
+- `grafana/grafana.ini` — базовый конфиг Grafana
+- `grafana/provisioning/` — file provisioning
+- `grafana/dashboards/local-stack-overview.json` — стартовый dashboard без datasource
+
+## Доступ
+
+- `MQTT broker` требует `MQTT_USERNAME` и `MQTT_PASSWORD`
+- `Grafana` требует `GF_SECURITY_ADMIN_USER` и `GF_SECURITY_ADMIN_PASSWORD`
+
+Для `MVP` стек использует общий root-level `.env`, который можно подготовить из
+`/Users/srgi0/projects/web-monitoring/.env.example` и затем передать в
+`docker compose` через `--env-file ../../.env`.
+
+## Ограничения текущего шага
+
+Grafana поднимается с `grafana-mqtt-datasource` как временным dev/test слоем
+для `edge_agent`.
+
+- plugin показывает только live-streaming данные из `MQTT`
+- plugin не хранит историю и не заменяет telemetry store
+- panel должна быть открыта до публикации тестового сообщения
+- данные появляются в панели на ближайшем query interval, для текущего
+  dashboard это обычно около `15-20s`
+- этот контур нужен для быстрой проверки topic/payload/auth до реализации
+  `Monitoring & Alarm Platform`
+
+## Smoke Test
+
+1. Откройте dashboard `Local / Local Stack Overview` в Grafana.
+2. Опубликуйте тестовое сообщение:
+
+```bash
+docker compose exec -T mqtt-broker sh -lc '
+  mosquitto_pub \
+    -h 127.0.0.1 \
+    -p 1883 \
+    -u "$MQTT_USERNAME" \
+    -P "$MQTT_PASSWORD" \
+    -t wm/dev/edge-agent/test \
+    -m "{\"temperature\":24.2,\"humidity\":61,\"status\":\"ok\",\"source\":\"edge-agent-live\",\"ts\":\"2026-03-28T08:55:00Z\"}"
+'
+```
+
+3. Подождите до одного query interval и проверьте, что таблица `MQTT Test Stream`
+   показывает поля `temperature`, `humidity`, `status`, `source`, `ts`.

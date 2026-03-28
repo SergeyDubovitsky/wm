@@ -61,20 +61,13 @@
 
 Текущий практический первый адаптер в проекте — `KNX`, но имя и структура модели уже сделаны мультипротокольными.
 
-## Глоссарий
+## Термины
 
-- `Edge Telemetry Agent` — наша периферийная система на объекте, которая собирает данные из southbound-протоколов, нормализует их, буферизует и публикует наружу.
-- `Monitoring & Alarm Platform` — наша центральная система в облаке/интернете, которая принимает события, хранит телеметрию, вычисляет `alarm` и предоставляет UI/API.
-- `alarm` — доменная сущность тревоги в платформе: правило сработало, есть жизненный цикл, severity, acknowledgement и clear.
-- `notification` — внешнее сообщение по `alarm` или служебному событию, отправляемое через email, SMS, push или webhook.
-- `telemetry event` — нормализованное событие наблюдения по одной точке мониторинга.
-- `status topic` — transport-specific `MQTT` сообщение о состоянии southbound source или самого publisher, например `status/connection` и `status/lwt`.
-- `southbound-адаптеры` — адаптеры и драйверы, через которые `Edge Telemetry Agent` подключается вниз по стеку к полевым протоколам и локальным источникам данных, например `KNX`, `Modbus`, `OPC UA`, `SCADA`.
-- `northbound delivery` — доставка данных вверх по стеку из `Edge Telemetry Agent` в `Monitoring & Alarm Platform` через внешний transport, например `MQTT`.
-- `source` — логическое подключение агента к конкретному источнику данных, идентифицируемое `source_id`.
-- `point` — точка мониторинга внутри `source`, идентифицируемая `point_ref`.
-- `point_ref` — технический идентификатор точки внутри источника, например group address, node id или register reference.
-- `point_key` — safe representation от `point_ref`, используемое в `MQTT` topic path.
+Канонический глоссарий проекта вынесен в
+[glossary.md](/Users/srgi0/projects/web-monitoring/docs/architecture/glossary.md).
+
+В `arch/` оставляем только LikeC4-модель, структуру workspace и правила
+ведения диаграмм, чтобы не дублировать общую архитектурную терминологию.
 
 ## Команды
 
@@ -97,7 +90,7 @@ npm run dev
 
 ## Текущее состояние окружения
 
-На этой машине установлен `Node.js` через `Homebrew`, зависимости `LikeC4` уже установлены локально в `arch/node_modules`, а базовые команды `validate`, `build` и `export:json` успешно отработали на текущей модели.
+Зависимости `LikeC4` уже установлены локально в `arch/node_modules`, а базовые команды `validate`, `build` и `export:json` успешно отработали на текущей модели.
 
 ## Следующий шаг
 

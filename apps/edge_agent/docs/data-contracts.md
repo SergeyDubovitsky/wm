@@ -309,8 +309,8 @@ sources:
     type: "knx"
     enabled: true
     connection:
-      gateway_ip: "192.168.1.177"
-      gateway_port: 3671
+      gateway_ip: "${KNX_LOCAL_GATEWAY_IP}"
+      gateway_port: "${KNX_LOCAL_GATEWAY_PORT}"
     acquisition_defaults:
       listen: true
       read_on_start: false

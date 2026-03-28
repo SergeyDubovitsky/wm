@@ -1,3 +1,4 @@
+.env
 .local
 .mypy_cache
 .venv
@@ -6,5 +7,6 @@ __pycache__/
 *.pyc
 .env.local
 .secrets/
+environments/*/local.env
 node_modules/
 dist/

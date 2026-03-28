@@ -18,11 +18,15 @@
 Базовый workflow выполняется из корня репозитория:
 
 ```bash
+cp .env.example .env
 uv sync
 uv run --package edge-agent pytest apps/edge_agent/tests
 uv run --package knx-demo pytest apps/knx_demo/tests
 uv run --package knx-parser pytest libs/knx_parser/tests
 ```
+
+Для host-side запуска приложений используйте общий root `.env` через
+`uv run --env-file .env ...`.
 
 Полезные package-scoped команды:
 
@@ -35,6 +39,7 @@ uv run --package knx-parser pytest libs/knx_parser/tests
 
 - `docs/architecture/solution-architecture.md` — целевая архитектура
   edge-сервиса, dataflow и deployment
+- `docs/architecture/glossary.md` — канонический словарь архитектурных терминов
 - `docs/architecture/open-questions.md` — список открытых вопросов к заказчику
   и по эксплуатации
 - `docs/architecture/adrs/` — ключевые архитектурные решения
@@ -55,4 +60,31 @@ uv run --package knx-parser pytest libs/knx_parser/tests
 cd arch
 npm run validate
 npm run build
+```
+
+## Local Infrastructure
+
+Локальный dev-стек описан в [infra/local](/Users/srgi0/projects/web-monitoring/infra/local):
+
+```bash
+cd infra/local
+docker compose --env-file ../../.env up -d
+```
+
+После старта:
+
+- `MQTT broker` доступен на `localhost:1883`
+- `Grafana` доступна на [http://localhost:3000](http://localhost:3000)
+- доступ к `MQTT broker` требует `MQTT_USERNAME` / `MQTT_PASSWORD`
+- вход в `Grafana` требует `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD`
+- Grafana использует `grafana-mqtt-datasource` как временный live-view слой для разработки `edge_agent`
+- для smoke-test откройте dashboard `Local Stack Overview`, затем публикуйте
+  тестовые сообщения в `wm/dev/edge-agent/test` и ждите до одного query
+  interval, обычно около `15-20s`
+
+Для `edge_agent` уже подготовлен runtime-конфиг под этот стек:
+
+```bash
+uv run --env-file .env --package edge-agent edge-agent check-config \
+  --config-root environments/demo-stand/edge_agent
 ```

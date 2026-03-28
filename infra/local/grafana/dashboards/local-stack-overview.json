@@ -1,0 +1,130 @@
+{
+    "annotations": {
+        "list": [
+            {
+                "builtIn": 1,
+                "datasource": {
+                    "type": "grafana",
+                    "uid": "-- Grafana --"
+                },
+                "enable": true,
+                "hide": true,
+                "iconColor": "rgba(0, 211, 255, 1)",
+                "name": "Annotations & Alerts",
+                "type": "dashboard"
+            }
+        ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": null,
+    "links": [],
+    "panels": [
+        {
+            "datasource": {
+                "type": "grafana",
+                "uid": "-- Grafana --"
+            },
+            "gridPos": {
+                "h": 7,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "id": 1,
+            "options": {
+                "content": "# Local Stack\n\n- MQTT broker: `localhost:1883`\n- Grafana UI: `http://localhost:3000`\n- Demo edge config: `environments/demo-stand/edge_agent/`\n- Grafana datasource: `Local MQTT`\n- Test topic: `wm/dev/edge-agent/test`\n\nThis Grafana setup is a development harness for `edge_agent`, not a replacement for the target `Monitoring & Alarm Platform`.\n\nThe MQTT datasource plugin streams only live data. It does not provide historical storage for telemetry.\n\nOpen this dashboard before publishing a test message and allow up to one query interval for the table to update.",
+                "mode": "markdown"
+            },
+            "pluginVersion": "12.4.0",
+            "title": "Local Stack",
+            "type": "text"
+        },
+        {
+            "datasource": {
+                "type": "grafana-mqtt-datasource",
+                "uid": "mqtt-local"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "align": "auto",
+                        "cellOptions": {
+                            "type": "auto"
+                        },
+                        "inspect": false
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green"
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 24,
+                "x": 0,
+                "y": 7
+            },
+            "id": 2,
+            "options": {
+                "cellHeight": "sm",
+                "footer": {
+                    "countRows": false,
+                    "enablePagination": false,
+                    "fields": "",
+                    "reducer": [
+                        "sum"
+                    ],
+                    "show": false
+                },
+                "showHeader": true,
+                "sortBy": []
+            },
+            "pluginVersion": "12.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "grafana-mqtt-datasource",
+                        "uid": "mqtt-local"
+                    },
+                    "refId": "A",
+                    "topic": "wm/dev/edge-agent/test"
+                }
+            ],
+            "title": "MQTT Test Stream",
+            "type": "table"
+        }
+    ],
+    "preload": false,
+    "refresh": "",
+    "schemaVersion": 41,
+    "tags": [
+        "local",
+        "bootstrap"
+    ],
+    "templating": {
+        "list": []
+    },
+    "time": {
+        "from": "now-6h",
+        "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Local Stack Overview",
+    "uid": "local-stack-overview",
+    "version": 1,
+    "weekStart": ""
+}

@@ -195,4 +195,3 @@ def test_processing_suppresses_command_point_by_default() -> None:
 
     assert result.event is None
     assert result.suppressed_reason == "publish_disabled"
-

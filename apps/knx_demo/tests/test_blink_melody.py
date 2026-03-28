@@ -82,7 +82,7 @@ def _command(
     max_seconds: float = 30.0,
 ) -> BlinkMelodyCommand:
     return BlinkMelodyCommand(
-        profile=EndpointProfile("89.175.14.234", 7171, True),
+        profile=EndpointProfile("203.0.113.234", 7171, True),
         switch_address="0/0/1",
         feedback_address="0/0/7",
         rhythm="sos",
@@ -126,7 +126,7 @@ def test_run_blink_melody_executes_sequence_and_logs_summary() -> None:
     assert gateway.actions[0] == "off"
     assert gateway.actions[-1] == "off"
     assert len(gateway.actions) == 20
-    assert any(message.startswith("CONNECTED gateway=89.175.14.234:7171") for message in logger.messages)
+    assert any(message.startswith("CONNECTED gateway=203.0.113.234:7171") for message in logger.messages)
     assert any(message.startswith("STEP 01/18 ON") for message in logger.messages)
     assert any(message == "DONE final_force_off" for message in logger.messages)
     assert any(

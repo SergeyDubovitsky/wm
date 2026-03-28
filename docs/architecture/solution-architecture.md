@@ -129,10 +129,23 @@ Source of truth для `C1/C2` и следующих уровней декомп
 ### Текущий demo-стенд
 
 - для demo-стенда текущий runtime `Edge Telemetry Agent` запускается не на объекте, а на удаленном `Developer Workstation`
-- доступ к стенду выполняется через whitelisted public endpoint `89.175.14.234:7171`
-- NAT-маршрут: `89.175.14.234:7171 -> 192.168.1.177:3671`
+- доступ к стенду выполняется через whitelisted public endpoint `${KNX_EXTERNAL_GATEWAY_IP}:${KNX_EXTERNAL_GATEWAY_PORT}`
+- NAT-маршрут: `${KNX_EXTERNAL_GATEWAY_IP}:${KNX_EXTERNAL_GATEWAY_PORT} -> ${KNX_LOCAL_GATEWAY_IP}:${KNX_LOCAL_GATEWAY_PORT}`
 - этот режим используется только для разработки и проверки первого `KNX`-адаптера
 - он не считается целевой production-схемой
+
+### Локальный dev/test контур
+
+До реализации `Monitoring & Alarm Platform` локальный developer-контур может
+использовать `Grafana` с `grafana-mqtt-datasource` для проверки публикации
+событий из `Edge Telemetry Agent`.
+
+Ограничения этого контура:
+
+- `Grafana` в этом режиме не считается целевой monitoring-системой
+- datasource plugin дает только live-view из `MQTT`, без исторического хранения
+- такой контур предназначен для smoke-test, отладки topic tree, payload contract
+  и базовой визуальной проверки потока телеметрии
 
 ## Основные runtime-сценарии
 
@@ -252,6 +265,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 ## Связанные артефакты
 
 - `arch/README.md`
+- `docs/architecture/glossary.md`
 - `apps/edge_agent/docs/data-contracts.md`
 - `docs/architecture/open-questions.md`
 - `docs/architecture/adrs/ADR-001-runtime-topology.md`

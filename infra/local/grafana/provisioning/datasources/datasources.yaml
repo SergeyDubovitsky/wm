@@ -1,0 +1,19 @@
+apiVersion: 1
+
+deleteDatasources: []
+datasources:
+  - name: Local MQTT
+    uid: mqtt-local
+    type: grafana-mqtt-datasource
+    access: proxy
+    editable: true
+    isDefault: true
+    jsonData:
+      uri: $MQTT_DATASOURCE_URI
+      username: $MQTT_USERNAME
+      clientID: grafana-local
+      tlsAuth: false
+      tlsAuthWithCACert: false
+      tlsSkipVerify: false
+    secureJsonData:
+      password: $MQTT_PASSWORD

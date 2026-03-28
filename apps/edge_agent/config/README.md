@@ -9,6 +9,10 @@
 Конкретные runtime-конфиги стендов и объектов должны храниться отдельно в
 `environments/<environment>/edge_agent/`.
 
+Для `MVP` runtime-конфиги могут использовать placeholders вида `${VAR}`.
+`edge_agent` подставляет значения из уже переданного окружения в YAML/JSON-
+документы. Для локального запуска из monorepo используйте `uv run --env-file .env`.
+
 Правило наследования:
 
 - `acquisition_defaults` и `publish_defaults` задаются на уровне source

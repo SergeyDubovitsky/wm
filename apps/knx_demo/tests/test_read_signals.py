@@ -74,7 +74,7 @@ class FakeSignalReaderGateway:
 
 def _command(*addresses: str, monitor_seconds: float = 0.0) -> ReadSignalsCommand:
     return ReadSignalsCommand(
-        profile=EndpointProfile("89.175.14.234", 7171, True),
+        profile=EndpointProfile("203.0.113.234", 7171, True),
         addresses=tuple(addresses),
         payload_length=0,
         read_timeout=2.0,
@@ -103,7 +103,7 @@ def test_run_read_signals_logs_read_response_and_summary() -> None:
 
     assert gateway.started is True
     assert gateway.stopped is True
-    assert "CONNECTED gateway=89.175.14.234:7171 route_back=True assigned_address=1.1.250" in logger.messages
+    assert "CONNECTED gateway=203.0.113.234:7171 route_back=True assigned_address=1.1.250" in logger.messages
     assert "READ_REQUEST address=0/0/7" in logger.messages
     assert "READ_RESPONSE address=0/0/7 value=True updates=1 last_telegram=<Telegram response>" in logger.messages
     assert logger.messages[-1] == "SUMMARY address=0/0/7 value=True updates=1 last_telegram=<Telegram response>"

@@ -1,15 +1,32 @@
 # Demo Stand Environment
 
-Этот каталог зарезервирован под runtime-конфиги demo-стенда.
+Этот каталог хранит runtime-конфиги demo-стенда.
 
-Планируемая структура:
+Чувствительные endpoint-данные для `edge_agent` вынесены в общий root-level
+`.env`, поэтому versioned YAML здесь содержит только структуру и ссылки на
+переменные окружения.
+
+Текущая структура:
 
 ```text
 environments/demo-stand/
+├── README.md
 └── edge_agent/
     ├── agent.yaml
-    ├── sources.d/
-    └── points.d/
+    ├── points.d/
+    └── sources.d/
+```
+
+Этот профиль рассчитан на локальный dev-стек из `infra/local/`:
+
+- `broker: mqtt://localhost:1883`
+- локальный state агента: `.local/demo-stand/edge-agent/*`
+
+Проверка конфига:
+
+```bash
+uv run --env-file .env --package edge-agent edge-agent check-config \
+  --config-root environments/demo-stand/edge_agent
 ```
 
 Секреты и machine-local overrides сюда не коммитятся.

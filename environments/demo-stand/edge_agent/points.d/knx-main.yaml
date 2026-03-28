@@ -1,0 +1,40 @@
+source_id: "knx_main"
+points:
+  - point_ref: "0/0/1"
+    name: "switch_command"
+    description: "Light command channel"
+    value_type: "boolean"
+    value_model: "knx.dpt.1.001"
+    signal_type: "command"
+    publish:
+      enabled: false
+    tags:
+      room: "demo"
+      equipment: "light_1"
+
+  - point_ref: "0/0/7"
+    name: "switch_feedback"
+    description: "Light feedback channel"
+    value_type: "boolean"
+    value_model: "knx.dpt.1.001"
+    signal_type: "feedback"
+    acquisition:
+      read_on_start: true
+    tags:
+      room: "demo"
+      equipment: "light_1"
+
+  - point_ref: "2/0/0"
+    name: "temperature"
+    description: "Room temperature sensor"
+    value_type: "number"
+    value_model: "knx.dpt.9.001"
+    signal_type: "sensor"
+    unit: "C"
+    acquisition:
+      read_on_start: true
+    publish:
+      change_threshold: 1.0
+    tags:
+      room: "demo"
+      equipment: "temp_1"

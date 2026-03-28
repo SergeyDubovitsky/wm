@@ -3,11 +3,11 @@ sources:
     type: "knx"
     enabled: true
     connection:
-      gateway_ip: "192.0.2.177"
-      gateway_port: 3671
+      gateway_ip: "${KNX_LOCAL_GATEWAY_IP}"
+      gateway_port: "${KNX_LOCAL_GATEWAY_PORT}"
       connection_type: "tunneling"
       transport: "udp"
-      route_back: false
+      route_back: "${KNX_LOCAL_ROUTE_BACK}"
       auto_reconnect: true
       reconnect_backoff_seconds: [1, 5, 15, 30]
     acquisition_defaults:

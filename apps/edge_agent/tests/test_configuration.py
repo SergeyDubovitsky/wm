@@ -60,7 +60,7 @@ def _source_documents() -> list[dict[str, object]]:
                     "type": "knx",
                     "enabled": True,
                     "connection": {
-                        "gateway_ip": "192.168.1.177",
+                        "gateway_ip": "192.0.2.177",
                         "gateway_port": 3671,
                     },
                     "acquisition_defaults": {
@@ -216,3 +216,92 @@ def test_load_runtime_config_from_example_yaml_files() -> None:
     assert runtime.agent.object_id == "demo-stand-01"
     assert sorted(runtime.sources) == ["knx_main"]
     assert runtime.point("knx_main", "0/0/7").name == "switch_feedback"
+
+
+def test_load_runtime_config_expands_env_placeholders(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_root = tmp_path / "config"
+    (config_root / "sources.d").mkdir(parents=True)
+    (config_root / "points.d").mkdir(parents=True)
+    monkeypatch.setenv("MQTT_BROKER", "mqtt://localhost:1883")
+    monkeypatch.setenv("KNX_LOCAL_GATEWAY_IP", "192.0.2.177")
+    monkeypatch.setenv("KNX_LOCAL_GATEWAY_PORT", "3671")
+    (config_root / "agent.yaml").write_text(
+        """
+agent:
+  object_id: "demo-stand-01"
+  name: "main-panel"
+  id_file: "/tmp/edge-agent/agent_id"
+delivery:
+  transport: "mqtt"
+  mqtt:
+    enabled: true
+    version: "5.0"
+    broker: "${MQTT_BROKER}"
+    topic_root: "wm/v1"
+    client_id_prefix: "edge-agent"
+    username_env: "EDGE_AGENT_MQTT_USERNAME"
+    password_env: "EDGE_AGENT_MQTT_PASSWORD"
+    qos: 1
+    clean_start: true
+    session_expiry_seconds: 0
+    telemetry_message_expiry_seconds: 86400
+    publish_metadata: true
+    retain_metadata: true
+    publish_connection_status: true
+    retain_connection_status: true
+    connect_timeout_seconds: 5
+    retry_backoff_seconds: [5, 15, 60]
+storage:
+  sqlite_path: "/tmp/edge-agent/outbox.db"
+  retention_days: 7
+  dead_letter_after_attempts: 20
+observability:
+  log_level: "INFO"
+  emit_health_events: true
+  metrics_bind: "127.0.0.1:9108"
+""".strip(),
+        encoding="utf-8",
+    )
+    (config_root / "sources.d" / "knx.yaml").write_text(
+        """
+sources:
+  - source_id: "knx_main"
+    type: "knx"
+    enabled: true
+    connection:
+      gateway_ip: "${KNX_LOCAL_GATEWAY_IP}"
+      gateway_port: "${KNX_LOCAL_GATEWAY_PORT}"
+    acquisition_defaults:
+      listen: true
+      read_on_start: false
+      periodic_interval_seconds: null
+    publish_defaults:
+      enabled: true
+      change_threshold: null
+""".strip(),
+        encoding="utf-8",
+    )
+    (config_root / "points.d" / "knx.yaml").write_text(
+        """
+source_id: "knx_main"
+points:
+  - point_ref: "0/0/7"
+    name: "switch_feedback"
+    value_type: "boolean"
+    value_model: "knx.dpt.1.001"
+    signal_type: "feedback"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    runtime = load_runtime_config(config_root)
+
+    assert runtime.delivery.mqtt is not None
+    assert runtime.delivery.mqtt.broker == "mqtt://localhost:1883"
+    assert runtime.sources["knx_main"].connection == {
+        "gateway_ip": "192.0.2.177",
+        "gateway_port": 3671,
+    }

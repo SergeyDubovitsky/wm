@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Mapping, Self, TypeVar
 
@@ -38,6 +40,7 @@ NonEmptyStr = Annotated[
 ]
 StrictNonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
 ModelT = TypeVar("ModelT", bound=EdgeModel)
+ENV_PLACEHOLDER_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 class ConfigModel(EdgeModel):
@@ -312,14 +315,14 @@ def _iter_document_paths(directory: Path) -> list[Path]:
 def _load_document(path: Path) -> object:
     if path.suffix.lower() == ".json":
         with path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
+            return _expand_env_placeholders(json.load(handle), source=path)
     if yaml is None:
         raise RuntimeError(
             "PyYAML is required to load YAML config files. "
             "Add pyyaml to the edge_agent project dependencies before using YAML configs."
         )
     with path.open("r", encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
+        return _expand_env_placeholders(yaml.safe_load(handle), source=path)
 
 
 def _to_agent_settings(model: AgentSettingsModel) -> AgentSettings:
@@ -519,6 +522,55 @@ def _optional_string(value: Any) -> str | None:
         raise TypeError("must be a string when set")
     stripped = value.strip()
     return stripped or None
+
+
+def _expand_env_placeholders(value: object, *, source: Path) -> object:
+    if isinstance(value, dict):
+        return {
+            key: _expand_env_placeholders(item, source=source)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_expand_env_placeholders(item, source=source) for item in value]
+    if not isinstance(value, str):
+        return value
+    matches = list(ENV_PLACEHOLDER_PATTERN.finditer(value))
+    if not matches:
+        return value
+    missing = sorted(
+        {
+            match.group(1)
+            for match in matches
+            if os.getenv(match.group(1)) is None
+        }
+    )
+    if missing:
+        joined = ", ".join(missing)
+        raise ConfigurationError(
+            f"Missing environment variables in {source}: {joined}"
+        )
+    if len(matches) == 1 and matches[0].span() == (0, len(value)):
+        return _parse_env_scalar(os.environ[matches[0].group(1)])
+    return ENV_PLACEHOLDER_PATTERN.sub(
+        lambda match: os.environ[match.group(1)],
+        value,
+    )
+
+
+def _parse_env_scalar(value: str) -> object:
+    stripped = value.strip()
+    lowered = stripped.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    if lowered in {"null", "none", "~"}:
+        return None
+    if re.fullmatch(r"[+-]?\d+", stripped):
+        return int(stripped)
+    if re.fullmatch(r"[+-]?(?:\d+\.\d+|\d+\.\d*|\.\d+)", stripped):
+        return float(stripped)
+    return value
 
 
 def _optional_float(

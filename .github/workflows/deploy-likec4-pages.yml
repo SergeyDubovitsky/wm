@@ -1,0 +1,55 @@
+name: Deploy LikeC4 Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "arch/**"
+      - ".github/workflows/deploy-likec4-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: likec4-pages
+  cancel-in-progress: false
+
+jobs:
+  build-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build LikeC4 site
+        uses: likec4/actions@v1
+        with:
+          action: build
+          path: arch
+          output: arch/dist
+          base: ${{ steps.pages.outputs.base_path }}
+          likec4-version: 1.53.0
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./arch/dist
+
+  deploy-pages:
+    needs: build-pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

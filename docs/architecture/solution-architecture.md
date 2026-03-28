@@ -271,6 +271,7 @@ production-контуре как слой визуализации.
 - `arch/README.md`
 - `docs/architecture/glossary.md`
 - `apps/edge_agent/docs/data-contracts.md`
+- `apps/edge_agent/docs/mqtt-topics.md`
 - `docs/architecture/open-questions.md`
 - `docs/architecture/adrs/ADR-001-runtime-topology.md`
 - `docs/architecture/adrs/ADR-002-acquisition-mode.md`

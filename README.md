@@ -55,6 +55,8 @@ uv run --group integration pytest tests/integration/test_local_mqtt_grafana.py
 - `arch/README.md` — навигация по LikeC4-модели и командам
 - `apps/edge_agent/docs/data-contracts.md` — формат событий, MQTT topic contract и
   модель конфигурации edge runtime
+- `apps/edge_agent/docs/mqtt-topics.md` — отдельная таблица MQTT topics, routing rules
+  и publish contract для edge runtime
 - `apps/edge_agent/config/examples/agent.example.yaml` — глобальная example-конфигурация edge agent
 - `apps/edge_agent/config/examples/sources.d/*.yaml` — примеры конфигурации источников данных
 - `apps/edge_agent/config/examples/points.d/*.yaml` — примеры конфигурации точек мониторинга
@@ -86,9 +88,14 @@ docker compose --env-file ../../.env up -d
 - доступ к `MQTT broker` требует `MQTT_USERNAME` / `MQTT_PASSWORD`
 - вход в `Grafana` требует `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD`
 - Grafana использует `grafana-mqtt-datasource` как текущий MQTT-backed слой визуализации `Monitoring & Alarm Platform`
+- dashboard следует topic tree из `ADR-005` и поддерживает variable-driven topic filters для `object_id`, `agent_id`, `source_id`, `point_key`
+- dashboard показывает quick cards для `Current Value`, `Latest Quality`, `Source Status`, `Agent Status`
+- по умолчанию dashboard открывается на demo temperature point `2%2F0%2F0`, чтобы график был полезным сразу
+- datasource не умеет query-based variable discovery, поэтому `agent_id` задается text box, а не auto-discovery из broker
+- для ручной генерации demo telemetry используйте `uv run --env-file .env --group integration python infra/local/scripts/publish_grafana_demo.py`; скрипт подхватит `MQTT_BROKER`, `MQTT_USERNAME` и `MQTT_PASSWORD` из `.env`
 - для smoke-test откройте dashboard `Local Stack Overview`, затем публикуйте
-  тестовые сообщения в `wm/dev/edge-agent/test` и ждите до одного query
-  interval, обычно около `15-20s`
+  telemetry events в topic вида `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event`
+  и ждите до одного query interval, обычно около `15-20s`
 - для автоматизированной проверки используйте
   `uv run --group integration pytest tests/integration/test_local_mqtt_grafana.py`
 

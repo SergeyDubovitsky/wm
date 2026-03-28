@@ -26,10 +26,12 @@ views 'Deployments / Demo Stand' {
 
     view demo-stand-current-monitored-points {
         title 'Demo Stand - Current Monitored Points'
-        description 'Текущий мониторинговый срез demo-стенда: устройства и KNX group address, которые сейчас читает Edge Telemetry Agent.'
+        description 'Текущий мониторинговый срез demo-стенда, собранный на базе существующих field-device элементов и KNX telemetry points, которые сейчас читает Edge Telemetry Agent.'
 
-        include demo-stand-current-monitored-scope
-        include demo-stand-current-monitored-scope.*
+        include field-devices.knx-switch
+        include field-devices.knx-switch.light-switch-feedback
+        include field-devices.knx-temperature-sensor
+        include field-devices.knx-temperature-sensor.room-temperature
         include field-protocol-gateways.knx-router
         include edge-telemetry-agent.collector-runtime
     }

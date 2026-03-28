@@ -19,5 +19,6 @@ uv run --env-file .env --package edge-agent edge-agent check-config --config-roo
 
 - `config/examples/` — example agent, source, and point configuration
 - `docs/data-contracts.md` — edge runtime event/config contract
+- `docs/mqtt-topics.md` — MQTT topic tree, topic table, and publish rules
 - `../../environments/<environment>/edge_agent/` — runtime configs for a concrete stand or site
 - `../../infra/local/` — local `MQTT broker` and `Grafana` stack for the current implementation

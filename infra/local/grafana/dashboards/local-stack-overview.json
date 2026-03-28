@@ -34,12 +34,467 @@
             },
             "id": 1,
             "options": {
-                "content": "# Local Stack\n\n- MQTT broker: `localhost:1883`\n- Grafana UI: `http://localhost:3000`\n- Demo edge config: `environments/demo-stand/edge_agent/`\n- Grafana datasource: `Local MQTT`\n- Test topic: `wm/dev/edge-agent/test`\n\nThis Grafana setup is the current visualization layer of `Monitoring & Alarm Platform` for MQTT-backed live telemetry.\n\nThe MQTT datasource plugin streams only live data. It does not provide historical storage for telemetry.\n\nOpen this dashboard before publishing a test message and allow up to one query interval for the table to update.",
-                "mode": "markdown"
-            },
+        "content": "# Dashboard Help\n\n- Event topic: `${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event`\n- Keep `agent_id=+` to watch any agent, or paste an exact agent id for more stable status cards.\n- `point_key` is percent-encoded, for example `2/0/0 -> 2%2F0%2F0`.\n- Default filters point to the temperature stream, so the graph and `Current Value` are useful immediately.\n- Open the dashboard before publishing and allow up to one query interval for tables and cards to refresh.",
+        "mode": "markdown"
+      },
             "pluginVersion": "12.4.0",
             "title": "Local Stack",
             "type": "text"
+        },
+        {
+            "datasource": {
+                "type": "grafana-mqtt-datasource",
+                "uid": "mqtt-local"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "thresholds"
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green"
+                            }
+                        ]
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 0,
+                "y": 7
+            },
+            "id": 7,
+            "options": {
+                "colorMode": "background_solid",
+                "graphMode": "none",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+            },
+            "pluginVersion": "12.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "grafana-mqtt-datasource",
+                        "uid": "mqtt-local"
+                    },
+                    "refId": "A",
+                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event"
+                }
+            ],
+            "title": "Current Value",
+            "transformations": [
+                {
+                    "id": "filterFieldsByName",
+                    "options": {
+                        "include": {
+                            "names": [
+                                "value"
+                            ]
+                        }
+                    }
+                }
+            ],
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "grafana-mqtt-datasource",
+                "uid": "mqtt-local"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "thresholds"
+                    },
+                    "mappings": [
+                        {
+                            "options": {
+                                "good": {
+                                    "color": "green",
+                                    "text": "GOOD"
+                                },
+                                "bad": {
+                                    "color": "red",
+                                    "text": "BAD"
+                                },
+                                "unknown": {
+                                    "color": "yellow",
+                                    "text": "UNKNOWN"
+                                }
+                            },
+                            "type": "value"
+                        }
+                    ],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "gray"
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 6,
+                "y": 7
+            },
+            "id": 8,
+            "options": {
+                "colorMode": "background_solid",
+                "graphMode": "none",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "value",
+                "wideLayout": true
+            },
+            "pluginVersion": "12.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "grafana-mqtt-datasource",
+                        "uid": "mqtt-local"
+                    },
+                    "refId": "A",
+                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event"
+                }
+            ],
+            "title": "Latest Quality",
+            "transformations": [
+                {
+                    "id": "filterFieldsByName",
+                    "options": {
+                        "include": {
+                            "names": [
+                                "quality"
+                            ]
+                        }
+                    }
+                }
+            ],
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "grafana-mqtt-datasource",
+                "uid": "mqtt-local"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "thresholds"
+                    },
+                    "mappings": [
+                        {
+                            "options": {
+                                "connected": {
+                                    "color": "green",
+                                    "text": "CONNECTED"
+                                },
+                                "disconnected": {
+                                    "color": "red",
+                                    "text": "DISCONNECTED"
+                                }
+                            },
+                            "type": "value"
+                        }
+                    ],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "gray"
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 12,
+                "y": 7
+            },
+            "id": 9,
+            "options": {
+                "colorMode": "background_solid",
+                "graphMode": "none",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "value",
+                "wideLayout": true
+            },
+            "pluginVersion": "12.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "grafana-mqtt-datasource",
+                        "uid": "mqtt-local"
+                    },
+                    "refId": "A",
+                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/status/connection"
+                }
+            ],
+            "title": "Source Status",
+            "transformations": [
+                {
+                    "id": "filterFieldsByName",
+                    "options": {
+                        "include": {
+                            "names": [
+                                "state"
+                            ]
+                        }
+                    }
+                }
+            ],
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "grafana-mqtt-datasource",
+                "uid": "mqtt-local"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "thresholds"
+                    },
+                    "mappings": [
+                        {
+                            "options": {
+                                "online": {
+                                    "color": "green",
+                                    "text": "ONLINE"
+                                },
+                                "offline": {
+                                    "color": "red",
+                                    "text": "OFFLINE"
+                                }
+                            },
+                            "type": "value"
+                        }
+                    ],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "gray"
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 18,
+                "y": 7
+            },
+            "id": 10,
+            "options": {
+                "colorMode": "background_solid",
+                "graphMode": "none",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "value",
+                "wideLayout": true
+            },
+            "pluginVersion": "12.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "grafana-mqtt-datasource",
+                        "uid": "mqtt-local"
+                    },
+                    "refId": "A",
+                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/status/lwt"
+                }
+            ],
+            "title": "Agent Status",
+            "transformations": [
+                {
+                    "id": "filterFieldsByName",
+                    "options": {
+                        "include": {
+                            "names": [
+                                "status"
+                            ]
+                        }
+                    }
+                }
+            ],
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "grafana-mqtt-datasource",
+                "uid": "mqtt-local"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "axisBorderShow": false,
+                        "axisCenteredZero": false,
+                        "axisColorMode": "text",
+                        "axisLabel": "",
+                        "axisPlacement": "auto",
+                        "barAlignment": 0,
+                        "drawStyle": "line",
+                        "fillOpacity": 12,
+                        "gradientMode": "none",
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "viz": false
+                        },
+                        "insertNulls": false,
+                        "lineInterpolation": "linear",
+                        "lineWidth": 2,
+                        "pointSize": 4,
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "showPoints": "auto",
+                        "spanNulls": false,
+                        "stacking": {
+                            "group": "A",
+                            "mode": "none"
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
+                        }
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green"
+                            }
+                        ]
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byName",
+                            "options": "sequence"
+                        },
+                        "properties": [
+                            {
+                                "id": "custom.hideFrom",
+                                "value": {
+                                    "legend": true,
+                                    "tooltip": true,
+                                    "viz": true
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 12,
+                "w": 12,
+                "x": 0,
+                "y": 11
+            },
+            "id": 6,
+            "options": {
+                "legend": {
+                    "calcs": [],
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "hideZeros": false,
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "pluginVersion": "12.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "grafana-mqtt-datasource",
+                        "uid": "mqtt-local"
+                    },
+                    "refId": "A",
+                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event"
+                }
+            ],
+            "title": "Numeric Value Trend",
+            "transformations": [
+                {
+                    "id": "filterFieldsByName",
+                    "options": {
+                        "include": {
+                            "names": [
+                                "Time",
+                                "value",
+                                "sequence"
+                            ]
+                        }
+                    }
+                }
+            ],
+            "type": "timeseries"
         },
         {
             "datasource": {
@@ -73,9 +528,9 @@
             },
             "gridPos": {
                 "h": 12,
-                "w": 24,
-                "x": 0,
-                "y": 7
+                "w": 12,
+                "x": 12,
+                "y": 11
             },
             "id": 2,
             "options": {
@@ -100,10 +555,205 @@
                         "uid": "mqtt-local"
                     },
                     "refId": "A",
-                    "topic": "wm/dev/edge-agent/test"
+                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event"
                 }
             ],
-            "title": "MQTT Test Stream",
+            "title": "Telemetry Event Stream",
+            "type": "table"
+        },
+        {
+            "datasource": {
+                "type": "grafana-mqtt-datasource",
+                "uid": "mqtt-local"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "align": "auto",
+                        "cellOptions": {
+                            "type": "auto"
+                        },
+                        "inspect": false
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green"
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 10,
+                "w": 24,
+                "x": 0,
+                "y": 23
+            },
+            "id": 3,
+            "options": {
+                "cellHeight": "sm",
+                "footer": {
+                    "countRows": false,
+                    "enablePagination": false,
+                    "fields": "",
+                    "reducer": [
+                        "sum"
+                    ],
+                    "show": false
+                },
+                "showHeader": true,
+                "sortBy": []
+            },
+            "pluginVersion": "12.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "grafana-mqtt-datasource",
+                        "uid": "mqtt-local"
+                    },
+                    "refId": "A",
+                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/meta"
+                }
+            ],
+            "title": "Point Metadata Stream",
+            "type": "table"
+        },
+        {
+            "datasource": {
+                "type": "grafana-mqtt-datasource",
+                "uid": "mqtt-local"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "align": "auto",
+                        "cellOptions": {
+                            "type": "auto"
+                        },
+                        "inspect": false
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green"
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 33
+            },
+            "id": 4,
+            "options": {
+                "cellHeight": "sm",
+                "footer": {
+                    "countRows": false,
+                    "enablePagination": false,
+                    "fields": "",
+                    "reducer": [
+                        "sum"
+                    ],
+                    "show": false
+                },
+                "showHeader": true,
+                "sortBy": []
+            },
+            "pluginVersion": "12.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "grafana-mqtt-datasource",
+                        "uid": "mqtt-local"
+                    },
+                    "refId": "A",
+                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/status/connection"
+                }
+            ],
+            "title": "Source Connection Status",
+            "type": "table"
+        },
+        {
+            "datasource": {
+                "type": "grafana-mqtt-datasource",
+                "uid": "mqtt-local"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "align": "auto",
+                        "cellOptions": {
+                            "type": "auto"
+                        },
+                        "inspect": false
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green"
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 33
+            },
+            "id": 5,
+            "options": {
+                "cellHeight": "sm",
+                "footer": {
+                    "countRows": false,
+                    "enablePagination": false,
+                    "fields": "",
+                    "reducer": [
+                        "sum"
+                    ],
+                    "show": false
+                },
+                "showHeader": true,
+                "sortBy": []
+            },
+            "pluginVersion": "12.4.0",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "grafana-mqtt-datasource",
+                        "uid": "mqtt-local"
+                    },
+                    "refId": "A",
+                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/status/lwt"
+                }
+            ],
+            "title": "Agent LWT Status",
             "type": "table"
         }
     ],
@@ -112,10 +762,131 @@
     "schemaVersion": 41,
     "tags": [
         "local",
-        "bootstrap"
+        "mqtt",
+        "adr005"
     ],
     "templating": {
-        "list": []
+        "list": [
+            {
+                "current": {
+                    "selected": true,
+                    "text": "wm/v1",
+                    "value": "wm/v1"
+                },
+                "hide": 2,
+                "label": "topic_root",
+                "name": "topic_root",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "wm/v1",
+                        "value": "wm/v1"
+                    }
+                ],
+                "query": "wm/v1",
+                "skipUrlSync": false,
+                "type": "constant"
+            },
+            {
+                "allValue": "+",
+                "current": {
+                    "selected": true,
+                    "text": "demo-stand-01",
+                    "value": "demo-stand-01"
+                },
+                "hide": 0,
+                "includeAll": true,
+                "label": "object_id",
+                "multi": false,
+                "name": "object_id",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "demo-stand-01",
+                        "value": "demo-stand-01"
+                    }
+                ],
+                "query": "demo-stand-01",
+                "skipUrlSync": false,
+                "type": "custom"
+            },
+            {
+                "current": {
+                    "selected": true,
+                    "text": "+",
+                    "value": "+"
+                },
+                "hide": 0,
+                "label": "agent_id",
+                "name": "agent_id",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "+",
+                        "value": "+"
+                    }
+                ],
+                "query": "+",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allValue": "+",
+                "current": {
+                    "selected": true,
+                    "text": "knx_main",
+                    "value": "knx_main"
+                },
+                "hide": 0,
+                "includeAll": true,
+                "label": "source_id",
+                "multi": false,
+                "name": "source_id",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "knx_main",
+                        "value": "knx_main"
+                    }
+                ],
+                "query": "knx_main",
+                "skipUrlSync": false,
+                "type": "custom"
+            },
+            {
+                "allValue": "+",
+                "current": {
+                    "selected": true,
+                    "text": "2%2F0%2F0",
+                    "value": "2%2F0%2F0"
+                },
+                "hide": 0,
+                "includeAll": true,
+                "label": "point_key",
+                "multi": false,
+                "name": "point_key",
+                "options": [
+                    {
+                        "selected": false,
+                        "text": "0%2F0%2F1",
+                        "value": "0%2F0%2F1"
+                    },
+                    {
+                        "selected": false,
+                        "text": "0%2F0%2F7",
+                        "value": "0%2F0%2F7"
+                    },
+                    {
+                        "selected": true,
+                        "text": "2%2F0%2F0",
+                        "value": "2%2F0%2F0"
+                    }
+                ],
+                "query": "0%2F0%2F1,0%2F0%2F7,2%2F0%2F0",
+                "skipUrlSync": false,
+                "type": "custom"
+            }
+        ]
     },
     "time": {
         "from": "now-6h",
@@ -125,6 +896,6 @@
     "timezone": "browser",
     "title": "Local Stack Overview",
     "uid": "local-stack-overview",
-    "version": 1,
+    "version": 3,
     "weekStart": ""
 }

@@ -96,7 +96,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 На уровне `C2` сейчас зафиксированы:
 
 - `Edge Telemetry Agent`: `Configuration Bundle`, `Collector Runtime`, `Outbox Store`, `Delivery Worker`
-- `Monitoring & Alarm Platform`: `MQTT Ingestion Gateway`, `Telemetry Store`, `Alarm Rule Engine`, `Platform API`, `Operator Dashboard`, `Notification Service`
+- `Monitoring & Alarm Platform`: `MQTT Ingestion Gateway`, `Telemetry Store`, `Alarm Rule Engine`, `Platform API`, `Grafana`, `Notification Service`
 
 ## Компоненты и ответственность
 
@@ -131,21 +131,25 @@ Source of truth для `C1/C2` и следующих уровней декомп
 - для demo-стенда текущий runtime `Edge Telemetry Agent` запускается не на объекте, а на удаленном `Developer Workstation`
 - доступ к стенду выполняется через whitelisted public endpoint `${KNX_EXTERNAL_GATEWAY_IP}:${KNX_EXTERNAL_GATEWAY_PORT}`
 - NAT-маршрут: `${KNX_EXTERNAL_GATEWAY_IP}:${KNX_EXTERNAL_GATEWAY_PORT} -> ${KNX_LOCAL_GATEWAY_IP}:${KNX_LOCAL_GATEWAY_PORT}`
+- на том же рабочем месте текущая реализация поднимает `MQTT Ingestion Gateway` и `Grafana`
+- `Grafana` подключается к `MQTT Ingestion Gateway` через `grafana-mqtt-datasource`
 - этот режим используется только для разработки и проверки первого `KNX`-адаптера
 - он не считается целевой production-схемой
 
-### Локальный dev/test контур
+### Grafana в MVP и production
 
-До реализации `Monitoring & Alarm Platform` локальный developer-контур может
-использовать `Grafana` с `grafana-mqtt-datasource` для проверки публикации
-событий из `Edge Telemetry Agent`.
+`Grafana` рассматривается как часть `Monitoring & Alarm Platform` и остается в
+production-контуре как слой визуализации.
 
-Ограничения этого контура:
+В текущей реализации `Grafana` подключается к `MQTT Ingestion Gateway` через
+`grafana-mqtt-datasource` и дает live-представление telemetry stream.
 
-- `Grafana` в этом режиме не считается целевой monitoring-системой
+Ограничения текущей интеграции:
+
 - datasource plugin дает только live-view из `MQTT`, без исторического хранения
-- такой контур предназначен для smoke-test, отладки topic tree, payload contract
-  и базовой визуальной проверки потока телеметрии
+- `grafana-mqtt-datasource` не заменяет `Telemetry Store`
+- alarm-логика, история и richer backend-возможности по-прежнему принадлежат
+  `Monitoring & Alarm Platform`
 
 ## Основные runtime-сценарии
 

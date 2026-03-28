@@ -14,6 +14,13 @@ model {
             -> field-protocol-gateways.knx-router 'Передают телеграммы, состояния и команды в KNX-сегменте'
         }
 
+        knx-switch = field-device {
+            description 'Выключатель'
+            technology 'KNX'
+
+            -> field-protocol-gateways.knx-router 'Передает телеграммы состояния и управления в KNX-сегменте'
+        }
+
 
     }
 }

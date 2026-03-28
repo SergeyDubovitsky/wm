@@ -163,23 +163,24 @@ Python-проекты внутри monorepo должны быть объедин
 compose-сети используются только если сами приложения тоже запускаются в том же
 compose-проекте.
 
-На текущем этапе разработки `edge_agent` допускается временный dev/test контур
-на базе `Grafana` c `grafana-mqtt-datasource`, подключенной к локальному
-`MQTT broker`.
+На текущем этапе разработки и первых production-сборках `Monitoring & Alarm Platform`
+использует `Grafana` c `grafana-mqtt-datasource`, подключенную к локальному
+или целевому `MQTT broker`.
 
-Это решение принимается только как инженерная harness-среда для:
+Это решение принимается как текущий visualization layer для:
 
 - smoke-test публикации событий из `edge_agent`
 - проверки topic tree, payload contract и аутентификации
-- быстрой визуальной валидации потока телеметрии до появления
-  `Monitoring & Alarm Platform`
+- быстрой визуальной валидации потока телеметрии
+- операторских live dashboards в `MVP`
 
 Ограничение фиксируется явно:
 
-- `Grafana` в таком режиме не считается частью целевой production-архитектуры
 - `grafana-mqtt-datasource` не рассматривается как telemetry store
-- после появления `Monitoring & Alarm Platform` этот слой должен остаться
-  только вспомогательным инструментом разработки или быть удален
+- live MQTT datasource не заменяет `Telemetry Store`, `Alarm Rule Engine` и
+  backend API платформы
+- по мере развития платформы `Grafana` дополняется другими источниками и
+  интеграциями, а не исключается из архитектуры
 
 ### 7. Конфигурационные файлы разделяются по ownership и назначению
 

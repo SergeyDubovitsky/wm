@@ -1,0 +1,13 @@
+model {
+    extend monitoring-alarm-platform {
+        grafana = container 'Grafana' {
+            description 'Слой визуализации Monitoring & Alarm Platform: live-панели, инженерные dashboards и операторские представления. В текущей реализации подключается к MQTT Ingestion Gateway через grafana-mqtt-datasource.'
+            technology 'Grafana OSS / grafana-mqtt-datasource'
+
+            -> mqtt-ingestion-gateway 'Подписывается на live MQTT telemetry и service topics'
+        }
+    }
+
+    operator-dispatcher -[interact-with]-> monitoring-alarm-platform.grafana 'Работает с live-панелями, состоянием объекта и операторскими dashboards'
+    service-engineer -[interact-with]-> monitoring-alarm-platform.grafana 'Настраивает dashboards и проверяет поток телеметрии'
+}

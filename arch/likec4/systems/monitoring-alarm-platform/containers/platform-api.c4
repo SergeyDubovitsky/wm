@@ -1,7 +1,7 @@
 model {
     extend monitoring-alarm-platform {
         platform-api = container 'Platform API' {
-            description 'Backend API для операторского интерфейса, состояния alarm, истории событий, конфигурации правил и политик уведомлений.'
+            description 'Backend API для состояния alarm, истории событий, конфигурации правил и политик уведомлений.'
             technology 'HTTP API / backend service'
 
             -> telemetry-store 'Читает телеметрию, историю и временные линии alarm'

@@ -45,18 +45,18 @@ docker compose down
 `/Users/srgi0/projects/web-monitoring/.env.example` и затем передать в
 `docker compose` через `--env-file ../../.env`.
 
-## Ограничения текущего шага
+## Текущая роль Grafana
 
-Grafana поднимается с `grafana-mqtt-datasource` как временным dev/test слоем
-для `edge_agent`.
+Grafana поднимается с `grafana-mqtt-datasource` как текущий слой визуализации
+`Monitoring & Alarm Platform`.
 
-- plugin показывает только live-streaming данные из `MQTT`
+- plugin показывает live-streaming данные из `MQTT`
 - plugin не хранит историю и не заменяет telemetry store
 - panel должна быть открыта до публикации тестового сообщения
 - данные появляются в панели на ближайшем query interval, для текущего
   dashboard это обычно около `15-20s`
-- этот контур нужен для быстрой проверки topic/payload/auth до реализации
-  `Monitoring & Alarm Platform`
+- этот контур используется для smoke-test, визуальной проверки topic tree,
+  payload contract и текущего operator-facing live view
 
 ## Smoke Test
 

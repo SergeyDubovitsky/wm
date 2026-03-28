@@ -58,38 +58,41 @@ deployment {
         description 'Удаленный хост вне demo-стенда: мой компьютер с IP, разрешенным во внешнем KNX/IP маршруте.'
 
         network-zone developer-network 'Developer Network' {
-            description 'Сеть рабочего места, из которой Edge Telemetry Agent подключается к стенду через whitelist, публикует данные в локальный MQTT broker и позволяет инженеру проверять поток через Grafana.'
+            description 'Сеть рабочего места, из которой Edge Telemetry Agent подключается к стенду через whitelist, а текущая реализация Monitoring & Alarm Platform принимает MQTT и визуализирует поток через Grafana.'
 
             edge-host = host 'Developer Workstation' {
                 technology 'Remote workstation / whitelisted IP'
-                description 'Хост, на котором запускается Edge Telemetry Agent. Подключается к KNX демо-стенду удаленно, а не размещается на самом стенде. На этом же рабочем месте текущая реализация поднимает local MQTT broker и Grafana dev harness.'
+                description 'Хост, на котором запускается Edge Telemetry Agent. Подключается к KNX демо-стенду удаленно, а не размещается на самом стенде. На этом же рабочем месте текущая реализация поднимает MQTT Ingestion Gateway и Grafana.'
 
                 configuration-bundle = instanceOf edge-telemetry-agent.configuration-bundle
                 collector-runtime = instanceOf edge-telemetry-agent.collector-runtime
                 outbox-store = instanceOf edge-telemetry-agent.outbox-store
                 delivery-worker = instanceOf edge-telemetry-agent.delivery-worker
-                local-mqtt-broker = instanceOf local-mqtt-broker
-                local-grafana = instanceOf local-grafana
+                mqtt-ingestion-gateway = instanceOf monitoring-alarm-platform.mqtt-ingestion-gateway
+                grafana = instanceOf monitoring-alarm-platform.grafana
             }
         }
 
         developer-network.edge-host.collector-runtime -> demo-stand.remote-access.public-knx-endpoint 'Подключается к стенду через whitelisted public KNX/IP endpoint'
-        developer-network.edge-host.delivery-worker -> developer-network.edge-host.local-mqtt-broker 'Публикует в локальный broker mqtt://localhost:1883'
-        developer-network.edge-host.local-grafana -> developer-network.edge-host.local-mqtt-broker 'Подписывается через grafana-mqtt-datasource на live MQTT topics'
+        developer-network.edge-host.delivery-worker -> developer-network.edge-host.mqtt-ingestion-gateway 'Публикует telemetry events и service topics в mqtt://localhost:1883'
+        developer-network.edge-host.grafana -> developer-network.edge-host.mqtt-ingestion-gateway 'Подписывается через grafana-mqtt-datasource на live MQTT topics'
     }
 
     environment monitoring-cloud 'Monitoring Cloud' {
-        description 'Облачный контур нашей Monitoring & Alarm Platform, принимающий телеметрию demo-стенда.'
+        description 'Облачный production-контур Monitoring & Alarm Platform.'
 
         network-zone public-cloud 'Public Cloud' {
-            description 'Облачная зона приема MQTT-сообщений и первичной обработки telemetry events.'
+            description 'Облачная зона приема MQTT-сообщений и визуализации Monitoring & Alarm Platform.'
 
-            mqtt-ingest-host = host 'MQTT Ingestion Host' {
+            mqtt-ingest-host = host 'Monitoring Platform Host' {
                 technology 'Cloud runtime'
-                description 'Хост облачного ingress-контура для приема telemetry events и service topics.'
+                description 'Хост облачного контура Monitoring & Alarm Platform для приема telemetry events и визуализации через Grafana.'
 
                 mqtt-ingestion-gateway = instanceOf monitoring-alarm-platform.mqtt-ingestion-gateway
+                grafana = instanceOf monitoring-alarm-platform.grafana
             }
         }
+
+        public-cloud.mqtt-ingest-host.grafana -> public-cloud.mqtt-ingest-host.mqtt-ingestion-gateway 'Подписывается через grafana-mqtt-datasource на live MQTT topics'
     }
 }

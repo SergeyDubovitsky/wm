@@ -85,7 +85,7 @@ docker compose --env-file ../../.env up -d
 - `Grafana` доступна на [http://localhost:3000](http://localhost:3000)
 - доступ к `MQTT broker` требует `MQTT_USERNAME` / `MQTT_PASSWORD`
 - вход в `Grafana` требует `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD`
-- Grafana использует `grafana-mqtt-datasource` как временный live-view слой для разработки `edge_agent`
+- Grafana использует `grafana-mqtt-datasource` как текущий MQTT-backed слой визуализации `Monitoring & Alarm Platform`
 - для smoke-test откройте dashboard `Local Stack Overview`, затем публикуйте
   тестовые сообщения в `wm/dev/edge-agent/test` и ждите до одного query
   interval, обычно около `15-20s`

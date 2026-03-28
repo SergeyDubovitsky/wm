@@ -18,6 +18,7 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `notification` — внешнее сообщение по `alarm` или служебному событию, отправляемое через email, SMS, push или webhook.
 - `telemetry event` — нормализованное событие наблюдения по одной точке мониторинга.
 - `status topic` — transport-specific `MQTT` сообщение о состоянии southbound source или самого publisher, например `status/connection` и `status/lwt`.
+- `Grafana` — слой визуализации внутри `Monitoring & Alarm Platform`; в текущей реализации подключается к `MQTT` через `grafana-mqtt-datasource` и не заменяет `Telemetry Store`.
 - `southbound-адаптеры` — адаптеры и драйверы, через которые `Edge Telemetry Agent` подключается вниз по стеку к полевым протоколам и локальным источникам данных, например `KNX`, `Modbus`, `OPC UA`, `SCADA`.
 - `northbound delivery` — доставка данных вверх по стеку из `Edge Telemetry Agent` в `Monitoring & Alarm Platform` через внешний transport, например `MQTT`.
 

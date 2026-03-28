@@ -34,7 +34,7 @@
             },
             "id": 1,
             "options": {
-                "content": "# Local Stack\n\n- MQTT broker: `localhost:1883`\n- Grafana UI: `http://localhost:3000`\n- Demo edge config: `environments/demo-stand/edge_agent/`\n- Grafana datasource: `Local MQTT`\n- Test topic: `wm/dev/edge-agent/test`\n\nThis Grafana setup is a development harness for `edge_agent`, not a replacement for the target `Monitoring & Alarm Platform`.\n\nThe MQTT datasource plugin streams only live data. It does not provide historical storage for telemetry.\n\nOpen this dashboard before publishing a test message and allow up to one query interval for the table to update.",
+                "content": "# Local Stack\n\n- MQTT broker: `localhost:1883`\n- Grafana UI: `http://localhost:3000`\n- Demo edge config: `environments/demo-stand/edge_agent/`\n- Grafana datasource: `Local MQTT`\n- Test topic: `wm/dev/edge-agent/test`\n\nThis Grafana setup is the current visualization layer of `Monitoring & Alarm Platform` for MQTT-backed live telemetry.\n\nThe MQTT datasource plugin streams only live data. It does not provide historical storage for telemetry.\n\nOpen this dashboard before publishing a test message and allow up to one query interval for the table to update.",
                 "mode": "markdown"
             },
             "pluginVersion": "12.4.0",

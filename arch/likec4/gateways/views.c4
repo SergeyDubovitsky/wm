@@ -1,11 +1,11 @@
 views 'Field Systems / Gateways' {
-    view c2-field-protocol-gateways {
+    view c2-field-protocol-gateways of field-protocol-gateways {
         title 'C2 Gateways'
         description 'Внутренняя структура протокольных шлюзов и SCADA-контроллеров. Диаграмма показывает конкретные southbound-сегменты и их передачу данных в Edge Telemetry Agent.'
 
         include field-protocol-gateways
         include field-protocol-gateways.*
-        include field-devices.knx-temperature-sensor
+        include field-devices.*
         include edge-telemetry-agent.collector-runtime
     }
 }

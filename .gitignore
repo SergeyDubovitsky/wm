@@ -1,6 +1,10 @@
 .local
 .mypy_cache
 .venv
+.pytest_cache/
 __pycache__/
+*.pyc
+.env.local
+.secrets/
 node_modules/
 dist/

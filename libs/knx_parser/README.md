@@ -1,6 +1,6 @@
 # knx_parser
 
-`knx_parser` is a small `uv`-managed Python package for reading ETS `.knxproj`
+`knx_parser` is a small Python library inside the monorepo workspace for reading ETS `.knxproj`
 archives and exporting a structured YAML view of the project.
 
 ## What It Parses
@@ -13,24 +13,21 @@ archives and exporting a structured YAML view of the project.
 
 ## Usage
 
-Run from the package directory:
+Run from the repository root:
 
 ```bash
-cd /Users/srgi0/projects/web-monitoring/knx_parser
 uv sync
-uv run knx-parser /path/to/project.knxproj
+uv run --package knx-parser knx-parser /path/to/project.knxproj
 ```
 
 Example:
 
 ```bash
-cd /Users/srgi0/projects/web-monitoring/knx_parser
-uv run knx-parser ../.local/Выстовка.knxproj > ../.local/Выстовка.knxproj.yaml
+uv run --package knx-parser knx-parser ./.local/Выстовка.knxproj > ./.local/Выстовка.knxproj.yaml
 ```
 
 ## Testing
 
 ```bash
-cd /Users/srgi0/projects/web-monitoring/knx_parser
-uv run pytest
+uv run --package knx-parser pytest libs/knx_parser/tests
 ```

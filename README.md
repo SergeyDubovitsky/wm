@@ -1,42 +1,58 @@
 # Industrial Edge Monitoring
 
-Репозиторий хранит архитектурные артефакты для `Edge Telemetry Agent` и
-`Monitoring & Alarm Platform`, а также отдельные утилиты и демо-проекты.
+Репозиторий организован как monorepo для `Edge Telemetry Agent`,
+`Monitoring & Alarm Platform`, Python-утилит и архитектурных артефактов.
 
-## Что Где Лежит
+## Структура
 
-- `knx_parser/` — самостоятельный `uv`-managed пакет для разбора ETS
-  `.knxproj`
-- `docs/architecture/` — архитектурные документы, ADR и контракты
-- `config/` — примеры конфигурации edge agent
+- `apps/edge_agent/` — edge runtime, example-конфиги и runtime-контракты
+- `apps/knx_demo/` — KNX demo utilities
+- `libs/knx_parser/` — библиотека для разбора ETS `.knxproj`
+- `environments/` — versioned runtime-конфиги конкретных стендов и окружений
+- `infra/` — локальная инфраструктура разработки и будущие `compose`-артефакты
+- `docs/architecture/` — архитектурные документы и ADR верхнего уровня
 - `arch/` — LikeC4-модель и связанные материалы
-- `knx_demo/` — legacy/demo код KNX, он больше не подключен к корневому
-  `pyproject.toml`
 
-## knx_parser
+## Python Workspace
 
-Запуск и тесты выполняются из каталога
-[knx_parser](/Users/srgi0/projects/web-monitoring/knx_parser):
+Базовый workflow выполняется из корня репозитория:
 
 ```bash
-cd knx_parser
 uv sync
-uv run knx-parser --help
-uv run pytest
+uv run --package edge-agent pytest apps/edge_agent/tests
+uv run --package knx-demo pytest apps/knx_demo/tests
+uv run --package knx-parser pytest libs/knx_parser/tests
 ```
+
+Полезные package-scoped команды:
+
+- `uv run --package edge-agent edge-agent --help`
+- `uv run --package edge-agent edge-agent check-config`
+- `uv run --package knx-demo knx-demo --help`
+- `uv run --package knx-parser knx-parser --help`
 
 ## Архитектурные Артефакты
 
 - `docs/architecture/solution-architecture.md` — целевая архитектура
   edge-сервиса, dataflow и deployment
-- `docs/architecture/data-contracts.md` — формат событий, MQTT topic contract и
-  модель конфигурации
 - `docs/architecture/open-questions.md` — список открытых вопросов к заказчику
   и по эксплуатации
 - `docs/architecture/adrs/` — ключевые архитектурные решения
 - `arch/likec4/` — source of truth для C4-модели и диаграмм
 - `arch/README.md` — навигация по LikeC4-модели и командам
-- `config/agent.example.yaml` — глобальная конфигурация edge agent
-- `config/sources.d/*.yaml` — примеры конфигурации источников данных
-- `config/points.d/*.yaml` — примеры конфигурации точек мониторинга
-- `config/README.md` — краткое описание структуры конфигурации
+- `apps/edge_agent/docs/data-contracts.md` — формат событий, MQTT topic contract и
+  модель конфигурации edge runtime
+- `apps/edge_agent/config/examples/agent.example.yaml` — глобальная example-конфигурация edge agent
+- `apps/edge_agent/config/examples/sources.d/*.yaml` — примеры конфигурации источников данных
+- `apps/edge_agent/config/examples/points.d/*.yaml` — примеры конфигурации точек мониторинга
+- `apps/edge_agent/config/README.md` — описание структуры конфигурации и разделения examples/environment configs
+
+## LikeC4
+
+Команды для архитектурной модели выполняются из `arch/`:
+
+```bash
+cd arch
+npm run validate
+npm run build
+```

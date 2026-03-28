@@ -186,7 +186,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 - `value_raw`
 - `quality`
 
-Подробный контракт вынесен в `docs/architecture/data-contracts.md`.
+Подробный контракт вынесен в `apps/edge_agent/docs/data-contracts.md`.
 
 ## MQTT status topics и operational logs
 
@@ -210,7 +210,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 - сервис располагается в локальной сети объекта, рядом с полевыми шлюзами и контроллерами
 - прямой внешний доступ к промышленным southbound-интерфейсам не используется как штатный production-сценарий
 - в проде запрещены управляющие `write` операции из data path
-- токены/секреты доставки не хранятся в `points.d/*.yaml`, а передаются через окружение или secret store
+- токены/секреты доставки не хранятся в `apps/edge_agent/config/examples/points.d/*.yaml`, а передаются через окружение или secret store
 
 Целевой roadmap безопасности:
 
@@ -252,13 +252,13 @@ Source of truth для `C1/C2` и следующих уровней декомп
 ## Связанные артефакты
 
 - `arch/README.md`
-- `docs/architecture/data-contracts.md`
+- `apps/edge_agent/docs/data-contracts.md`
 - `docs/architecture/open-questions.md`
 - `docs/architecture/adrs/ADR-001-runtime-topology.md`
 - `docs/architecture/adrs/ADR-002-acquisition-mode.md`
 - `docs/architecture/adrs/ADR-003-buffering-and-delivery.md`
 - `docs/architecture/adrs/ADR-004-universal-agent-configuration.md`
 - `docs/architecture/adrs/ADR-005-mqtt-event-transport.md`
-- `config/agent.example.yaml`
-- `config/sources.d/knx-main.example.yaml`
-- `config/points.d/knx-main.example.yaml`
+- `apps/edge_agent/config/examples/agent.example.yaml`
+- `apps/edge_agent/config/examples/sources.d/knx-main.example.yaml`
+- `apps/edge_agent/config/examples/points.d/knx-main.example.yaml`

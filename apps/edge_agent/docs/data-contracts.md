@@ -267,7 +267,7 @@ wm/v1/objects/{object_id}/agents/{agent_id}/status/lwt
 
 ## Модель конфигурации агента
 
-Эталонный пример хранится в `config/agent.example.yaml`.
+Эталонный пример хранится в `apps/edge_agent/config/examples/agent.example.yaml`.
 
 Ключевые секции:
 
@@ -294,7 +294,7 @@ delivery:
 
 ## Модель конфигурации источников
 
-Эталонные примеры хранятся в `config/sources.d/*.yaml`.
+Эталонные примеры хранятся в `apps/edge_agent/config/examples/sources.d/*.yaml`.
 
 Source может задавать baseline-настройки, которые наследуются всеми точками этого источника:
 
@@ -322,7 +322,7 @@ sources:
 
 ## Модель конфигурации точек
 
-Эталонные примеры хранятся в `config/points.d/*.yaml`.
+Эталонные примеры хранятся в `apps/edge_agent/config/examples/points.d/*.yaml`.
 
 Point хранит собственные идентификационные и metadata-поля, а также точечные overrides относительно source defaults. Для каждой точки обязательны `point_ref`, `name`, `value_type`, `value_model` и `signal_type`. Опционально на уровне point задаются `description`, `unit`, `tags`.
 

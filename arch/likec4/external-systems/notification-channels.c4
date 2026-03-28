@@ -1,0 +1,6 @@
+model {
+    notification-channels = external-system 'Каналы уведомлений' {
+        description 'Email, SMS, push, webhook и другие внешние облачные каналы доставки тревог и служебных уведомлений.'
+        technology 'Email / SMS / Push / Webhook'
+    }
+}

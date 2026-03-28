@@ -1,0 +1,19 @@
+{
+  "name": "industrial-edge-architecture",
+  "private": true,
+  "description": "LikeC4 workspace for industrial edge monitoring architecture",
+  "scripts": {
+    "dev": "likec4 dev",
+    "start": "likec4 start",
+    "serve": "likec4 serve",
+    "validate": "likec4 validate",
+    "build": "likec4 build",
+    "export:json": "likec4 export json -o ./dist/model.json",
+    "export:mermaid": "likec4 export mermaid -o ./dist",
+    "mcp": "likec4 mcp",
+    "help": "likec4 --help"
+  },
+  "devDependencies": {
+    "likec4": "^1.53.0"
+  }
+}

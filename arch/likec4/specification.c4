@@ -1,0 +1,112 @@
+specification {
+    relationship interact-with {
+        color green
+        line solid
+        head normal
+    }
+
+    element actor {
+        notation 'Участник'
+        style {
+            shape person
+            color green
+        }
+    }
+
+    element container {
+        notation 'Контейнер'
+        style {
+            color amber
+        }
+    }
+
+    element developed-system {
+        notation 'Система в scope реализации'
+        style {
+            color amber
+        }
+    }
+
+    element system {
+        notation 'Внешняя система'
+        style {
+            color secondary
+        }
+    }
+
+    element external-system {
+        notation 'Внешняя облачная система'
+        style {
+            color secondary
+            icon bootstrap:cloud
+            iconColor blue
+        }
+    }
+
+
+    element field-gateway {
+        notation 'Полевой шлюз'
+        style {
+            color secondary
+        }
+    }
+
+
+    element field-device {
+        notation 'Полевое устройство'
+        style {
+            color secondary
+        }
+    }
+
+    element telemetry-point {
+        notation 'Точка телеметрии'
+        style {
+            color secondary
+        }
+    }
+
+    deploymentNode environment {
+        notation 'Среда развертывания'
+        style {
+            color blue
+        }
+    }
+
+    deploymentNode network-zone {
+        notation 'Сетевой контур'
+        style {
+            color sky
+        }
+    }
+
+    deploymentNode host {
+        notation 'Хост'
+        style {
+            color amber
+        }
+    }
+
+    deploymentNode fieldbus-segment {
+        notation 'Полевой сегмент'
+        style {
+            color blue
+        }
+    }
+
+    deploymentNode network-endpoint {
+        notation 'Сетевой endpoint'
+        style {
+            color indigo
+        }
+    }
+
+    deploymentNode field-asset {
+        notation 'Физическое устройство'
+        style {
+            color secondary
+        }
+    }
+
+
+}

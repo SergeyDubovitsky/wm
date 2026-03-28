@@ -1,0 +1,11 @@
+model {
+    extend monitoring-alarm-platform {
+        telemetry-store = container 'Telemetry Store' {
+            description 'Хранит телеметрию, служебные события, историю alarm и данные для мониторинговых и операторских запросов.'
+            technology 'Time-series DB / relational storage'
+            style {
+                shape storage
+            }
+        }
+    }
+}

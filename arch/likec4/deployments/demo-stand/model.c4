@@ -1,0 +1,91 @@
+deployment {
+    environment demo-stand 'Demo Stand' {
+        description 'Фактический demo-стенд по данным ETS-проекта "Выстовка" и connection memo от 2026-03-28.'
+
+        network-zone local-lan 'Local LAN 192.168.1.0/24' {
+            description 'Локальная сеть demo-стенда с KNX/IP роутером и TP-линией 1.1; используется как целевая сеть удаленного подключения Edge Telemetry Agent.'
+
+            knxnet-ip-backbone = fieldbus-segment 'KNXnet/IP Backbone' {
+                technology 'Areas 0.0 and 1.0 / KNXnet-IP'
+                description 'IP-магистраль ETS-проекта: магистральная область 0.0 и главная линия 1.0 без прикладных устройств.'
+
+                knx-router = instanceOf field-protocol-gateways.knx-router 'Weinzierl KNX IP Router 751' {
+                    technology '192.168.1.177:3671 / UDP / TUNNELING / individual address 1.1.0'
+                    description 'Локальная точка входа в KNX/IP и маршрутизатор в TP-линию 1.1.'
+                }
+            }
+
+            tp-line-1-1 = fieldbus-segment 'KNX TP Line 1.1' {
+                technology 'Twisted Pair'
+                description 'Активная KNX TP-линия ETS-проекта "Выстовка" в области 1, линия 1.'
+
+                device-1-1-1 = field-asset '1.1.1 Pushbutton sensor 4 Komfort, 4-gang' {
+                    technology 'KNX TP device'
+                    description 'Панель кнопок с group address для света, scene и вентиляции: 0/0/1, 0/0/6, 0/0/7, 1/0/0, 1/1/0, 1/2/0, 1/3/0, 1/4/0.'
+                }
+
+                device-1-1-2 = field-asset '1.1.2 DALI Gateway Tunable White Plus' {
+                    technology 'KNX TP to DALI gateway'
+                    description 'Шлюз освещения с адресами Switch/StatusSwitch, RGBW и Scene: 0/0/1-0/0/7.'
+                }
+
+                device-1-1-3 = field-asset '1.1.3 Analogaktor 4fach' {
+                    technology 'KNX TP actuator'
+                    description 'Актуатор вентиляции: VentSwitch, VentDim, VentStatus, VentValue по адресам 1/0/0-1/3/0.'
+                }
+
+                device-1-1-4 = field-asset '1.1.4 Room controller display compact module' {
+                    technology 'KNX TP room controller'
+                    description 'Комнатный контроллер с Temperature value 2/0/0 и сценой 1/4/0.'
+                }
+            }
+        }
+
+        network-zone remote-access 'Remote Access' {
+            description 'Внешний маршрут для удаленной диагностики стенда.'
+
+            public-knx-endpoint = network-endpoint 'Public KNX/IP endpoint' {
+                technology '89.175.14.234:7171 / UDP / NAT'
+                description 'Публичная точка входа с пробросом на локальный KNX/IP роутер 192.168.1.177:3671.'
+            }
+        }
+
+        local-lan.tp-line-1-1 -> local-lan.knxnet-ip-backbone.knx-router 'Передает KNX TP телеграммы в роутер 1.1.0'
+        remote-access.public-knx-endpoint -> local-lan.knxnet-ip-backbone.knx-router 'Проброс UDP 7171 -> 3671 для удаленного KNX/IP доступа'
+    }
+
+    environment whitelisted-remote-host 'Whitelisted Remote Host' {
+        description 'Удаленный хост вне demo-стенда: мой компьютер с IP, разрешенным во внешнем KNX/IP маршруте.'
+
+        network-zone developer-network 'Developer Network' {
+            description 'Сеть рабочего места, из которой Edge Telemetry Agent подключается к стенду через whitelist и затем доставляет данные в облако.'
+
+            edge-host = host 'Developer Workstation' {
+                technology 'Remote workstation / whitelisted IP'
+                description 'Хост, на котором запускается Edge Telemetry Agent. Подключается к KNX демо-стенду удаленно, а не размещается на самом стенде.'
+
+                configuration-bundle = instanceOf edge-telemetry-agent.configuration-bundle
+                collector-runtime = instanceOf edge-telemetry-agent.collector-runtime
+                outbox-store = instanceOf edge-telemetry-agent.outbox-store
+                delivery-worker = instanceOf edge-telemetry-agent.delivery-worker
+            }
+        }
+
+        developer-network.edge-host.collector-runtime -> demo-stand.remote-access.public-knx-endpoint 'Подключается к стенду через whitelisted public KNX/IP endpoint'
+    }
+
+    environment monitoring-cloud 'Monitoring Cloud' {
+        description 'Облачный контур нашей Monitoring & Alarm Platform, принимающий телеметрию demo-стенда.'
+
+        network-zone public-cloud 'Public Cloud' {
+            description 'Облачная зона приема MQTT-сообщений и первичной обработки telemetry events.'
+
+            mqtt-ingest-host = host 'MQTT Ingestion Host' {
+                technology 'Cloud runtime'
+                description 'Хост облачного ingress-контура для приема telemetry events и service topics.'
+
+                mqtt-ingestion-gateway = instanceOf monitoring-alarm-platform.mqtt-ingestion-gateway
+            }
+        }
+    }
+}

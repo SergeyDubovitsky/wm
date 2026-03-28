@@ -1,0 +1,30 @@
+views {
+    view c1-system-context of edge-telemetry-agent {
+        title 'Edge Telemetry Agent + Monitoring & Alarm Platform - C1 System Context'
+        description 'C1-контекст двух разрабатываемых систем: Edge Telemetry Agent на объекте и Monitoring & Alarm Platform в облаке/интернете. Текущий первый адаптер в проекте — KNX, но модель изначально проектируется мультипротокольной.'
+
+        include
+
+            field-devices,
+            field-protocol-gateways,
+            edge-telemetry-agent,
+            monitoring-alarm-platform,
+            notification-channels,
+            service-engineer,
+            operator-dispatcher
+
+        rank source {
+            service-engineer, operator-dispatcher, field-devices
+        }
+
+
+        rank same {
+            edge-telemetry-agent, monitoring-alarm-platform
+        }
+
+        rank sink {
+            notification-channels
+        }
+    }
+
+}

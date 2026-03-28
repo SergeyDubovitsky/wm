@@ -1,0 +1,8 @@
+model {
+    extend edge-telemetry-agent {
+        configuration-bundle = container 'Configuration Bundle' {
+            description 'Локальный набор конфигурации источников, модели сигналов, polling-политик и параметров доставки.'
+            technology 'YAML files'
+        }
+    }
+}

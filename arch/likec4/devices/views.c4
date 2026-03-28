@@ -1,0 +1,10 @@
+views 'Field Systems / Devices' {
+    view c2-field-devices {
+        title 'C2 Devices'
+        description 'Внутренняя структура полевых устройств и контроллеров. Диаграмма показывает конкретные устройства и их подключение к ближайшему протокольному шлюзу.'
+
+        include field-devices
+        include field-devices.*
+        include field-protocol-gateways.knx-router
+    }
+}

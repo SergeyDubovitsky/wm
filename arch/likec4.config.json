@@ -1,0 +1,12 @@
+{
+  "$schema": "https://likec4.dev/schemas/config.json",
+  "name": "industrial-edge-architecture",
+  "title": "Industrial Edge Monitoring Architecture",
+  "exclude": [
+    "**/node_modules/**",
+    "**/dist/**"
+  ],
+  "imageAliases": {
+    "@": "./images"
+  }
+}

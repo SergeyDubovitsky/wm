@@ -1,0 +1,13 @@
+model {
+    extend edge-telemetry-agent {
+        delivery-worker = container 'Delivery Worker' {
+            description 'Фоновый контейнер доставки: читает outbox, публикует telemetry events и service topics в MQTT topic tree и обновляет статус доставки.'
+            technology 'Python worker / MQTT publisher'
+
+            -> configuration-bundle 'Загружает настройки MQTT, topic contract и retry-политики'
+            -> outbox-store 'Читает ожидающие события и обновляет статус доставки'
+            -> monitoring-alarm-platform.mqtt-ingestion-gateway 'Публикует telemetry events и service topics по MQTT 5.0'
+        }
+    }
+
+}

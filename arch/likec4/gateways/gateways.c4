@@ -1,0 +1,32 @@
+model {
+    field-protocol-gateways = system 'Протокольные шлюзы и SCADA-контроллеры' {
+        description 'Точки подключения к технологическим данным через KNX, Modbus, OPC UA и другие southbound-протоколы.'
+        technology 'KNX / Modbus / OPC UA / SCADA'
+        style {
+            color secondary
+        }
+
+
+        knx-router = field-gateway 'KNX Segment' {
+            technology 'KNX / KNXnet-IP'
+            icon @/knx.svg
+
+            -> edge-telemetry-agent.collector-runtime 'Экспонирует group address и телеграммы через KNX/IP'
+        }
+
+        modbus-gateway = field-gateway 'Modbus Gateway' {
+            technology 'Modbus TCP / Modbus RTU'
+            icon @/modbus.svg
+
+            -> edge-telemetry-agent.collector-runtime 'Экспонирует registers, coils и дискретные значения через Modbus'
+        }
+
+        opc-ua-gateway = field-gateway 'OPC UA Server' {
+            technology 'OPC UA'
+            icon @/opc-ua.svg
+
+            -> edge-telemetry-agent.collector-runtime 'Экспонирует nodes, subscriptions и значения через OPC UA'
+        }
+
+    }
+}

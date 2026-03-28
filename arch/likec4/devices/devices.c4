@@ -1,0 +1,19 @@
+model {
+    field-devices = system 'Полевые устройства и контроллеры' {
+        description 'Датчики, актуаторы, PLC, RTU и локальные системы автоматизации на объекте.'
+        technology 'Field devices / PLC / RTU'
+        style {
+            color secondary
+        }
+
+
+        knx-temperature-sensor = field-device {
+            description 'Датчик температуры'
+            technology 'KNX'
+
+            -> field-protocol-gateways.knx-router 'Передают телеграммы, состояния и команды в KNX-сегменте'
+        }
+
+
+    }
+}

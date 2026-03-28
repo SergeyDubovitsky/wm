@@ -1,0 +1,35 @@
+agent:
+  object_id: "demo-stand-01"
+  name: "main-panel"
+  id_file: "/var/lib/edge-agent/agent_id"
+
+delivery:
+  transport: "mqtt"
+  mqtt:
+    enabled: true
+    version: "5.0"
+    broker: "mqtts://mqtt.example:8883"
+    topic_root: "wm/v1"
+    client_id_prefix: "edge-agent"
+    username_env: "EDGE_AGENT_MQTT_USERNAME"
+    password_env: "EDGE_AGENT_MQTT_PASSWORD"
+    qos: 1
+    clean_start: true
+    session_expiry_seconds: 0
+    telemetry_message_expiry_seconds: 86400
+    publish_metadata: true
+    retain_metadata: true
+    publish_connection_status: true
+    retain_connection_status: true
+    connect_timeout_seconds: 5
+    retry_backoff_seconds: [5, 15, 60, 300]
+
+storage:
+  sqlite_path: "/var/lib/edge-agent/outbox.db"
+  retention_days: 7
+  dead_letter_after_attempts: 20
+
+observability:
+  log_level: "INFO"
+  emit_health_events: true
+  metrics_bind: "0.0.0.0:9108"

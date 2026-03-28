@@ -1,0 +1,13 @@
+model {
+    extend monitoring-alarm-platform {
+        operator-dashboard = container 'Operator Dashboard' {
+            description 'Веб-интерфейс для операторов и инженеров: панели мониторинга, состояние alarm, история событий и настройка правил.'
+            technology 'Web SPA'
+
+            -> platform-api 'Запрашивает панели мониторинга, состояние alarm и конфигурацию'
+        }
+    }
+
+    operator-dispatcher -[interact-with]-> monitoring-alarm-platform.operator-dashboard 'Работает с панелями мониторинга, alarm и историей'
+    service-engineer -[interact-with]-> monitoring-alarm-platform.operator-dashboard 'Настраивает правила, получателей и панели мониторинга'
+}

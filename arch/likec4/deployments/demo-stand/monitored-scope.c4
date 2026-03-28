@@ -1,0 +1,41 @@
+model {
+    demo-stand-current-monitored-scope = system 'Demo Stand Current Monitored Scope' {
+        description 'Текущий набор сигналов demo-стенда, которые читает Edge Telemetry Agent.'
+        technology 'KNX monitored signals / current read scope'
+
+        device-1-1-1 = field-device '1.1.1 Pushbutton sensor 4 Komfort, 4-gang' {
+            description 'Кнопочная панель, участвующая в публикации feedback состояния света.'
+            technology 'KNX TP device'
+
+            -> light-switch-feedback 'Публикует feedback состояния света 0/0/7'
+        }
+
+        device-1-1-2 = field-device '1.1.2 DALI Gateway Tunable White Plus' {
+            description 'DALI gateway, публикующий статус светового канала.'
+            technology 'KNX TP to DALI gateway'
+
+            -> light-switch-feedback 'Публикует статус светового канала 0/0/7'
+        }
+
+        device-1-1-4 = field-device '1.1.4 Room controller display compact module' {
+            description 'Комнатный контроллер, публикующий температуру помещения.'
+            technology 'KNX TP room controller'
+
+            -> room-temperature 'Публикует температуру помещения 2/0/0'
+        }
+
+        light-switch-feedback = telemetry-point '0/0/7 StatusSwitch' {
+            description 'Фактически читаемая точка состояния света.'
+            technology 'KNX DPT 1.001 / feedback'
+
+            -> edge-telemetry-agent.collector-runtime 'Поставляет feedback состояния света в текущий read scope'
+        }
+
+        room-temperature = telemetry-point '2/0/0 Temp Value' {
+            description 'Фактически читаемая точка температуры помещения.'
+            technology 'KNX DPT 9.xxx / room temperature'
+
+            -> edge-telemetry-agent.collector-runtime 'Поставляет температуру помещения в текущий read scope'
+        }
+    }
+}

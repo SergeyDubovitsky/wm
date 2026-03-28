@@ -1,0 +1,12 @@
+model {
+    extend edge-telemetry-agent {
+        collector-runtime = container 'Collector Runtime' {
+            description 'Основной runtime edge-агента: southbound-адаптеры, сбор данных, нормализация, фильтрация изменений и постановка событий в outbox.'
+            technology 'Python service'
+
+            -> configuration-bundle 'Загружает описания источников, модель сигналов и runtime-политики'
+            -> outbox-store 'Сохраняет нормализованные события и задания на доставку'
+        }
+    }
+
+}

@@ -1,0 +1,24 @@
+views 'Deployments / Demo Stand' {
+    deployment view deployment-demo-stand-topology {
+        title 'Deployment - Demo Stand Topology'
+        description 'Полная deployment topology demo-стенда по ETS-проекту "Выстовка": локальная сеть, удаленный хост с whitelist, KNX/IP, TP-линия 1.1 и облачный MQTT ingest.'
+
+        include demo-stand.**
+        include whitelisted-remote-host.**
+        include monitoring-cloud.**
+        include demo-stand.local-lan.tp-line-1-1.device-1-1-1
+        include demo-stand.local-lan.tp-line-1-1.device-1-1-2
+        include demo-stand.local-lan.tp-line-1-1.device-1-1-3
+        include demo-stand.local-lan.tp-line-1-1.device-1-1-4
+    }
+
+    view demo-stand-current-monitored-points {
+        title 'Demo Stand - Current Monitored Points'
+        description 'Текущий мониторинговый срез demo-стенда: устройства и KNX group address, которые сейчас читает Edge Telemetry Agent.'
+
+        include demo-stand-current-monitored-scope
+        include demo-stand-current-monitored-scope.*
+        include field-protocol-gateways.knx-router
+        include edge-telemetry-agent.collector-runtime
+    }
+}

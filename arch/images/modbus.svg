@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect x="8" y="10" width="48" height="44" rx="10" fill="#FFF8F2" stroke="#C96A12" stroke-width="4"/>
+  <path d="M18 24H46" stroke="#C96A12" stroke-width="4" stroke-linecap="round"/>
+  <path d="M18 40H46" stroke="#C96A12" stroke-width="4" stroke-linecap="round"/>
+  <path d="M24 24V40" stroke="#1E63D5" stroke-width="4" stroke-linecap="round"/>
+  <path d="M40 24V40" stroke="#1E63D5" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="24" cy="24" r="3" fill="#18A957"/>
+  <circle cx="40" cy="40" r="3" fill="#18A957"/>
+  <text x="32" y="35" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" fill="#6B3600">MODBUS</text>
+</svg>

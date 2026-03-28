@@ -1,0 +1,15 @@
+model {
+    local-mqtt-broker = system 'Local MQTT Broker' {
+        description 'Временный dev/test MQTT broker из infra/local/compose.yaml. Используется текущей реализацией edge_agent как локальный publish target.'
+        technology 'Eclipse Mosquitto / localhost:1883 / Docker Compose'
+    }
+
+    local-grafana = system 'Local Grafana' {
+        description 'Временный dev/test UI из infra/local/compose.yaml. Использует grafana-mqtt-datasource для live-view MQTT payload и не считается частью target production architecture.'
+        technology 'Grafana OSS / grafana-mqtt-datasource / localhost:3000 / Docker Compose'
+    }
+
+    service-engineer -[interact-with]-> local-grafana 'Проверяет live MQTT поток, topic tree и dashboard'
+    edge-telemetry-agent -> local-mqtt-broker 'Публикует telemetry events и service topics в локальный MQTT broker'
+    local-grafana -> local-mqtt-broker 'Подписывается через grafana-mqtt-datasource на live MQTT topics'
+}

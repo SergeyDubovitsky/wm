@@ -12,6 +12,18 @@ views 'Deployments / Demo Stand' {
         include demo-stand.local-lan.tp-line-1-1.device-1-1-4
     }
 
+    deployment view deployment-demo-stand-current-implementation {
+        title 'Deployment - Demo Stand Current Implementation'
+        description 'Текущая реализация demo-стенда: Edge Telemetry Agent работает на Developer Workstation, публикует в Local MQTT Broker, а Local Grafana читает live MQTT поток через grafana-mqtt-datasource.'
+
+        include demo-stand.**
+        include whitelisted-remote-host.**
+        include demo-stand.local-lan.tp-line-1-1.device-1-1-1
+        include demo-stand.local-lan.tp-line-1-1.device-1-1-2
+        include demo-stand.local-lan.tp-line-1-1.device-1-1-3
+        include demo-stand.local-lan.tp-line-1-1.device-1-1-4
+    }
+
     view demo-stand-current-monitored-points {
         title 'Demo Stand - Current Monitored Points'
         description 'Текущий мониторинговый срез demo-стенда: устройства и KNX group address, которые сейчас читает Edge Telemetry Agent.'

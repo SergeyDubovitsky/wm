@@ -5,7 +5,7 @@ services:
     image: ${MOSQUITTO_IMAGE:-eclipse-mosquitto:2}
     restart: unless-stopped
     env_file:
-      - ../../.env
+      - ${LOCAL_STACK_ENV_FILE:-../../.env}
     command: ["/bin/sh", "/mosquitto/config/start-mosquitto.sh"]
     ports:
       - "${MQTT_PORT:-1883}:1883"
@@ -29,7 +29,7 @@ services:
     image: ${GRAFANA_IMAGE:-grafana/grafana-oss}
     restart: unless-stopped
     env_file:
-      - ../../.env
+      - ${LOCAL_STACK_ENV_FILE:-../../.env}
     depends_on:
       mqtt-broker:
         condition: service_healthy

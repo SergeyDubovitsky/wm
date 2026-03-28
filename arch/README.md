@@ -12,6 +12,7 @@
 - `likec4/model.c4` — архитектурная модель и связи между участниками/системами
 - `likec4/views.c4` — представления, начиная с `C1 system context`
 - `likec4/deployments/` — deployment model и deployment views
+- `likec4/local-dev/` — текущий local `MQTT + Grafana` dev/test контур
 - `likec4/devices/` — модель и `C2` для полевых устройств и контроллеров
 - `likec4/gateways/` — модель и `C2` для протокольных шлюзов и SCADA-контроллеров
 - `likec4/external-systems/` — внешние облачные интеграции вроде `SMS`, `Email`, `Push`, `Webhook`
@@ -43,6 +44,7 @@
 - `C2` для `Edge Telemetry Agent`
 - `C2` для `Monitoring & Alarm Platform`
 - `Deployment` для demo-стенда и облачного MQTT ingress
+- `Development view` для текущего local `MQTT -> Grafana` dev/test контура
 - `View` для текущего monitored scope demo-стенда
 
 На уровне `C1` модель фиксирует:

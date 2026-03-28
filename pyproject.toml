@@ -4,6 +4,13 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = []
 
+[dependency-groups]
+integration = [
+    "paho-mqtt>=2.1.0",
+    "playwright>=1.58.0",
+    "pytest>=9.0.2",
+]
+
 [tool.uv]
 package = false
 
@@ -11,4 +18,9 @@ package = false
 members = [
     "apps/*",
     "libs/*",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: end-to-end checks for dockerized local infrastructure",
 ]

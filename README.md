@@ -25,6 +25,14 @@ uv run --package knx-demo pytest apps/knx_demo/tests
 uv run --package knx-parser pytest libs/knx_parser/tests
 ```
 
+Для интеграционного smoke/E2E-теста локального `MQTT -> Grafana` контура:
+
+```bash
+uv sync --all-packages --group integration
+uv run --group integration playwright install chromium
+uv run --group integration pytest tests/integration/test_local_mqtt_grafana.py
+```
+
 Для host-side запуска приложений используйте общий root `.env` через
 `uv run --env-file .env ...`.
 
@@ -81,6 +89,8 @@ docker compose --env-file ../../.env up -d
 - для smoke-test откройте dashboard `Local Stack Overview`, затем публикуйте
   тестовые сообщения в `wm/dev/edge-agent/test` и ждите до одного query
   interval, обычно около `15-20s`
+- для автоматизированной проверки используйте
+  `uv run --group integration pytest tests/integration/test_local_mqtt_grafana.py`
 
 Для `edge_agent` уже подготовлен runtime-конфиг под этот стек:
 

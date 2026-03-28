@@ -77,3 +77,25 @@ docker compose exec -T mqtt-broker sh -lc '
 
 3. Подождите до одного query interval и проверьте, что таблица `MQTT Test Stream`
    показывает поля `temperature`, `humidity`, `status`, `source`, `ts`.
+
+## Automated Integration Test
+
+Автоматизированный smoke/E2E-тест поднимает isolated `docker compose` project,
+выбирает свободные host ports, публикует уникальный `MQTT` payload и проверяет
+через `Playwright`, что Grafana отрисовала строку в таблице `MQTT Test Stream`.
+
+Подготовка и запуск выполняются из корня репозитория:
+
+```bash
+uv sync --all-packages --group integration
+uv run --group integration playwright install chromium
+uv run --group integration pytest tests/integration/test_local_mqtt_grafana.py
+```
+
+Что тест покрывает:
+
+- provisioning datasource `Local MQTT`
+- provisioning dashboard `Local Stack Overview`
+- аутентификацию в Grafana
+- доставку JSON payload в `MQTT broker`
+- отображение live-данных в таблице Grafana

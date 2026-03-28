@@ -1,0 +1,20 @@
+views 'Development / Local MQTT and Grafana' {
+    view local-mqtt-grafana-dev-harness {
+        title 'Development - Local MQTT + Grafana Harness'
+        description 'Текущая dev/test реализация: Edge Telemetry Agent публикует telemetry events в локальный MQTT broker, а Local Grafana читает live-поток через grafana-mqtt-datasource.'
+
+        include service-engineer
+        include edge-telemetry-agent
+        include local-mqtt-broker
+        include local-grafana
+        exclude service-engineer -> edge-telemetry-agent
+
+        rank source {
+            service-engineer, edge-telemetry-agent
+        }
+
+        rank same {
+            local-mqtt-broker, local-grafana
+        }
+    }
+}

@@ -4,6 +4,7 @@ model {
             description 'Backend API для состояния alarm, истории событий, конфигурации правил и политик уведомлений.'
             technology 'HTTP API / backend service'
 
+            -> keycloak 'Проверяет токены, роли и client configuration'
             -> telemetry-store 'Читает телеметрию, историю и временные линии alarm'
             -> alarm-rule-engine 'Читает активные alarm и управляет конфигурацией правил в Alarm Rule Engine'
         }

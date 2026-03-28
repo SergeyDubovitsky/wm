@@ -7,7 +7,4 @@ model {
             -> mqtt-ingestion-gateway 'Подписывается на live MQTT telemetry и service topics'
         }
     }
-
-    operator-dispatcher -[interact-with]-> monitoring-alarm-platform.grafana 'Работает с live-панелями, состоянием объекта и операторскими dashboards'
-    service-engineer -[interact-with]-> monitoring-alarm-platform.grafana 'Настраивает dashboards и проверяет поток телеметрии'
 }

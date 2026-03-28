@@ -3,8 +3,8 @@ model {
         notification-service = container 'Notification Service' {
             description 'Маршрутизирует уведомления во внешние каналы по alarm-политикам и правилам эскалации.'
             technology 'Worker / notification gateway'
+
+            -> notification-channels 'Отправляет email, SMS, push и webhook-уведомления'
         }
     }
-
-    monitoring-alarm-platform.notification-service -> notification-channels 'Отправляет email, SMS, push и webhook-уведомления'
 }

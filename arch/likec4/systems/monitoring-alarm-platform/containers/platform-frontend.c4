@@ -1,0 +1,15 @@
+model {
+    extend monitoring-alarm-platform {
+        platform-frontend = container 'Platform Frontend' {
+            description 'Browser-based frontend платформы: пользовательский web-интерфейс для операторов и диспетчеров, маршруты UI, навигация по alarm и доступ к dashboards.'
+            technology 'Browser / SPA'
+            style {
+                shape browser
+            }
+
+            -> keycloak 'Аутентифицирует пользователя и получает OIDC tokens'
+            -> platform-api 'Запрашивает состояние alarm, историю событий и прикладные данные платформы'
+            -> grafana 'Открывает и встраивает dashboards и live-панели'
+        }
+    }
+}

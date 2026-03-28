@@ -11,10 +11,11 @@ views {
             monitoring-alarm-platform,
             notification-channels,
             service-engineer,
-            operator-dispatcher
+            operator,
+            dispatcher
 
         rank source {
-            service-engineer, operator-dispatcher, field-devices
+            service-engineer, operator, dispatcher, field-devices
         }
 
 

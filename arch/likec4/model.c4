@@ -1,28 +1,38 @@
 model {
     service-engineer = actor 'Сервисный инженер' {
         description 'Настраивает источники данных, схему сигналов, правила доставки и эксплуатационные параметры edge-агента и центральной платформы.'
+
+        -[interact-with]-> edge-telemetry-agent 'Настраивает адаптеры, модель сигналов, polling и доставку'
+        -[interact-with]-> monitoring-alarm-platform 'Настраивает правила alarm, получателей и панели мониторинга'
+        -[interact-with]-> monitoring-alarm-platform.grafana 'Настраивает dashboards и проверяет поток телеметрии'
     }
 
 
-    operator-dispatcher = actor 'Оператор / диспетчер' {
-        description 'Работает с событиями, текущим состоянием объекта и alarm через центральную платформу мониторинга.'
+    operator = actor 'Оператор' {
+        description 'Работает с текущим состоянием объекта, live-панелями и событиями через центральную платформу мониторинга.'
+
+        -[interact-with]-> monitoring-alarm-platform 'Работает с панелями мониторинга, событиями и alarm'
+        -[interact-with]-> monitoring-alarm-platform.platform-frontend 'Работает с пользовательским web-интерфейсом платформы'
+    }
+
+    dispatcher = actor 'Диспетчер' {
+        description 'Контролирует alarm, уведомления и диспетчерские панели через центральную платформу мониторинга.'
+
+        -[interact-with]-> monitoring-alarm-platform 'Работает с alarm, уведомлениями и диспетчерскими сценариями'
+        -[interact-with]-> monitoring-alarm-platform.platform-frontend 'Работает с пользовательским web-интерфейсом платформы'
     }
 
     edge-telemetry-agent = developed-system 'Edge Telemetry Agent' {
         description 'Универсальная edge-система, разворачиваемая на объекте рядом с полевыми протоколами и отвечающая за сбор данных, нормализацию, фильтрацию, буферизацию и доставку событий.'
         technology 'Edge collector / normalization / buffering / delivery'
+
+        -> monitoring-alarm-platform 'Публикует telemetry events и service topics через MQTT'
     }
 
     monitoring-alarm-platform = developed-system 'Monitoring & Alarm Platform' {
         description 'Центральная система в облаке/интернете для приема событий, хранения телеметрии, визуализации, alarm-логики и маршрутизации уведомлений.'
         technology 'Cloud monitoring platform / alarm engine / operator UI'
-    }
 
-    service-engineer -[interact-with]-> edge-telemetry-agent 'Настраивает адаптеры, модель сигналов, polling и доставку'
-    service-engineer -[interact-with]-> monitoring-alarm-platform 'Настраивает правила alarm, получателей и панели мониторинга'
-    operator-dispatcher -[interact-with]-> monitoring-alarm-platform 'Работает с панелями мониторинга, событиями и alarm'
-    field-protocol-gateways -> edge-telemetry-agent.collector-runtime 'Передают данные через southbound-адаптеры'
-    edge-telemetry-agent -> monitoring-alarm-platform 'Публикует telemetry events и service topics через MQTT'
-    monitoring-alarm-platform -> notification-channels 'Маршрутизирует уведомления и эскалации'
-    notification-channels -> operator-dispatcher 'Доставляют уведомления по alarm и служебные уведомления'
+        -> notification-channels 'Маршрутизирует уведомления и эскалации'
+    }
 }

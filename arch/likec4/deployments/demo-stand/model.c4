@@ -38,6 +38,8 @@ deployment {
                     technology 'KNX TP room controller'
                     description 'Комнатный контроллер с Temperature value 2/0/0 и сценой 1/4/0.'
                 }
+
+                -> demo-stand.local-lan.knxnet-ip-backbone.knx-router 'Передает KNX TP телеграммы в роутер 1.1.0'
             }
         }
 
@@ -47,11 +49,10 @@ deployment {
             public-knx-endpoint = network-endpoint 'Public KNX/IP endpoint' {
                 technology '203.0.113.234:7171 / UDP / NAT'
                 description 'Публичная точка входа с пробросом на локальный KNX/IP роутер 192.0.2.177:3671.'
+
+                -> demo-stand.local-lan.knxnet-ip-backbone.knx-router 'Проброс UDP 7171 -> 3671 для удаленного KNX/IP доступа'
             }
         }
-
-        local-lan.tp-line-1-1 -> local-lan.knxnet-ip-backbone.knx-router 'Передает KNX TP телеграммы в роутер 1.1.0'
-        remote-access.public-knx-endpoint -> local-lan.knxnet-ip-backbone.knx-router 'Проброс UDP 7171 -> 3671 для удаленного KNX/IP доступа'
     }
 
     environment whitelisted-remote-host 'Whitelisted Remote Host' {
@@ -70,12 +71,12 @@ deployment {
                 delivery-worker = instanceOf edge-telemetry-agent.delivery-worker
                 mqtt-ingestion-gateway = instanceOf monitoring-alarm-platform.mqtt-ingestion-gateway
                 grafana = instanceOf monitoring-alarm-platform.grafana
+
+                collector-runtime -> demo-stand.remote-access.public-knx-endpoint 'Подключается к стенду через whitelisted public KNX/IP endpoint'
+                delivery-worker -> mqtt-ingestion-gateway 'Публикует telemetry events и service topics в mqtt://localhost:1883'
+                grafana -> mqtt-ingestion-gateway 'Подписывается через grafana-mqtt-datasource на live MQTT topics'
             }
         }
-
-        developer-network.edge-host.collector-runtime -> demo-stand.remote-access.public-knx-endpoint 'Подключается к стенду через whitelisted public KNX/IP endpoint'
-        developer-network.edge-host.delivery-worker -> developer-network.edge-host.mqtt-ingestion-gateway 'Публикует telemetry events и service topics в mqtt://localhost:1883'
-        developer-network.edge-host.grafana -> developer-network.edge-host.mqtt-ingestion-gateway 'Подписывается через grafana-mqtt-datasource на live MQTT topics'
     }
 
     environment monitoring-cloud 'Monitoring Cloud' {
@@ -90,9 +91,9 @@ deployment {
 
                 mqtt-ingestion-gateway = instanceOf monitoring-alarm-platform.mqtt-ingestion-gateway
                 grafana = instanceOf monitoring-alarm-platform.grafana
+
+                grafana -> mqtt-ingestion-gateway 'Подписывается через grafana-mqtt-datasource на live MQTT topics'
             }
         }
-
-        public-cloud.mqtt-ingest-host.grafana -> public-cloud.mqtt-ingest-host.mqtt-ingestion-gateway 'Подписывается через grafana-mqtt-datasource на live MQTT topics'
     }
 }

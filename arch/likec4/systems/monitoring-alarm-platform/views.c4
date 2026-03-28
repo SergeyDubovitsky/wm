@@ -6,17 +6,16 @@ views 'Developed Systems / Monitoring & Alarm Platform' {
         include *
         include edge-telemetry-agent
         include service-engineer
-        include operator-dispatcher
+        include operator
+        include dispatcher
         include notification-channels
-        exclude service-engineer -> edge-telemetry-agent
-        exclude edge-telemetry-agent -> monitoring-alarm-platform
 
         style monitoring-alarm-platform {
             color primary
         }
 
         rank source {
-            edge-telemetry-agent, service-engineer, operator-dispatcher
+            edge-telemetry-agent, service-engineer, operator, dispatcher
         }
 
         rank sink {

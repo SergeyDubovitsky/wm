@@ -53,7 +53,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 - `Service engineer` взаимодействует и с `Edge Telemetry Agent`, и с `Monitoring & Alarm Platform`.
 - `Edge Telemetry Agent` работает в локальной сети объекта рядом с источниками данных.
 - `Monitoring & Alarm Platform` принимает события от edge-агентов и работает как центральная система в облаке/интернете.
-- `Operator / dispatcher` работает только через центральную платформу, а не напрямую с edge-узлом.
+- `Operator` и `Dispatcher` работают только через центральную платформу, а не напрямую с edge-узлом.
 - `Notification channels` остаются внешней системой относительно нашей платформы.
 
 ## Основные архитектурные принципы
@@ -96,7 +96,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 На уровне `C2` сейчас зафиксированы:
 
 - `Edge Telemetry Agent`: `Configuration Bundle`, `Collector Runtime`, `Outbox Store`, `Delivery Worker`
-- `Monitoring & Alarm Platform`: `MQTT Ingestion Gateway`, `Telemetry Store`, `Alarm Rule Engine`, `Platform API`, `Grafana`, `Notification Service`
+- `Monitoring & Alarm Platform`: `MQTT Ingestion Gateway`, `Telemetry Store`, `Alarm Rule Engine`, `Platform API`, `Platform Frontend`, `Keycloak`, `Grafana`, `Notification Service`
 
 ## Компоненты и ответственность
 

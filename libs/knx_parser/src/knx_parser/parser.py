@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from contextlib import ExitStack
-from io import BytesIO
 import logging
 import re
+from contextlib import ExitStack
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile, is_zipfile

@@ -13,7 +13,12 @@ from xknx.remote_value import RemoteValueRaw
 from xknx.telegram import GroupAddress, Telegram
 
 from knx_demo.domain.profiles import EndpointProfile
-from knx_demo.domain.telemetry import FeedbackSnapshot, ReadResult, SignalUpdate, TelegramEvent
+from knx_demo.domain.telemetry import (
+    FeedbackSnapshot,
+    ReadResult,
+    SignalUpdate,
+    TelegramEvent,
+)
 
 
 def _connection_config(profile: EndpointProfile) -> ConnectionConfig:

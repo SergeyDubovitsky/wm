@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from pydantic import Field
 from typing import Literal
 
-from edge_agent.modeling import FrozenEdgeModel
+from pydantic import Field
 
+from edge_agent.modeling import FrozenEdgeModel
 
 ValueType = Literal["boolean", "number", "string"]
 SignalType = Literal["command", "feedback", "status", "sensor"]

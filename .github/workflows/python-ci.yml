@@ -1,0 +1,86 @@
+name: Python CI
+
+on:
+    push:
+        paths:
+            - ".github/workflows/python-ci.yml"
+            - ".python-version"
+            - "pyproject.toml"
+            - "uv.lock"
+            - "apps/**"
+            - "libs/**"
+            - "infra/**"
+            - "tests/**"
+    pull_request:
+        paths:
+            - ".github/workflows/python-ci.yml"
+            - ".python-version"
+            - "pyproject.toml"
+            - "uv.lock"
+            - "apps/**"
+            - "libs/**"
+            - "infra/**"
+            - "tests/**"
+
+permissions:
+    contents: read
+
+jobs:
+    lint:
+        name: Lint
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Set up Python
+              uses: actions/setup-python@v6
+              with:
+                  python-version-file: ".python-version"
+
+            - name: Set up uv
+              uses: astral-sh/setup-uv@v7
+              with:
+                  enable-cache: true
+
+            - name: Sync workspace
+              run: uv sync --frozen --all-packages --group lint
+
+            - name: Run Ruff
+              run: uv run --frozen --group lint ruff check apps libs tests infra
+
+    test:
+        name: Test (${{ matrix.package }})
+        runs-on: ubuntu-latest
+
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - package: edge-agent
+                      test_path: apps/edge_agent/tests
+                    - package: knx-demo
+                      test_path: apps/knx_demo/tests
+                    - package: knx-parser
+                      test_path: libs/knx_parser/tests
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Set up Python
+              uses: actions/setup-python@v6
+              with:
+                  python-version-file: ".python-version"
+
+            - name: Set up uv
+              uses: astral-sh/setup-uv@v7
+              with:
+                  enable-cache: true
+
+            - name: Sync workspace
+              run: uv sync --frozen --all-packages
+
+            - name: Run tests
+              run: uv run --frozen --package ${{ matrix.package }} pytest ${{ matrix.test_path }}

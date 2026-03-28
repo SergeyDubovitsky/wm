@@ -16,7 +16,8 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 import pytest
-from playwright.sync_api import Browser, Error as PlaywrightError, Page, sync_playwright
+from playwright.sync_api import Browser, Page, sync_playwright
+from playwright.sync_api import Error as PlaywrightError
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "infra" / "local" / "compose.yaml"

@@ -34,7 +34,10 @@ def _event() -> TelemetryEvent:
 def test_sqlite_outbox_append_reserve_retry_and_send(tmp_path) -> None:
     outbox = SQLiteOutbox(Path(tmp_path / "outbox.db"))
     outbox.initialize()
-    record_id = outbox.append(_event())
+    record_id = outbox.append(
+        _event(),
+        available_at=datetime(2026, 3, 28, 10, 0, tzinfo=UTC),
+    )
 
     available = outbox.list_available(now=datetime(2026, 3, 28, 10, 1, tzinfo=UTC))
     assert [record.id for record in available] == [record_id]

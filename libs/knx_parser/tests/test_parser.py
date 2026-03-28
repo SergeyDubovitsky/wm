@@ -9,7 +9,6 @@ import yaml
 from knx_parser.cli import main
 from knx_parser.parser import parse_knxproj
 
-
 PROJECT_XML = """<?xml version="1.0" encoding="utf-8"?>
 <KNX CreatedBy="ETS6" ToolVersion="6.3.0" xmlns="http://knx.org/xml/project/20">
   <Project Id="P-TEST">

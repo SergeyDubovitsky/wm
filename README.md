@@ -25,6 +25,13 @@ uv run --package knx-demo pytest apps/knx_demo/tests
 uv run --package knx-parser pytest libs/knx_parser/tests
 ```
 
+Для линтинга Python-кода:
+
+```bash
+uv sync --group lint
+uv run --group lint ruff check apps libs tests infra
+```
+
 Для интеграционного smoke/E2E-теста локального `MQTT -> Grafana` контура:
 
 ```bash

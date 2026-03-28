@@ -6,7 +6,15 @@ import re
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Mapping, Self, TypeVar
 
-from pydantic import Field, StrictBool, StrictInt, StringConstraints, ValidationError, field_validator, model_validator
+from pydantic import (
+    Field,
+    StrictBool,
+    StrictInt,
+    StringConstraints,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from edge_agent.domain.config import (
     AcquisitionOverrides,

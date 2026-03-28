@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from edge_agent.application.configuration import build_runtime_config, load_runtime_config
+from edge_agent.application.configuration import (
+    build_runtime_config,
+    load_runtime_config,
+)
 from edge_agent.domain.config import ConfigurationError
 
 

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pydantic import Field
 from typing import Literal
 from urllib.parse import quote
 from uuid import uuid4
 
-from edge_agent.modeling import FrozenEdgeModel
+from pydantic import Field
 
+from edge_agent.modeling import FrozenEdgeModel
 
 EventType = Literal["telemetry.changed", "telemetry.sample"]
 ObservationMode = Literal["listen", "read_on_start", "periodic_read"]

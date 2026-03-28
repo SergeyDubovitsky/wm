@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import Callable, Protocol
 
-from knx_demo.domain.telemetry import FeedbackSnapshot, ReadResult, SignalUpdate, TelegramEvent
+from knx_demo.domain.telemetry import (
+    FeedbackSnapshot,
+    ReadResult,
+    SignalUpdate,
+    TelegramEvent,
+)
 
 
 class EventLogger(Protocol):

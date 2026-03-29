@@ -123,18 +123,13 @@ class TelemetryEvent(FrozenEdgeModel):
         return {
             "message_type": "wm.telemetry.event.v1",
             "event_id": self.event_id,
+            "event_type": self.event_type,
             "ts": isoformat_utc(self.ts),
-            "name": self.name,
-            "value_type": self.value_type,
-            "value_model": self.value_model,
-            "signal_type": self.signal_type,
             "observation_mode": self.observation_mode,
             "value": self.value,
             "value_raw": self.value_raw,
             "quality": self.quality,
             "sequence": self.sequence,
-            "unit": self.unit,
-            "tags": self.tags,
         }
 
     def canonical_payload(self) -> dict[str, object]:

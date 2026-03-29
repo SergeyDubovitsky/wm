@@ -15,20 +15,23 @@
 
 ## Подключение для разработки
 
-Основной вариант для разработки:
+Для текущей разработки с этой рабочей станции:
+
+- использовать внешний профиль `external`
+- внешний адрес: `${KNX_EXTERNAL_GATEWAY_IP}:${KNX_EXTERNAL_GATEWAY_PORT}`
+- NAT-маршрут: `${KNX_EXTERNAL_GATEWAY_IP}:${KNX_EXTERNAL_GATEWAY_PORT} -> ${KNX_LOCAL_GATEWAY_IP}:${KNX_LOCAL_GATEWAY_PORT}`
+- именно этот путь сейчас соответствует remote workstation сценарию в архитектуре
+
+Для разработки из локальной сети объекта:
 
 - подключение из локальной сети напрямую к `${KNX_LOCAL_GATEWAY_IP}:${KNX_LOCAL_GATEWAY_PORT}`
 - протокол: `KNXnet/IP Tunneling`
 
-Внешний доступ при необходимости:
-
-- внешний адрес: `${KNX_EXTERNAL_GATEWAY_IP}:${KNX_EXTERNAL_GATEWAY_PORT}`
-- NAT-маршрут: `${KNX_EXTERNAL_GATEWAY_IP}:${KNX_EXTERNAL_GATEWAY_PORT} -> ${KNX_LOCAL_GATEWAY_IP}:${KNX_LOCAL_GATEWAY_PORT}`
-
 Примечание:
 
 - внешний маршрут был проверен и отвечает на `KNXnet/IP`
-- для разработки предпочтительно использовать локальный адрес `${KNX_LOCAL_GATEWAY_IP}:${KNX_LOCAL_GATEWAY_PORT}`
+- при работе из сети объекта предпочтительно использовать локальный адрес `${KNX_LOCAL_GATEWAY_IP}:${KNX_LOCAL_GATEWAY_PORT}`
+- при работе с текущей whitelisted workstation дефолтный путь это внешний профиль `external`
 
 ## Известные group address
 
@@ -70,7 +73,8 @@
 
 ## Что использовать в коде
 
-- endpoint для разработки: `${KNX_LOCAL_GATEWAY_IP}:${KNX_LOCAL_GATEWAY_PORT}`
+- для текущей workstation-разработки: профиль `external`
+- для запуска из локальной сети объекта: профиль `local`
 - transport: `UDP`
 - connection mode: `TUNNELING`
 - библиотека-кандидат для MVP: `xknx`

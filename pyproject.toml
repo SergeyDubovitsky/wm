@@ -35,6 +35,7 @@ src = [
     "apps/edge_agent/src",
     "apps/knx_demo/src",
     "libs/knx_parser/src",
+    "libs/wm_demo_stack/src",
     "tests",
 ]
 

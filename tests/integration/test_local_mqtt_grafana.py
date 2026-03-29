@@ -101,6 +101,14 @@ def test_local_stack_dashboard_renders_live_mqtt_payload(
         "quality": "good",
         "sequence": 1,
     }
+    metadata_topic = (
+        "wm/v1/objects/demo-stand-01"
+        f"/agents/{agent_id}/sources/knx_main/meta/catalog"
+    )
+    event_topic = (
+        "wm/v1/objects/demo-stand-01"
+        f"/agents/{agent_id}/sources/knx_main/points/2%2F0%2F0/event"
+    )
 
     try:
         _login_to_grafana(
@@ -110,7 +118,10 @@ def test_local_stack_dashboard_renders_live_mqtt_payload(
             password=local_stack.grafana_password,
         )
 
-        page.goto(local_stack.dashboard_url, wait_until="domcontentloaded")
+        page.goto(
+            local_stack.dashboard_url + "&var-agent_id=%2B",
+            wait_until="domcontentloaded",
+        )
         expect(page.locator("body")).to_contain_text("Обзор локального стека", timeout=10_000)
         expect(page.get_by_role("heading", name="Текущее значение")).to_be_visible()
         expect(page.get_by_role("heading", name="Последнее качество")).to_be_visible()
@@ -118,35 +129,40 @@ def test_local_stack_dashboard_renders_live_mqtt_payload(
         expect(page.get_by_role("heading", name="Поток telemetry-событий")).to_be_visible()
         expect(page.get_by_role("heading", name="Каталог метаданных источника")).to_be_visible()
         expect(page.locator("body")).to_contain_text("No data", timeout=10_000)
+        page.get_by_role("heading", name="Каталог метаданных источника").scroll_into_view_if_needed()
+        page.wait_for_timeout(1_000)
 
         _publish_payload(
             host="127.0.0.1",
             port=local_stack.mqtt_port,
             username=local_stack.mqtt_username,
             password=local_stack.mqtt_password,
-            topic=(
-                "wm/v1/objects/demo-stand-01"
-                f"/agents/{agent_id}/sources/knx_main/meta/catalog"
-            ),
+            topic=metadata_topic,
             payload=catalog_payload,
             retain=True,
         )
-
         _publish_payload(
             host="127.0.0.1",
             port=local_stack.mqtt_port,
             username=local_stack.mqtt_username,
             password=local_stack.mqtt_password,
-            topic=(
-                "wm/v1/objects/demo-stand-01"
-                f"/agents/{agent_id}/sources/knx_main/points/2%2F0%2F0/event"
-            ),
+            topic=event_topic,
             payload=event_payload,
         )
 
         dashboard = page.locator("body")
         expect(dashboard).to_contain_text(event_id, timeout=40_000)
-        expect(dashboard).to_contain_text("wm.source.meta.catalog.v1", timeout=20_000)
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        _publish_payload(
+            host="127.0.0.1",
+            port=local_stack.mqtt_port,
+            username=local_stack.mqtt_username,
+            password=local_stack.mqtt_password,
+            topic=metadata_topic,
+            payload=catalog_payload,
+            retain=True,
+        )
+        expect(dashboard).to_contain_text("wm.source.meta.catalog.v1", timeout=40_000)
         expect(dashboard).to_contain_text("message_type", timeout=10_000)
         expect(dashboard).to_contain_text("event_id", timeout=10_000)
         expect(dashboard).to_contain_text("event_type", timeout=10_000)

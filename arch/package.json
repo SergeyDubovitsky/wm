@@ -1,7 +1,7 @@
 {
   "name": "industrial-edge-architecture",
   "private": true,
-  "description": "LikeC4 workspace for industrial edge monitoring architecture",
+  "description": "LikeC4 workspace for industrial edge web monitoring architecture",
   "scripts": {
     "dev": "likec4 dev",
     "start": "likec4 start",

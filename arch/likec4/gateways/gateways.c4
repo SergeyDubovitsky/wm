@@ -6,8 +6,6 @@ model {
             color secondary
         }
 
-        -> edge-telemetry-agent.collector-runtime 'Передают данные через southbound-адаптеры'
-
         knx-router = field-gateway 'KNX Segment' {
             technology 'KNX / KNXnet-IP'
             icon @/knx.svg

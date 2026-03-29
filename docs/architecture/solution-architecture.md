@@ -131,17 +131,18 @@ Source of truth для `C1/C2` и следующих уровней декомп
 - для demo-стенда текущий runtime `Edge Telemetry Agent` запускается не на объекте, а на удаленном `Developer Workstation`
 - доступ к стенду выполняется через whitelisted public endpoint `${KNX_EXTERNAL_GATEWAY_IP}:${KNX_EXTERNAL_GATEWAY_PORT}`
 - NAT-маршрут: `${KNX_EXTERNAL_GATEWAY_IP}:${KNX_EXTERNAL_GATEWAY_PORT} -> ${KNX_LOCAL_GATEWAY_IP}:${KNX_LOCAL_GATEWAY_PORT}`
-- на том же рабочем месте текущая реализация поднимает `MQTT Ingestion Gateway` и `Grafana`
-- `Grafana` подключается к `MQTT Ingestion Gateway` через `grafana-mqtt-datasource`
+- на том же рабочем месте текущая реализация поднимает локальный `MQTT broker` и `Grafana`
+- `Grafana` подключается к локальному `MQTT broker` через `grafana-mqtt-datasource`
 - этот режим используется только для разработки и проверки первого `KNX`-адаптера
 - он не считается целевой production-схемой
+- versioned runtime-конфиг для этого сценария должен использовать отдельный remote-profile, а не production-like local-on-site profile
 
 ### Grafana в MVP и production
 
 `Grafana` рассматривается как часть `Monitoring & Alarm Platform` и остается в
 production-контуре как слой визуализации.
 
-В текущей реализации `Grafana` подключается к `MQTT Ingestion Gateway` через
+В текущей реализации `Grafana` подключается к локальному `MQTT broker` через
 `grafana-mqtt-datasource` и дает live-представление telemetry stream.
 
 Ограничения текущей интеграции:

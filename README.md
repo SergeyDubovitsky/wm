@@ -1,4 +1,4 @@
-# Industrial Edge Monitoring
+# Industrial Edge Web Monitoring
 
 Репозиторий организован как monorepo для `Edge Telemetry Agent`,
 `Monitoring & Alarm Platform`, Python-утилит и архитектурных артефактов.
@@ -8,6 +8,7 @@
 - `apps/edge_agent/` — edge runtime, example-конфиги и runtime-контракты
 - `apps/knx_demo/` — KNX demo utilities
 - `libs/knx_parser/` — библиотека для разбора ETS `.knxproj`
+- `libs/wm_demo_stack/` — библиотека demo/scenario потока `MQTT -> Grafana`
 - `environments/` — versioned runtime-конфиги конкретных стендов и окружений
 - `infra/` — локальная инфраструктура разработки и будущие `compose`-артефакты
 - `docs/architecture/` — архитектурные документы и ADR верхнего уровня
@@ -32,6 +33,7 @@ uv sync
 uv run --package edge-agent pytest apps/edge_agent/tests
 uv run --package knx-demo pytest apps/knx_demo/tests
 uv run --package knx-parser pytest libs/knx_parser/tests
+uv run --group integration pytest libs/wm_demo_stack/tests/test_scenario.py
 ```
 
 Для линтинга Python-кода:
@@ -58,6 +60,7 @@ uv run --group integration pytest tests/integration/test_local_mqtt_grafana.py
 - `uv run --package edge-agent edge-agent check-config`
 - `uv run --package knx-demo knx-demo --help`
 - `uv run --package knx-parser knx-parser --help`
+- `uv run --env-file .env --package wm-demo-stack publish-grafana-demo --help`
 
 ## Архитектурные Артефакты
 
@@ -108,10 +111,12 @@ docker compose --env-file ../../.env up -d
 - dashboard показывает быстрые карточки для `Текущее значение`, `Последнее качество`, `Статус источника`, `Статус агента`
 - по умолчанию dashboard открывается на demo temperature point `2%2F0%2F0`, чтобы график был полезным сразу
 - datasource не умеет query-based variable discovery, поэтому `agent_id` задается text box, а не auto-discovery из broker
-- для ручной генерации demo telemetry используйте `uv run --env-file .env --group integration python infra/local/scripts/publish_grafana_demo.py`; скрипт подхватит `MQTT_BROKER`, `MQTT_USERNAME` и `MQTT_PASSWORD` из `.env`
+- для ручной генерации demo telemetry предпочтительно используйте `uv run --env-file .env --package wm-demo-stack publish-grafana-demo`; библиотечный CLI подхватит `MQTT_BROKER`, `MQTT_USERNAME` и `MQTT_PASSWORD` из `.env`
+- совместимый shim `uv run --env-file .env --group integration python infra/local/scripts/publish_grafana_demo.py` оставлен для прежних инструкций и ручных запусков
 - для smoke-test откройте dashboard `Обзор локального стека`, затем публикуйте
   telemetry events в topic вида `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event`
   и ждите до одного query interval, обычно около `15-20s`
+- для полной ручной проверки статусов пролистайте дашборд вниз: нижние live-таблицы могут подписаться только после попадания в viewport
 - для автоматизированной проверки используйте
   `uv run --group integration pytest tests/integration/test_local_mqtt_grafana.py`
 
@@ -120,4 +125,11 @@ docker compose --env-file ../../.env up -d
 ```bash
 uv run --env-file .env --package edge-agent edge-agent check-config \
   --config-root environments/demo-stand/edge_agent
+```
+
+Для текущего удаленного dev-сценария demo-стенда есть отдельный профиль:
+
+```bash
+uv run --env-file .env --package edge-agent edge-agent check-config \
+  --config-root environments/demo-stand-remote/edge_agent
 ```

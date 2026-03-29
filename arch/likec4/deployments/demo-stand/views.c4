@@ -14,7 +14,7 @@ views 'Deployments / Demo Stand' {
 
     deployment view deployment-demo-stand-current-implementation {
         title 'Deployment - Demo Stand Current Implementation'
-        description 'Текущая реализация demo-стенда: Edge Telemetry Agent работает на Developer Workstation, публикует в локальный MQTT Ingestion Gateway, а Grafana читает live MQTT поток через grafana-mqtt-datasource.'
+        description 'Текущая реализация demo-стенда: Edge Telemetry Agent работает на Developer Workstation, публикует в локальный MQTT broker, а Grafana читает live MQTT поток через grafana-mqtt-datasource.'
 
         include demo-stand.**
         include whitelisted-remote-host.**

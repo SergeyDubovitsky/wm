@@ -8,6 +8,7 @@ members = [
     "knx-demo",
     "knx-parser",
     "web-monitoring",
+    "wm-demo-stack",
 ]
 
 [[package]]
@@ -554,6 +555,25 @@ integration = [
     { name = "pytest", specifier = ">=9.0.2" },
 ]
 lint = [{ name = "ruff", specifier = ">=0.15.8" }]
+
+[[package]]
+name = "wm-demo-stack"
+version = "0.1.0"
+source = { editable = "libs/wm_demo_stack" }
+dependencies = [
+    { name = "paho-mqtt" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "paho-mqtt", specifier = ">=2.1.0" }]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "xknx"

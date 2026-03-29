@@ -131,6 +131,17 @@ def test_processing_emits_boolean_event_and_suppresses_duplicate() -> None:
     assert first.event is not None
     assert first.event.event_type == "telemetry.changed"
     assert first.event.sequence == 1
+    assert first.event.mqtt_payload() == {
+        "message_type": "wm.telemetry.event.v1",
+        "event_id": first.event.event_id,
+        "event_type": "telemetry.changed",
+        "ts": "2026-03-28T10:00:00Z",
+        "observation_mode": "listen",
+        "value": True,
+        "value_raw": "01",
+        "quality": "good",
+        "sequence": 1,
+    }
     assert (
         first.event.topic("wm/v1")
         == "wm/v1/objects/demo-stand-01/agents/agent-1/sources/knx_main/points/0%2F0%2F7/event"
@@ -174,6 +185,17 @@ def test_processing_uses_threshold_for_numeric_points() -> None:
 
     assert first.event is not None
     assert first.event.event_type == "telemetry.sample"
+    assert first.event.mqtt_payload() == {
+        "message_type": "wm.telemetry.event.v1",
+        "event_id": first.event.event_id,
+        "event_type": "telemetry.sample",
+        "ts": "2026-03-28T10:00:00Z",
+        "observation_mode": "read_on_start",
+        "value": 23.0,
+        "value_raw": None,
+        "quality": "good",
+        "sequence": 1,
+    }
     assert second.event is None
     assert second.suppressed_reason == "not_significant"
     assert third.event is not None

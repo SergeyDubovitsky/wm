@@ -1,0 +1,19 @@
+sources:
+  - source_id: "knx_main"
+    type: "knx"
+    enabled: true
+    connection:
+      gateway_ip: "${KNX_EXTERNAL_GATEWAY_IP}"
+      gateway_port: "${KNX_EXTERNAL_GATEWAY_PORT}"
+      connection_type: "tunneling"
+      transport: "udp"
+      route_back: "${KNX_EXTERNAL_ROUTE_BACK}"
+      auto_reconnect: true
+      reconnect_backoff_seconds: [1, 5, 15, 30]
+    acquisition_defaults:
+      listen: true
+      read_on_start: false
+      periodic_interval_seconds: null
+    publish_defaults:
+      enabled: true
+      change_threshold: null

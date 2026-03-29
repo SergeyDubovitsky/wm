@@ -34,7 +34,7 @@
             },
             "id": 1,
             "options": {
-        "content": "# Подсказка по дашборду\n\n- Topic событий: `${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event`\n- Topic метаданных источника: `${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/meta/catalog`\n- Payload telemetry намеренно компактный: статические поля вроде `name`, `unit`, `value_model` и `tags` живут в каталоге источника, а не в каждом событии.\n- Оставьте `agent_id=+`, чтобы видеть любого агента, или укажите точный `agent_id` для более стабильных status cards.\n- `point_key` хранится в percent-encoding, например `2/0/0 -> 2%2F0%2F0`.\n- Фильтры по умолчанию указывают на температурный поток, поэтому график и карточка `Текущее значение` полезны сразу.\n- Откройте дашборд до публикации сообщений и подождите до одного query interval, чтобы таблицы и карточки успели обновиться.",
+        "content": "# Подсказка по дашборду\n\n- Topic событий: `${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event`\n- Topic метаданных источника: `${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/meta/catalog`\n- Payload telemetry намеренно компактный: статические поля вроде `name`, `unit`, `value_model` и `tags` живут в каталоге источника, а не в каждом событии.\n- `agent_id=+` оставляет дашборд в режиме наблюдения за любым агентом; это самый устойчивый вариант для локального live-view через `grafana-mqtt-datasource`.\n- `point_key` хранится в percent-encoding, например `2/0/0 -> 2%2F0%2F0`.\n- Фильтры по умолчанию указывают на температурный поток, поэтому график и карточка `Текущее значение` полезны сразу.\n- Откройте дашборд до публикации сообщений и подождите до одного query interval, чтобы таблицы и карточки успели обновиться.\n- Нижние live-таблицы со статусами могут подписаться только после прокрутки в их область; если они пустые, просто пролистайте вниз и дайте один короткий live-cycle.",
         "mode": "markdown"
       },
             "pluginVersion": "12.4.0",
@@ -171,7 +171,7 @@
                     "calcs": [
                         "lastNotNull"
                     ],
-                    "fields": "",
+                    "fields": "quality",
                     "values": false
                 },
                 "showPercentChange": false,
@@ -211,29 +211,23 @@
             },
             "fieldConfig": {
                 "defaults": {
-                    "color": {
-                        "mode": "thresholds"
+                    "custom": {
+                        "align": "auto",
+                        "cellOptions": {
+                            "type": "auto"
+                        },
+                        "inspect": false
                     },
-                    "mappings": [
-                        {
-                            "options": {
-                                "connected": {
-                                    "color": "green",
-                                    "text": "ПОДКЛЮЧЕН"
-                                },
-                                "disconnected": {
-                                    "color": "red",
-                                    "text": "ОТКЛЮЧЕН"
-                                }
-                            },
-                            "type": "value"
-                        }
-                    ],
+                    "mappings": [],
                     "thresholds": {
                         "mode": "absolute",
                         "steps": [
                             {
-                                "color": "gray"
+                                "color": "green"
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
                             }
                         ]
                     }
@@ -248,21 +242,23 @@
             },
             "id": 9,
             "options": {
-                "colorMode": "background_solid",
-                "graphMode": "none",
-                "justifyMode": "center",
-                "orientation": "auto",
-                "percentChangeColorMode": "standard",
-                "reduceOptions": {
-                    "calcs": [
-                        "lastNotNull"
-                    ],
+                "cellHeight": "sm",
+                "footer": {
+                    "countRows": false,
+                    "enablePagination": false,
                     "fields": "",
-                    "values": false
+                    "reducer": [
+                        "sum"
+                    ],
+                    "show": false
                 },
-                "showPercentChange": false,
-                "textMode": "value",
-                "wideLayout": true
+                "showHeader": true,
+                "sortBy": [
+                    {
+                        "desc": true,
+                        "displayName": "Time"
+                    }
+                ]
             },
             "pluginVersion": "12.4.0",
             "targets": [
@@ -276,19 +272,7 @@
                 }
             ],
             "title": "Статус источника",
-            "transformations": [
-                {
-                    "id": "filterFieldsByName",
-                    "options": {
-                        "include": {
-                            "names": [
-                                "state"
-                            ]
-                        }
-                    }
-                }
-            ],
-            "type": "stat"
+            "type": "table"
         },
         {
             "datasource": {
@@ -343,7 +327,7 @@
                     "calcs": [
                         "lastNotNull"
                     ],
-                    "fields": "",
+                    "fields": "status",
                     "values": false
                 },
                 "showPercentChange": false,

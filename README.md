@@ -11,7 +11,16 @@
 - `environments/` — versioned runtime-конфиги конкретных стендов и окружений
 - `infra/` — локальная инфраструктура разработки и будущие `compose`-артефакты
 - `docs/architecture/` — архитектурные документы и ADR верхнего уровня
+- `docs/future-ideas.md` — идеи и возможные следующие инкременты, не текущий backlog
 - `arch/` — LikeC4-модель и связанные материалы
+
+## Task Tracking
+
+Source of truth для текущих задач, приоритетов и статуса выполнения — `YouTrack`.
+
+- `YouTrack` хранит execution backlog и прогресс работ
+- git-документация хранит архитектуру, ADR, открытые вопросы и future ideas
+- живые execution plans не поддерживаются в репозитории, чтобы не расходиться с `YouTrack`
 
 ## Python Workspace
 
@@ -81,7 +90,7 @@ npm run build
 
 ## Local Infrastructure
 
-Локальный dev-стек описан в [infra/local](/Users/srgi0/projects/web-monitoring/infra/local):
+Локальный dev-стек описан в [`infra/local`](infra/local):
 
 ```bash
 cd infra/local
@@ -96,11 +105,11 @@ docker compose --env-file ../../.env up -d
 - вход в `Grafana` требует `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD`
 - Grafana использует `grafana-mqtt-datasource` как текущий MQTT-backed слой визуализации `Monitoring & Alarm Platform`
 - dashboard следует topic tree из `ADR-005` и поддерживает variable-driven topic filters для `object_id`, `agent_id`, `source_id`, `point_key`
-- dashboard показывает quick cards для `Current Value`, `Latest Quality`, `Source Status`, `Agent Status`
+- dashboard показывает быстрые карточки для `Текущее значение`, `Последнее качество`, `Статус источника`, `Статус агента`
 - по умолчанию dashboard открывается на demo temperature point `2%2F0%2F0`, чтобы график был полезным сразу
 - datasource не умеет query-based variable discovery, поэтому `agent_id` задается text box, а не auto-discovery из broker
 - для ручной генерации demo telemetry используйте `uv run --env-file .env --group integration python infra/local/scripts/publish_grafana_demo.py`; скрипт подхватит `MQTT_BROKER`, `MQTT_USERNAME` и `MQTT_PASSWORD` из `.env`
-- для smoke-test откройте dashboard `Local Stack Overview`, затем публикуйте
+- для smoke-test откройте dashboard `Обзор локального стека`, затем публикуйте
   telemetry events в topic вида `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event`
   и ждите до одного query interval, обычно около `15-20s`
 - для автоматизированной проверки используйте

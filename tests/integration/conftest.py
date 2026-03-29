@@ -23,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "infra" / "local" / "compose.yaml"
 BASE_ENV_FILE = REPO_ROOT / ".env.example"
 GRAFANA_DASHBOARD_UID = "local-stack-overview"
+GRAFANA_DASHBOARD_TITLE = "Обзор локального стека"
 GRAFANA_DATASOURCE_UID = "mqtt-local"
 GRAFANA_PLUGIN_ID = "grafana-mqtt-datasource"
 
@@ -152,7 +153,7 @@ class LocalStack:
     def wait_for_provisioning(self, timeout: float = 120.0) -> None:
         deadline = time.monotonic() + timeout
         last_error = "Provisioning has not finished yet."
-        search_path = f"/api/search?query={quote('Local Stack Overview')}"
+        search_path = f"/api/search?query={quote(GRAFANA_DASHBOARD_TITLE)}"
 
         while time.monotonic() < deadline:
             try:

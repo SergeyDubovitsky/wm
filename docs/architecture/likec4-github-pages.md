@@ -1,7 +1,7 @@
 # LikeC4 on GitHub Pages
 
 Статический LikeC4-site публикуется в GitHub Pages через GitHub Actions workflow
-[`deploy-likec4-pages.yml`](/Users/srgi0/projects/web-monitoring/.github/workflows/deploy-likec4-pages.yml).
+[`deploy-likec4-pages.yml`](../../.github/workflows/deploy-likec4-pages.yml).
 
 ## Источник публикации
 
@@ -17,7 +17,7 @@
 
 ## Локальная проверка
 
-Из директории [`arch`](/Users/srgi0/projects/web-monitoring/arch):
+Из директории [`arch`](../../arch):
 
 ```bash
 npm run validate
@@ -36,6 +36,6 @@ Workflow публикует сайт автоматически при push в `
 Внутри workflow:
 
 1. `actions/configure-pages@v5` получает правильный `base_path`
-2. `likec4/actions@v1` собирает static site из [`arch`](/Users/srgi0/projects/web-monitoring/arch)
+2. `likec4/actions@v1` собирает static site из [`arch`](../../arch)
 3. `actions/upload-pages-artifact@v4` загружает `arch/dist`
 4. `actions/deploy-pages@v4` публикует артефакт в environment `github-pages`

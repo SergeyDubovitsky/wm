@@ -147,7 +147,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-metadata",
         action="store_true",
-        help="Do not publish retained point metadata on startup.",
+        help="Do not publish retained source metadata catalog on startup.",
     )
     parser.add_argument(
         "--no-status",
@@ -201,6 +201,19 @@ def source_status_topic(
     )
 
 
+def source_meta_catalog_topic(
+    *,
+    topic_root: str,
+    object_id: str,
+    agent_id: str,
+    source_id: str,
+) -> str:
+    return (
+        f"{topic_root}/objects/{object_id}/agents/{agent_id}"
+        f"/sources/{source_id}/meta/catalog"
+    )
+
+
 def agent_lwt_topic(
     *,
     topic_root: str,
@@ -210,26 +223,32 @@ def agent_lwt_topic(
     return f"{topic_root}/objects/{object_id}/agents/{agent_id}/status/lwt"
 
 
-def point_meta_payload(
+def source_meta_catalog_payload(
     *,
     object_id: str,
     agent_id: str,
     source_id: str,
-    point: PointSpec,
 ) -> dict[str, Any]:
     return {
-        "message_type": "wm.point.meta.v1",
+        "message_type": "wm.source.meta.catalog.v1",
         "object_id": object_id,
         "agent_id": agent_id,
         "source_id": source_id,
-        "point_key": point.point_key,
-        "point_ref": point.point_ref,
-        "name": point.name,
-        "signal_type": point.signal_type,
-        "value_type": point.value_type,
-        "value_model": point.value_model,
-        "unit": point.unit,
-        "tags": point.tags,
+        "source_type": "knx",
+        "ts": now_utc_iso(),
+        "points": [
+            {
+                "point_key": point.point_key,
+                "point_ref": point.point_ref,
+                "name": point.name,
+                "signal_type": point.signal_type,
+                "value_type": point.value_type,
+                "value_model": point.value_model,
+                "unit": point.unit,
+                "tags": point.tags,
+            }
+            for point in POINTS
+        ],
     }
 
 
@@ -244,18 +263,13 @@ def telemetry_payload(
     return {
         "message_type": "wm.telemetry.event.v1",
         "event_id": event_id,
+        "event_type": "telemetry.changed" if point.value_type == "boolean" else "telemetry.sample",
         "ts": now_utc_iso(),
-        "name": point.name,
-        "signal_type": point.signal_type,
-        "value_type": point.value_type,
-        "value_model": point.value_model,
         "observation_mode": "listen",
         "value": value,
         "value_raw": value_raw,
         "quality": "good",
         "sequence": sequence,
-        "unit": point.unit,
-        "tags": point.tags,
     }
 
 
@@ -319,25 +333,21 @@ def publish_bootstrap_records(
     args: argparse.Namespace,
 ) -> None:
     if not args.no_metadata:
-        for point in POINTS:
-            publish_json(
-                client,
-                topic=point_topic(
-                    topic_root=args.topic_root,
-                    object_id=args.object_id,
-                    agent_id=args.agent_id,
-                    source_id=args.source_id,
-                    point=point,
-                    suffix="meta",
-                ),
-                payload=point_meta_payload(
-                    object_id=args.object_id,
-                    agent_id=args.agent_id,
-                    source_id=args.source_id,
-                    point=point,
-                ),
-                retain=True,
-            )
+        publish_json(
+            client,
+            topic=source_meta_catalog_topic(
+                topic_root=args.topic_root,
+                object_id=args.object_id,
+                agent_id=args.agent_id,
+                source_id=args.source_id,
+            ),
+            payload=source_meta_catalog_payload(
+                object_id=args.object_id,
+                agent_id=args.agent_id,
+                source_id=args.source_id,
+            ),
+            retain=True,
+        )
 
     if not args.no_status:
         publish_json(

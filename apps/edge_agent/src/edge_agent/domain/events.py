@@ -12,6 +12,8 @@ from edge_agent.modeling import FrozenEdgeModel
 EventType = Literal["telemetry.changed", "telemetry.sample"]
 ObservationMode = Literal["listen", "read_on_start", "periodic_read"]
 Quality = Literal["good", "uncertain", "bad"]
+# MVP intentionally limits telemetry values to scalars. Complex protocol values
+# like OPC UA arrays/structures require a separate future wire contract.
 ScalarValue = bool | int | float | str
 
 

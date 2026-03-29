@@ -75,8 +75,8 @@ Source of truth для `C1/C2` и следующих уровней декомп
 - публиковать аналоговые сигналы по достижению порога изменения
 - логировать события связи, декодирования и доставки
 - буферизовать неотправленные события локально
-- принимать `MQTT` telemetry events, point metadata и status topics в центральной платформе
-- хранить телеметрию, point metadata и историю `alarm`
+- принимать `MQTT` telemetry events, source metadata catalog и status topics в центральной платформе
+- хранить телеметрию, source metadata catalog и историю `alarm`
 - выполнять правила `alarm` и маршрутизировать уведомления
 - предоставлять операторский UI и backend API для мониторинга и работы с `alarm`
 
@@ -110,7 +110,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 | `Last Value Cache` | Хранит последнее увиденное и последнее отправленное значение по каждой точке для фильтрации и дедупликации |
 | `Change Filter` | Решает, публиковать событие или подавить его как дубль/шум |
 | `SQLite Outbox` | Временно хранит telemetry events, ожидающие доставки или повторной отправки |
-| `MQTT Publisher` | Публикует telemetry events, point metadata и status topics в broker, ведет retry и отмечает статус доставки |
+| `MQTT Publisher` | Публикует telemetry events с тонким dynamic payload, retained source metadata catalog и status topics в broker, ведет retry и отмечает статус доставки |
 | `Logs / Metrics / Health` | Пишет эксплуатационные события и дает наблюдаемость по сервису |
 
 ## Развертывание
@@ -250,7 +250,7 @@ production-контуре как слой визуализации.
 - listen/poll + `read_on_start`
 - структурированный лог
 - `SQLite Outbox`
-- `MQTT 5.0` transport для telemetry events, point metadata и status topics
+- `MQTT 5.0` transport для telemetry events, source metadata catalog и status topics
 
 ### Этап 2. Production hardening
 

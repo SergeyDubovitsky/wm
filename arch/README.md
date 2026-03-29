@@ -64,7 +64,7 @@
 ## Термины
 
 Канонический глоссарий проекта вынесен в
-[glossary.md](/Users/srgi0/projects/web-monitoring/docs/architecture/glossary.md).
+[`docs/architecture/glossary.md`](../docs/architecture/glossary.md).
 
 В `arch/` оставляем только LikeC4-модель, структуру workspace и правила
 ведения диаграмм, чтобы не дублировать общую архитектурную терминологию.

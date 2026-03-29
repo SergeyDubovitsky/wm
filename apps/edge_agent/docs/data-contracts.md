@@ -34,6 +34,12 @@
 
 Это canonical domain event внутри системы. `MQTT` wire payload для MVP может быть компактнее и не обязан повторять поля, которые уже выражены в topic path.
 
+Граница MVP:
+
+- текущий runtime и `MQTT` wire contract поддерживают только scalar telemetry values: `boolean`, `number`, `string`
+- complex values вроде `OPC UA Variant` со структурой, массивов, `ByteString` и protocol-specific composite payload пока не входят в MVP contract
+- если для будущего source потребуется complex payload, он должен получить отдельный versioned contract, а не неявно расширять текущий scalar-only payload
+
 Текущий JSON ниже остается KNX-first примером для первого адаптера, но использует уже универсальные поля.
 
 ```json
@@ -78,12 +84,12 @@
 | `point_ref` | string | да | Технический идентификатор точки в рамках источника |
 | `name` | string | да | Человекочитаемое имя сигнала |
 | `description` | string | нет | Расширенное описание |
-| `value_type` | string | да | Например `boolean`, `number`, `string` |
+| `value_type` | string | да | Для MVP только scalar-типы, например `boolean`, `number`, `string` |
 | `value_model` | string | да | Тип модели значения; например `knx.dpt.1.001` |
 | `signal_type` | string | да | `command`, `feedback`, `status`, `sensor` |
 | `observation_mode` | string | да | `listen`, `read_on_start`, `periodic_read` |
-| `value` | bool/number/string | да | Нормализованное значение |
-| `value_raw` | string | нет | Raw payload в hex или иной технической форме |
+| `value` | bool/number/string | да | Для MVP только scalar нормализованное значение |
+| `value_raw` | string | нет | Raw payload в hex, base64 или иной scalar-friendly технической форме |
 | `unit` | string/null | нет | Например `C` для температуры |
 | `quality` | string | да | Оценка качества наблюдения |
 | `sequence` | integer | нет | Локальный монотонный номер события |
@@ -99,15 +105,17 @@
 
 ## MQTT topic contract для MVP
 
-Текущий MVP transport использует `MQTT 5.0`, telemetry events, retained point metadata и status topics.
+Текущий MVP transport использует `MQTT 5.0`, telemetry events с тонким dynamic payload, retained source metadata catalog и status topics.
 
 Точный topic tree, таблица MQTT topics, routing rules и examples payload вынесены в [`mqtt-topics.md`](./mqtt-topics.md).
 
-Telemetry event остается canonical domain event. Point metadata и status messages описываются как публичный `MQTT` publish contract для внешних consumer-ов, но не вводят отдельные canonical event types.
+Telemetry event остается canonical domain event. В `MQTT` wire contract статические point metadata выносятся в retained source catalog, а status messages описываются как публичный `MQTT` publish contract для внешних consumer-ов, но не вводят отдельные canonical event types.
+
+Дополнительное правило MVP: `MQTT` telemetry payload остается scalar-only. Поддержка complex values для будущих `OPC UA` или других source types должна оформляться отдельной новой версией контракта.
 
 ## Модель локального outbox
 
-Локальный outbox хранит только telemetry events, для которых требуется надежная retry-доставка. Retained `meta` и `status` topics могут публиковаться напрямую и переиздаваться при старте агента без обязательного сохранения в outbox.
+Локальный outbox хранит только telemetry events, для которых требуется надежная retry-доставка. Retained source metadata catalog и `status` topics могут публиковаться напрямую и переиздаваться при успешном connect без обязательного сохранения в outbox.
 
 Минимальная логическая схема:
 

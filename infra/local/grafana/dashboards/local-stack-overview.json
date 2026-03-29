@@ -34,11 +34,11 @@
             },
             "id": 1,
             "options": {
-        "content": "# Dashboard Help\n\n- Event topic: `${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event`\n- Keep `agent_id=+` to watch any agent, or paste an exact agent id for more stable status cards.\n- `point_key` is percent-encoded, for example `2/0/0 -> 2%2F0%2F0`.\n- Default filters point to the temperature stream, so the graph and `Current Value` are useful immediately.\n- Open the dashboard before publishing and allow up to one query interval for tables and cards to refresh.",
+        "content": "# Подсказка по дашборду\n\n- Topic событий: `${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event`\n- Topic метаданных источника: `${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/meta/catalog`\n- Payload telemetry намеренно компактный: статические поля вроде `name`, `unit`, `value_model` и `tags` живут в каталоге источника, а не в каждом событии.\n- Оставьте `agent_id=+`, чтобы видеть любого агента, или укажите точный `agent_id` для более стабильных status cards.\n- `point_key` хранится в percent-encoding, например `2/0/0 -> 2%2F0%2F0`.\n- Фильтры по умолчанию указывают на температурный поток, поэтому график и карточка `Текущее значение` полезны сразу.\n- Откройте дашборд до публикации сообщений и подождите до одного query interval, чтобы таблицы и карточки успели обновиться.",
         "mode": "markdown"
       },
             "pluginVersion": "12.4.0",
-            "title": "Local Stack",
+            "title": "Локальный стек",
             "type": "text"
         },
         {
@@ -99,7 +99,7 @@
                     "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event"
                 }
             ],
-            "title": "Current Value",
+            "title": "Текущее значение",
             "transformations": [
                 {
                     "id": "filterFieldsByName",
@@ -129,15 +129,15 @@
                             "options": {
                                 "good": {
                                     "color": "green",
-                                    "text": "GOOD"
+                                    "text": "ХОРОШО"
                                 },
                                 "bad": {
                                     "color": "red",
-                                    "text": "BAD"
+                                    "text": "ПЛОХО"
                                 },
                                 "unknown": {
                                     "color": "yellow",
-                                    "text": "UNKNOWN"
+                                    "text": "НЕИЗВЕСТНО"
                                 }
                             },
                             "type": "value"
@@ -189,7 +189,7 @@
                     "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event"
                 }
             ],
-            "title": "Latest Quality",
+            "title": "Последнее качество",
             "transformations": [
                 {
                     "id": "filterFieldsByName",
@@ -219,11 +219,11 @@
                             "options": {
                                 "connected": {
                                     "color": "green",
-                                    "text": "CONNECTED"
+                                    "text": "ПОДКЛЮЧЕН"
                                 },
                                 "disconnected": {
                                     "color": "red",
-                                    "text": "DISCONNECTED"
+                                    "text": "ОТКЛЮЧЕН"
                                 }
                             },
                             "type": "value"
@@ -275,7 +275,7 @@
                     "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/status/connection"
                 }
             ],
-            "title": "Source Status",
+            "title": "Статус источника",
             "transformations": [
                 {
                     "id": "filterFieldsByName",
@@ -305,11 +305,11 @@
                             "options": {
                                 "online": {
                                     "color": "green",
-                                    "text": "ONLINE"
+                                    "text": "В СЕТИ"
                                 },
                                 "offline": {
                                     "color": "red",
-                                    "text": "OFFLINE"
+                                    "text": "НЕ В СЕТИ"
                                 }
                             },
                             "type": "value"
@@ -361,7 +361,7 @@
                     "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/status/lwt"
                 }
             ],
-            "title": "Agent Status",
+            "title": "Статус агента",
             "transformations": [
                 {
                     "id": "filterFieldsByName",
@@ -479,7 +479,7 @@
                     "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event"
                 }
             ],
-            "title": "Numeric Value Trend",
+            "title": "График значения",
             "transformations": [
                 {
                     "id": "filterFieldsByName",
@@ -558,7 +558,7 @@
                     "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/event"
                 }
             ],
-            "title": "Telemetry Event Stream",
+            "title": "Поток telemetry-событий",
             "type": "table"
         },
         {
@@ -620,10 +620,10 @@
                         "uid": "mqtt-local"
                     },
                     "refId": "A",
-                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/points/${point_key}/meta"
+                    "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/meta/catalog"
                 }
             ],
-            "title": "Point Metadata Stream",
+            "title": "Каталог метаданных источника",
             "type": "table"
         },
         {
@@ -688,7 +688,7 @@
                     "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/sources/${source_id}/status/connection"
                 }
             ],
-            "title": "Source Connection Status",
+            "title": "Статус соединения источника",
             "type": "table"
         },
         {
@@ -753,7 +753,7 @@
                     "topic": "${topic_root}/objects/${object_id}/agents/${agent_id}/status/lwt"
                 }
             ],
-            "title": "Agent LWT Status",
+            "title": "LWT-статус агента",
             "type": "table"
         }
     ],
@@ -894,7 +894,7 @@
     },
     "timepicker": {},
     "timezone": "browser",
-    "title": "Local Stack Overview",
+    "title": "Обзор локального стека",
     "uid": "local-stack-overview",
     "version": 3,
     "weekStart": ""

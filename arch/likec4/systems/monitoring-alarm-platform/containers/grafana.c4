@@ -1,10 +1,11 @@
 model {
     extend monitoring-alarm-platform {
         grafana = container 'Grafana' {
-            description 'Слой визуализации Monitoring & Alarm Platform: live-панели, инженерные dashboards и операторские представления. В target-контуре использует MQTT ingress path платформы, а в текущем dev-срезе может подключаться напрямую к локальному MQTT broker через grafana-mqtt-datasource.'
-            technology 'Grafana OSS / grafana-mqtt-datasource'
+            description 'Слой визуализации Monitoring & Alarm Platform: инженерные dashboards, операторские представления и панели истории. В production-контуре читает подготовленные данные из ClickHouse Telemetry Store, а в текущем dev-срезе может подключаться напрямую к локальному MQTT broker через grafana-mqtt-datasource.'
+            technology 'Grafana OSS / dashboards'
+            icon tech:grafana
 
-            -> mqtt-ingestion-gateway 'Подписывается на live MQTT telemetry и service topics'
+            -> telemetry-store 'Читает телеметрию, агрегаты и историю alarm из ClickHouse для dashboards'
         }
     }
 }

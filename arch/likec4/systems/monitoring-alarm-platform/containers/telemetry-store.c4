@@ -1,8 +1,9 @@
 model {
     extend monitoring-alarm-platform {
         telemetry-store = container 'Telemetry Store' {
-            description 'Хранит телеметрию, служебные события, историю alarm и данные для мониторинговых и операторских запросов.'
-            technology 'Time-series DB / relational storage'
+            description 'Authoritative ClickHouse store wm.clickhouse.telemetry-store.v1 для append-only telemetry events, service events, source metadata snapshots, derived events, aggregates, rollups и immutable alarm history.'
+            technology 'ClickHouse / analytical time-series and event store'
+            icon @/clickhouse.svg
             style {
                 shape storage
             }

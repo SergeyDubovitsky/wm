@@ -3,10 +3,12 @@ model {
         platform-api = container 'Platform API' {
             description 'Backend API для состояния alarm, истории событий, конфигурации правил и политик уведомлений.'
             technology 'HTTP API / backend service'
+            icon bootstrap:server
 
             -> keycloak 'Проверяет токены, роли и client configuration'
-            -> telemetry-store 'Читает телеметрию, историю и временные линии alarm'
-            -> alarm-rule-engine 'Читает активные alarm и управляет конфигурацией правил в Alarm Rule Engine'
+            -> telemetry-store 'Читает историческую телеметрию, графики, агрегаты и alarm history из ClickHouse'
+            -> platform-store 'Читает и изменяет конфигурации, правила, current alarm state и audit в PostgreSQL'
+            -> alarm-rule-engine 'Передает команды rule management и lifecycle actions'
         }
     }
 }

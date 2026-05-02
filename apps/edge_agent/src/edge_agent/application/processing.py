@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from edge_agent.application.catalog import source_catalog_revision
 from edge_agent.domain.config import AgentRuntimeConfig, RuntimePoint
 from edge_agent.domain.events import Observation, TelemetryEvent
 from edge_agent.modeling import EdgeModel, FrozenEdgeModel
@@ -21,6 +22,17 @@ class ObservationProcessor:
         self._runtime_config = runtime_config
         self._agent_id = agent_id
         self._states: dict[tuple[str, str], PointState] = {}
+        self._catalog_revisions = {
+            source.source_id: source_catalog_revision(
+                source_type=source.type,
+                points=[
+                    point
+                    for (point_source_id, _), point in runtime_config.points.items()
+                    if point_source_id == source.source_id
+                ],
+            )
+            for source in runtime_config.sources.values()
+        }
 
     def process(self, observation: Observation) -> ProcessingResult:
         point = self._runtime_config.point(observation.source_id, observation.point_ref)
@@ -42,6 +54,7 @@ class ObservationProcessor:
             object_id=self._runtime_config.agent.object_id,
             source_id=point.source_id,
             source_type=point.source_type,
+            catalog_revision=self._catalog_revisions[point.source_id],
             point_ref=point.point_ref,
             name=point.name,
             description=point.description,

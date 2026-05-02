@@ -1,0 +1,24 @@
+model {
+    service-engineer = actor 'Сервисный инженер' {
+        description 'Настраивает источники данных, схему сигналов, правила доставки и эксплуатационные параметры edge-агента и центральной платформы.'
+
+        -[interact-with]-> edge-telemetry-agent 'Настраивает адаптеры, модель сигналов, polling и доставку'
+        -[interact-with]-> monitoring-alarm-platform 'Настраивает правила alarm, получателей и панели мониторинга'
+        -[interact-with]-> monitoring-alarm-platform.grafana 'Настраивает dashboards и проверяет поток телеметрии'
+    }
+
+
+    operator = actor 'Оператор' {
+        description 'Работает с текущим состоянием объекта, live-панелями и событиями через центральную платформу мониторинга.'
+
+        -[interact-with]-> monitoring-alarm-platform 'Работает с панелями мониторинга, событиями и alarm'
+        -[interact-with]-> monitoring-alarm-platform.platform-frontend 'Работает с пользовательским web-интерфейсом платформы'
+    }
+
+    dispatcher = actor 'Диспетчер' {
+        description 'Контролирует alarm, уведомления и диспетчерские панели через центральную платформу мониторинга.'
+
+        -[interact-with]-> monitoring-alarm-platform 'Работает с alarm, уведомлениями и диспетчерскими сценариями'
+        -[interact-with]-> monitoring-alarm-platform.platform-frontend 'Работает с пользовательским web-интерфейсом платформы'
+    }
+}

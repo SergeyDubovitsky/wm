@@ -6,19 +6,11 @@ model {
             color secondary
         }
 
+        field-equipment = field-device 'Field Equipment' {
+            description 'Датчики, выключатели, актуаторы и контроллеры demo-стенда, объединенные как источник телеметрии и состояний.'
+            technology 'KNX devices in demo stand'
 
-        knx-temperature-sensor = field-device {
-            description 'Датчик температуры'
-            technology 'KNX'
-
-            -> field-protocol-gateways.knx-router 'Передают телеграммы, состояния и команды в KNX-сегменте'
-        }
-
-        knx-switch = field-device {
-            description 'Выключатель'
-            technology 'KNX'
-
-            -> field-protocol-gateways.knx-router 'Передает телеграммы состояния и управления в KNX-сегменте'
+            -> field-protocol-gateways.knx-router 'Обменивается телеграммами, состояниями и командами через KNX-сегмент'
         }
 
 

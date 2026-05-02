@@ -5,7 +5,7 @@
 
 ## Структура
 
-- `apps/edge_agent/` — edge runtime, example-конфиги и runtime-контракты
+- `apps/edge_agent/` — edge runtime, example-конфиги и runtime-guides
 - `apps/knx_demo/` — KNX demo utilities
 - `libs/knx_parser/` — библиотека для разбора ETS `.knxproj`
 - `libs/wm_demo_stack/` — библиотека demo/scenario потока `MQTT -> Grafana`
@@ -70,12 +70,14 @@ uv run --group integration pytest tests/integration/test_local_mqtt_grafana.py
 - `docs/architecture/open-questions.md` — список открытых вопросов к заказчику
   и по эксплуатации
 - `docs/architecture/adrs/` — ключевые архитектурные решения
+- `docs/contracts/README.md` — реестр контрактов данных и единый source of truth
+- `docs/contracts/edge-agent/` — канонические edge boundary contracts, MQTT topic tree и схемы payload
 - `arch/likec4/` — source of truth для C4-модели и диаграмм
 - `arch/README.md` — навигация по LikeC4-модели и командам
-- `apps/edge_agent/docs/data-contracts.md` — формат событий, MQTT topic contract и
-  модель конфигурации edge runtime
-- `apps/edge_agent/docs/mqtt-topics.md` — отдельная таблица MQTT topics, routing rules
-  и publish contract для edge runtime
+- `apps/edge_agent/docs/data-contracts.md` — guide по edge runtime dataflow,
+  конфигурационной модели и ссылкам на канонические схемы
+- `apps/edge_agent/docs/mqtt-topics.md` — guide по MQTT publish contract и
+  ссылкам на канонический topic tree
 - `apps/edge_agent/config/examples/agent.example.yaml` — глобальная example-конфигурация edge agent
 - `apps/edge_agent/config/examples/sources.d/*.yaml` — примеры конфигурации источников данных
 - `apps/edge_agent/config/examples/points.d/*.yaml` — примеры конфигурации точек мониторинга

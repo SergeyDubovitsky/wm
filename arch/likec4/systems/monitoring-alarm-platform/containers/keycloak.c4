@@ -3,6 +3,9 @@ model {
         keycloak = container 'Keycloak' {
             description 'Сервис identity and access management: realms, пользователи, роли, клиенты и выпуск токенов для Platform Frontend и Platform API.'
             technology 'Keycloak / OIDC / OAuth 2.0'
+            icon tech:oauth
+
+            -> platform-store 'Хранит realm, client и user persistence в PostgreSQL'
         }
     }
 }

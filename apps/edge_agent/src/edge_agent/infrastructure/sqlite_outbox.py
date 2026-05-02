@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from edge_agent.domain.events import TelemetryEvent
@@ -21,6 +21,12 @@ def _from_iso(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
+def _from_optional_iso(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    return _from_iso(value)
+
+
 class OutboxRecord(FrozenEdgeModel):
     id: int
     event_id: str
@@ -29,6 +35,9 @@ class OutboxRecord(FrozenEdgeModel):
     status: str
     created_at: datetime
     available_at: datetime
+    reserved_at: datetime | None
+    lease_expires_at: datetime | None
+    sent_at: datetime | None
     attempt_count: int
     last_error: str | None
 
@@ -50,13 +59,27 @@ class SQLiteOutbox:
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     available_at TEXT NOT NULL,
+                    reserved_at TEXT,
+                    lease_expires_at TEXT,
+                    sent_at TEXT,
                     attempt_count INTEGER NOT NULL,
                     last_error TEXT
                 )
                 """
             )
+            _ensure_columns(
+                connection,
+                "outbox",
+                {
+                    "reserved_at": "TEXT",
+                    "lease_expires_at": "TEXT",
+                    "sent_at": "TEXT",
+                },
+            )
 
-    def append(self, event: TelemetryEvent, available_at: datetime | None = None) -> int:
+    def append(
+        self, event: TelemetryEvent, available_at: datetime | None = None
+    ) -> int:
         now = _now()
         ready_at = available_at or now
         payload_json = json.dumps(
@@ -75,9 +98,12 @@ class SQLiteOutbox:
                     status,
                     created_at,
                     available_at,
+                    reserved_at,
+                    lease_expires_at,
+                    sent_at,
                     attempt_count,
                     last_error
-                ) VALUES (?, ?, ?, 'pending', ?, ?, 0, NULL)
+                ) VALUES (?, ?, ?, 'pending', ?, ?, NULL, NULL, NULL, 0, NULL)
                 """,
                 (
                     event.event_id,
@@ -92,7 +118,9 @@ class SQLiteOutbox:
             raise RuntimeError("Failed to append event to outbox")
         return int(record_id)
 
-    def list_available(self, *, limit: int = 100, now: datetime | None = None) -> list[OutboxRecord]:
+    def list_available(
+        self, *, limit: int = 100, now: datetime | None = None
+    ) -> list[OutboxRecord]:
         ready_at = _to_iso(now or _now())
         with self._connect() as connection:
             rows = connection.execute(
@@ -105,6 +133,9 @@ class SQLiteOutbox:
                     status,
                     created_at,
                     available_at,
+                    reserved_at,
+                    lease_expires_at,
+                    sent_at,
                     attempt_count,
                     last_error
                 FROM outbox
@@ -116,10 +147,18 @@ class SQLiteOutbox:
             ).fetchall()
         return [self._row_to_record(row) for row in rows]
 
-    def reserve_batch(self, *, limit: int = 100, now: datetime | None = None) -> list[OutboxRecord]:
+    def reserve_batch(
+        self,
+        *,
+        limit: int = 100,
+        now: datetime | None = None,
+        lease_seconds: int = 60,
+    ) -> list[OutboxRecord]:
         timestamp = now or _now()
         ready_at = _to_iso(timestamp)
+        lease_expires_at = _to_iso(timestamp + timedelta(seconds=lease_seconds))
         with self._connect() as connection:
+            _recover_expired_inflight(connection, now=ready_at)
             rows = connection.execute(
                 """
                 SELECT
@@ -130,6 +169,9 @@ class SQLiteOutbox:
                     status,
                     created_at,
                     available_at,
+                    reserved_at,
+                    lease_expires_at,
+                    sent_at,
                     attempt_count,
                     last_error
                 FROM outbox
@@ -145,10 +187,14 @@ class SQLiteOutbox:
             connection.executemany(
                 """
                 UPDATE outbox
-                SET status = 'inflight', attempt_count = attempt_count + 1
+                SET
+                    status = 'inflight',
+                    attempt_count = attempt_count + 1,
+                    reserved_at = ?,
+                    lease_expires_at = ?
                 WHERE id = ?
                 """,
-                ((record_id,) for record_id in record_ids),
+                ((ready_at, lease_expires_at, record_id) for record_id in record_ids),
             )
             refreshed_rows = connection.execute(
                 f"""
@@ -160,6 +206,9 @@ class SQLiteOutbox:
                     status,
                     created_at,
                     available_at,
+                    reserved_at,
+                    lease_expires_at,
+                    sent_at,
                     attempt_count,
                     last_error
                 FROM outbox
@@ -170,15 +219,26 @@ class SQLiteOutbox:
             ).fetchall()
         return [self._row_to_record(row) for row in refreshed_rows]
 
+    def recover_expired_inflight(self, *, now: datetime | None = None) -> int:
+        ready_at = _to_iso(now or _now())
+        with self._connect() as connection:
+            return _recover_expired_inflight(connection, now=ready_at)
+
     def mark_sent(self, record_id: int) -> None:
+        sent_at = _to_iso(_now())
         with self._connect() as connection:
             connection.execute(
                 """
                 UPDATE outbox
-                SET status = 'sent', last_error = NULL
+                SET
+                    status = 'sent',
+                    sent_at = ?,
+                    reserved_at = NULL,
+                    lease_expires_at = NULL,
+                    last_error = NULL
                 WHERE id = ?
                 """,
-                (record_id,),
+                (sent_at, record_id),
             )
 
     def mark_retry(self, record_id: int, *, retry_at: datetime, error: str) -> None:
@@ -186,7 +246,12 @@ class SQLiteOutbox:
             connection.execute(
                 """
                 UPDATE outbox
-                SET status = 'pending', available_at = ?, last_error = ?
+                SET
+                    status = 'pending',
+                    available_at = ?,
+                    reserved_at = NULL,
+                    lease_expires_at = NULL,
+                    last_error = ?
                 WHERE id = ?
                 """,
                 (_to_iso(retry_at), error, record_id),
@@ -197,7 +262,11 @@ class SQLiteOutbox:
             connection.execute(
                 """
                 UPDATE outbox
-                SET status = 'dead_letter', last_error = ?
+                SET
+                    status = 'dead_letter',
+                    reserved_at = NULL,
+                    lease_expires_at = NULL,
+                    last_error = ?
                 WHERE id = ?
                 """,
                 (error, record_id),
@@ -217,6 +286,44 @@ class SQLiteOutbox:
             status=str(row["status"]),
             created_at=_from_iso(str(row["created_at"])),
             available_at=_from_iso(str(row["available_at"])),
+            reserved_at=_from_optional_iso(row["reserved_at"]),
+            lease_expires_at=_from_optional_iso(row["lease_expires_at"]),
+            sent_at=_from_optional_iso(row["sent_at"]),
             attempt_count=int(row["attempt_count"]),
             last_error=row["last_error"],
         )
+
+
+def _ensure_columns(
+    connection: sqlite3.Connection,
+    table_name: str,
+    columns: dict[str, str],
+) -> None:
+    existing = {
+        str(row["name"])
+        for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+    for column_name, column_type in columns.items():
+        if column_name not in existing:
+            connection.execute(
+                f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"
+            )
+
+
+def _recover_expired_inflight(connection: sqlite3.Connection, *, now: str) -> int:
+    cursor = connection.execute(
+        """
+        UPDATE outbox
+        SET
+            status = 'pending',
+            available_at = ?,
+            reserved_at = NULL,
+            lease_expires_at = NULL,
+            last_error = COALESCE(last_error, 'lease_expired')
+        WHERE status = 'inflight'
+          AND lease_expires_at IS NOT NULL
+          AND lease_expires_at <= ?
+        """,
+        (now, now),
+    )
+    return cursor.rowcount

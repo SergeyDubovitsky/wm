@@ -1,12 +1,12 @@
 model {
     extend edge-telemetry-agent {
         delivery-worker = container 'Delivery Worker' {
-            description 'Фоновый контейнер доставки: читает outbox, публикует telemetry events и service topics в MQTT topic tree и обновляет статус доставки.'
+            description 'Фоновый контейнер доставки: читает Delivery Outbox, публикует telemetry events и service topics в MQTT topic tree и обновляет attempts/status доставки.'
             technology 'Python worker / MQTT publisher'
 
             -> configuration-bundle 'Загружает настройки MQTT, topic contract и retry-политики'
-            -> outbox-store 'Читает ожидающие события и обновляет статус доставки'
-            -> monitoring-alarm-platform.mqtt-ingestion-gateway 'Публикует telemetry events и service topics по MQTT 5.0'
+            -> local-state-store 'Читает edge.sqlite-outbox-record.v1, обновляет attempts/status и выполняет recovery зависших inflight records'
+            -> monitoring-alarm-platform.mqtt-ingestion-gateway 'Публикует wm.telemetry.event.v1, wm.source.meta.catalog.v1, wm.source.connection.v1 и wm.agent.lwt.v1 по MQTT 5.0'
         }
     }
 

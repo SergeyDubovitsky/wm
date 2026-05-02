@@ -24,7 +24,7 @@ def _agent_data() -> dict[str, object]:
             "mqtt": {
                 "enabled": True,
                 "version": "5.0",
-                "broker": "mqtts://mqtt.example:8883",
+                "broker": "mqtt://127.0.0.1:1883",
                 "topic_root": "wm/v1",
                 "client_id_prefix": "edge-agent",
                 "username_env": "EDGE_AGENT_MQTT_USERNAME",

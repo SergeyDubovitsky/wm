@@ -21,6 +21,9 @@
 - в блоках `acquisition` и `publish` указываются только поля, которые отличаются от source defaults
 - итоговая runtime-конфигурация точки получается merge-ом `source defaults + point overrides`, а point metadata берется из point file напрямую и затем собирается в source-level metadata catalog для `MQTT`
 
+Полные контракты runtime-конфигурации, локального SQLite state и MQTT messages
+зафиксированы в `docs/contracts/edge-agent/`.
+
 При старте агент объединяет все файлы из `sources.d/` и `points.d/` внутри
 выбранного `config_root`, затем выполняет fail-fast валидацию:
 

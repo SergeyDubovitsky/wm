@@ -1,12 +1,10 @@
 model {
-    extend field-devices.knx-switch {
+    extend field-devices.field-equipment {
         light-switch-feedback = telemetry-point '0/0/7 StatusSwitch' {
             description 'Фактически читаемая KNX feedback-точка состояния света для demo-стенда.'
             technology 'KNX DPT 1.001 / feedback'
         }
-    }
 
-    extend field-devices.knx-temperature-sensor {
         room-temperature = telemetry-point '2/0/0 Temp Value' {
             description 'Фактически читаемая KNX sensor-точка температуры помещения для demo-стенда.'
             technology 'KNX DPT 9.xxx / room temperature'

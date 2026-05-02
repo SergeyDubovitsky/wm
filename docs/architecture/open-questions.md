@@ -19,13 +19,14 @@
   `change_threshold = 1.0` уже задан для температуры.
 - В коде `edge_agent` уже реализованы и покрыты тестами:
   валидация конфигурации, merge source defaults + point overrides, подавление
-  `command`-точек, threshold-based processing, `SQLite Outbox`, persistent
+  `command`-точек, threshold-based processing, `SQLite Delivery Outbox`, persistent
   `agent_id`.
 - В коде и `infra/local/` уже зафиксирован рабочий локальный dev-контур:
   `MQTT broker + Grafana + grafana-mqtt-datasource`.
 - Полная `Monitoring & Alarm Platform` как `MQTT Ingestion Gateway`,
-  `Telemetry Store`, `Alarm Rule Engine`, `Platform API`, `Platform Frontend`,
-  `Keycloak` и `Notification Service` пока существует как архитектурная цель;
+  `Redpanda Connect`, `Redpanda`, `Kafka Event Log`, `Telemetry Consumers`, `Streaming Analytics`,
+  `Telemetry Store`, `Platform Store`, `Alarm Rule Engine`, `Platform API`, `Platform Frontend`,
+  `Keycloak`, `Grafana` и `Notification Service` пока существует как архитектурная цель;
   в коде сейчас реализован только локальный `MQTT -> Grafana` slice.
 
 ## Что принято в рабочих материалах по пилоту `KNX -> OPC`
@@ -62,8 +63,10 @@
 
 | Вопрос | Почему это важно | Степень блокировки |
 | --- | --- | --- |
-| Что считается минимальным production-ready срезом платформы: только `MQTT + Grafana` live view или уже обязательны `Platform Frontend`, `Platform API` и `Keycloak`? | В репозитории уже есть два слоя: текущая реализация и целевая архитектура. Нужно зафиксировать, где заканчивается MVP, чтобы не смешивать dev harness с обязательным production scope | Критично |
-| Какой `Telemetry Store` будет authoritative хранилищем истории в первой production-версии платформы? | Сейчас `Grafana` работает через live `MQTT` datasource и явно не заменяет storage. Без выбора хранилища невозможно стабилизировать ingestion и историю alarm | Критично |
+| Что считается минимальным production-ready срезом платформы: только `MQTT + Grafana` live view, поток `MQTT -> Redpanda Connect -> Redpanda -> Kafka Event Log -> Telemetry Store` или уже обязательны `Platform Frontend`, `Platform API` и `Keycloak`? | В репозитории уже есть dev-slice и целевая архитектура со streaming слоем. Нужно зафиксировать, где заканчивается MVP, чтобы не смешивать dev harness с обязательным production scope | Критично |
+| Где фиксируется `Redpanda Connect` pipeline config: в platform repository, IaC, Redpanda Cloud-managed pipeline или отдельном operations bundle? | MQTT input, mapping/transform и redpanda output становятся частью production data path, поэтому конфигурация pipeline должна быть версионирована и управляться так же строго, как edge source config | Высокая |
+| Нужно ли менять draft Kafka topics, retention и consumer groups после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/kafka/topics.v1.md`, но реальные partition counts и retention могут потребовать корректировки после измерений | Средняя |
+| Нужно ли менять draft ClickHouse DDL, rollups и TTL после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/clickhouse/telemetry-store.v1.md`, но production performance schema должна быть подтверждена на данных целевого масштаба | Средняя |
 | Какой минимальный lifecycle `alarm` нужен в первом релизе: severity, acknowledge, clear, mute, escalation? | Это определяет границу между просто monitoring dashboard и реальной alarm-platform | Высокая |
 | Какие notification channels требуются в первом production-срезе: email, Telegram, SMS, webhook или только in-app/Grafana? | В LikeC4 есть `Notification Service`, но без выбора каналов нельзя стабилизировать scope backend и интеграций | Средняя |
 | Является ли `Keycloak` действительно целевым IAM-компонентом, и если да, какие нужны realm/client/role boundaries? | `Keycloak` уже есть в архитектурной модели, но его границы владения и интеграции пока не зафиксированы вне схем | Средняя |
@@ -82,7 +85,7 @@
 | Вопрос | Почему это важно | Степень блокировки |
 | --- | --- | --- |
 | Какие health/metrics считаются обязательными для edge runtime и платформы в первом production-срезе? | В конфиге уже есть `metrics_bind`, а в архитектуре есть observability, но минимальный контракт SLI/SLO пока не назван | Средняя |
-| Нужно ли в production считать lag по outbox, delivery latency и source connection uptime как обязательные SLI? | Эти метрики логично следуют из архитектуры и outbox-модели, но без явного решения их легко не реализовать вовремя | Средняя |
+| Нужно ли в production считать lag по Delivery Outbox, delivery latency и source connection uptime как обязательные SLI? | Эти метрики логично следуют из архитектуры Local State Store и delivery-модели, но без явного решения их легко не реализовать вовремя | Средняя |
 | Куда должны уходить логи edge runtime и платформы: только локальный файл/journal или централизованный log sink? | Без этого сложно определить retention, incident workflow и реальную поддержку объекта | Средняя |
 | Достаточно ли текущих CLI и demo utilities для диагностики на объекте, или нужен отдельный support-oriented diagnostic mode/UI? | В репозитории уже есть `edge-agent check-config`, `show-config`, `agent-id` и `knx-demo`, но production-support workflow пока не утвержден | Низкая |
 
@@ -90,5 +93,5 @@
 
 - подтвердить, что текущий `demo-stand` конфиг и ETS-derived артефакты являются каноническим source of truth для первого `KNX`-среза
 - зафиксировать production MQTT broker, требования по `TLS`/`ACL` и способ хранения секретов
-- определить, где заканчивается MVP платформы: `MQTT + Grafana` или уже `Platform Frontend + API + Keycloak`
-- выбрать authoritative `Telemetry Store` и минимальный lifecycle `alarm`
+- определить, где заканчивается MVP платформы: `MQTT + Grafana`, streaming pipeline до `Telemetry Store` или уже `Platform Frontend + API + Keycloak`
+- зафиксировать Kafka topic contract, retention/rollup/deduplication contract для ClickHouse и минимальный lifecycle `alarm`

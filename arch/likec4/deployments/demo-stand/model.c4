@@ -72,7 +72,7 @@ deployment {
 
                 configuration-bundle = instanceOf edge-telemetry-agent.configuration-bundle
                 collector-runtime = instanceOf edge-telemetry-agent.collector-runtime
-                outbox-store = instanceOf edge-telemetry-agent.outbox-store
+                local-state-store = instanceOf edge-telemetry-agent.local-state-store
                 delivery-worker = instanceOf edge-telemetry-agent.delivery-worker
                 grafana = instanceOf monitoring-alarm-platform.grafana
 
@@ -87,16 +87,40 @@ deployment {
         description 'Облачный production-контур Monitoring & Alarm Platform.'
 
         network-zone public-cloud 'Public Cloud' {
-            description 'Облачная зона приема MQTT-сообщений и визуализации Monitoring & Alarm Platform.'
+            description 'Облачная зона приема MQTT-сообщений, streaming pipeline и визуализации Monitoring & Alarm Platform.'
 
             mqtt-ingest-host = host 'Monitoring Platform Host' {
                 technology 'Cloud runtime'
-                description 'Хост облачного контура Monitoring & Alarm Platform для приема telemetry events и визуализации через Grafana.'
+                description 'Хост облачного контура Monitoring & Alarm Platform для приема telemetry events, Kafka-compatible streaming, хранения и визуализации.'
 
                 mqtt-ingestion-gateway = instanceOf monitoring-alarm-platform.mqtt-ingestion-gateway
+                redpanda-connect = instanceOf monitoring-alarm-platform.redpanda-connect
+                redpanda = instanceOf monitoring-alarm-platform.redpanda
+                kafka-event-log = instanceOf monitoring-alarm-platform.kafka-event-log
+                telemetry-consumers = instanceOf monitoring-alarm-platform.telemetry-consumers
+                streaming-analytics = instanceOf monitoring-alarm-platform.streaming-analytics
+                alarm-rule-engine = instanceOf monitoring-alarm-platform.alarm-rule-engine
+                platform-api = instanceOf monitoring-alarm-platform.platform-api
+                keycloak = instanceOf monitoring-alarm-platform.keycloak
+                telemetry-store = instanceOf monitoring-alarm-platform.telemetry-store
+                platform-store = instanceOf monitoring-alarm-platform.platform-store
                 grafana = instanceOf monitoring-alarm-platform.grafana
 
-                grafana -> mqtt-ingestion-gateway 'Подписывается через grafana-mqtt-datasource на live MQTT topics'
+                redpanda-connect -> mqtt-ingestion-gateway 'Подписывается на MQTT telemetry events и service topics'
+                redpanda-connect -> redpanda 'Пишет canonical events через Redpanda output'
+                redpanda -> kafka-event-log 'Хранит и обслуживает Kafka topics'
+                telemetry-consumers -> kafka-event-log 'Читает Kafka topics'
+                telemetry-consumers -> telemetry-store 'Записывает canonical telemetry и service events в ClickHouse'
+                streaming-analytics -> kafka-event-log 'Читает telemetry stream'
+                streaming-analytics -> telemetry-store 'Записывает aggregates и derived events в ClickHouse'
+                alarm-rule-engine -> kafka-event-log 'Читает telemetry и derived events'
+                alarm-rule-engine -> telemetry-store 'Записывает immutable alarm history'
+                alarm-rule-engine -> platform-store 'Записывает current alarm state и operator workflow state'
+                platform-api -> telemetry-store 'Читает историю, графики и аналитические данные'
+                platform-api -> platform-store 'Читает и изменяет конфигурацию, правила и текущий alarm state'
+                platform-api -> keycloak 'Проверяет токены и роли'
+                keycloak -> platform-store 'Хранит IAM persistence'
+                grafana -> telemetry-store 'Читает подготовленные данные из ClickHouse для dashboards'
             }
         }
     }

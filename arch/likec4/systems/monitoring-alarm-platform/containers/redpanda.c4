@@ -1,0 +1,11 @@
+model {
+    extend monitoring-alarm-platform {
+        redpanda = container 'Redpanda' {
+            description 'Kafka-compatible broker платформы: хранит topics, обслуживает Kafka API, retention, consumer groups и replay для downstream consumers.'
+            technology 'Redpanda broker / Kafka API'
+            icon @/redpanda.svg
+
+            -> kafka-event-log 'Хранит и обслуживает Kafka topics'
+        }
+    }
+}

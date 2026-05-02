@@ -30,7 +30,7 @@
 Для MVP основным transport принимается `MQTT 5.0`.
 
 - edge agent публикует данные в центральный `MQTT broker`
-- локальный `SQLite Outbox` остается обязательным буфером и не заменяется broker session state
+- локальный `SQLite Delivery Outbox` внутри `Local State Store` остается обязательным буфером и не заменяется broker session state
 - publisher не полагается на долгоживущую server-side session для надежности доставки
 
 ### 2. Telemetry model
@@ -82,7 +82,7 @@ Status topics:
 
 Payload contract зависит от типа topic.
 
-Telemetry payload:
+Telemetry payload principles:
 
 - не повторяет `object_id`
 - не повторяет `agent_id`
@@ -93,21 +93,8 @@ Telemetry payload:
 - для MVP ограничен scalar values: `boolean`, `number`, `string`
 - complex protocol values вроде массивов, структур или `ByteString` не входят в текущую версию wire contract
 
-Минимальный telemetry payload:
-
-```json
-{
-  "message_type": "wm.telemetry.event.v1",
-  "event_id": "01JQ2J7M3M3PM3DY7M6RTN9Q9M",
-  "event_type": "telemetry.changed",
-  "ts": "2026-03-28T12:34:56Z",
-  "observation_mode": "listen",
-  "value": true,
-  "value_raw": "01",
-  "quality": "good",
-  "sequence": 1842
-}
-```
+Полная схема telemetry payload является контрактом `wm.telemetry.event.v1` и
+зафиксирована в `docs/contracts/edge-agent/`.
 
 Metadata catalog payload:
 
@@ -115,33 +102,8 @@ Metadata catalog payload:
 - содержит статическое описание всех точек источника
 - позволяет consumer-у сделать одну retained subscription на source вместо `N` per-point metadata subscriptions
 
-Пример metadata payload:
-
-```json
-{
-  "message_type": "wm.source.meta.catalog.v1",
-  "object_id": "demo-stand-01",
-  "agent_id": "7d4d5f94-0c98-4b69-9f16-0da7ff20f7eb",
-  "source_id": "knx_main",
-  "source_type": "knx",
-  "ts": "2026-03-28T12:35:00Z",
-  "points": [
-    {
-      "point_key": "0%2F0%2F7",
-      "point_ref": "0/0/7",
-      "name": "switch_feedback",
-      "signal_type": "feedback",
-      "value_type": "boolean",
-      "value_model": "knx.dpt.1.001",
-      "unit": null,
-      "tags": {
-        "room": "demo",
-        "equipment": "light_1"
-      }
-    }
-  ]
-}
-```
+Полная схема metadata payload является контрактом
+`wm.source.meta.catalog.v1` и зафиксирована в `docs/contracts/edge-agent/`.
 
 ### 6. QoS и свойства публикации
 
@@ -165,7 +127,8 @@ Metadata catalog payload:
 
 ### 8. Dedupe и ingestion
 
-- backend обязан считать `event_id` idempotency key
+- backend обязан считать `event_id` ключом дедупликации
+- `event_id` является непрозрачной непустой строкой; backend не должен требовать UUID-only формат
 - consumer восстанавливает routing context из topic
 - consumer восстанавливает статические point metadata из retained source catalog по `point_key`
 - canonical event в backend может строиться как `topic-derived identity + MQTT payload`
@@ -198,6 +161,10 @@ Metadata catalog payload:
 - consumer-у нужно джойнить event stream с source catalog, если ему нужны имя, unit или tags
 - без retained `state` новый внешний MQTT subscriber не получит текущее значение без участия backend
 - future support for complex `OPC UA` values потребует новой версии payload contract
+
+## Source of truth контрактов
+
+Полные MQTT topic templates и payload schemas вынесены в `docs/contracts/edge-agent/`.
 
 ## Отклоненные альтернативы
 

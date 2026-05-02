@@ -1,11 +1,9 @@
 model {
     extend monitoring-alarm-platform {
         mqtt-ingestion-gateway = container 'MQTT Ingestion Gateway' {
-            description 'Принимает MQTT telemetry events и service topics от edge-агентов, восстанавливает routing context из topic, валидирует payload и передает canonical events на хранение и в Alarm Rule Engine.'
+            description 'Принимает MQTT telemetry events и service topics от edge-агентов, восстанавливает routing context из topic и предоставляет MQTT-поток для чтения Redpanda.'
             technology 'MQTT broker / ingestion service'
-
-            -> telemetry-store 'Сохраняет canonical events и служебные события'
-            -> alarm-rule-engine 'Передает нормализованные события в Alarm Rule Engine'
+            icon bootstrap:broadcast
         }
     }
 

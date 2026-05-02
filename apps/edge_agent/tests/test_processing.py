@@ -20,7 +20,7 @@ def _runtime_config():
                 "mqtt": {
                     "enabled": True,
                     "version": "5.0",
-                    "broker": "mqtts://mqtt.example:8883",
+                    "broker": "mqtt://127.0.0.1:1883",
                     "topic_root": "wm/v1",
                     "client_id_prefix": "edge-agent",
                     "username_env": "EDGE_AGENT_MQTT_USERNAME",
@@ -131,10 +131,12 @@ def test_processing_emits_boolean_event_and_suppresses_duplicate() -> None:
     assert first.event is not None
     assert first.event.event_type == "telemetry.changed"
     assert first.event.sequence == 1
+    assert first.event.catalog_revision.startswith("sha256:")
     assert first.event.mqtt_payload() == {
         "message_type": "wm.telemetry.event.v1",
         "event_id": first.event.event_id,
         "event_type": "telemetry.changed",
+        "catalog_revision": first.event.catalog_revision,
         "ts": "2026-03-28T10:00:00Z",
         "observation_mode": "listen",
         "value": True,
@@ -189,6 +191,7 @@ def test_processing_uses_threshold_for_numeric_points() -> None:
         "message_type": "wm.telemetry.event.v1",
         "event_id": first.event.event_id,
         "event_type": "telemetry.sample",
+        "catalog_revision": first.event.catalog_revision,
         "ts": "2026-03-28T10:00:00Z",
         "observation_mode": "read_on_start",
         "value": 23.0,

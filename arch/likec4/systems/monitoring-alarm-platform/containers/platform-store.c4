@@ -1,0 +1,12 @@
+model {
+    extend monitoring-alarm-platform {
+        platform-store = container 'Platform Store' {
+            description 'Transactional PostgreSQL store платформы: конфигурация объектов, агентов, источников и точек, правила alarm, notification policies, current alarm state, acknowledgements, mutes, audit и persistence Keycloak.'
+            technology 'PostgreSQL / transactional platform store'
+            icon tech:postgresql
+            style {
+                shape storage
+            }
+        }
+    }
+}

@@ -1,11 +1,14 @@
 model {
     extend edge-telemetry-agent {
         collector-runtime = container 'Collector Runtime' {
-            description 'Основной runtime edge-агента: southbound-адаптеры, сбор данных, нормализация, фильтрация изменений и постановка событий в outbox.'
+            description 'Основной runtime edge-агента: southbound-адаптеры, сбор данных, нормализация, фильтрация изменений, обновление локального state и постановка событий в delivery outbox.'
             technology 'Python service'
 
             -> configuration-bundle 'Загружает описания источников, модель сигналов и runtime-политики'
-            -> outbox-store 'Сохраняет нормализованные события и задания на доставку'
+            -> field-protocol-gateways.knx-router 'Подключается к KNX/IP и читает group address и телеграммы'
+            -> field-protocol-gateways.modbus-gateway 'Подключается к Modbus и читает registers, coils и дискретные значения'
+            -> field-protocol-gateways.opc-ua-gateway 'Подключается к OPC UA и читает nodes, subscriptions и значения'
+            -> local-state-store 'Обновляет Point State Cache и сохраняет события edge.telemetry-event.v1 в Delivery Outbox'
         }
     }
 

@@ -21,21 +21,29 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `Point State Cache` — persistent cache последнего наблюденного и опубликованного состояния точки, sequence и качества, используемый для фильтрации изменений и warm restart.
 - `Delivery Outbox` — локальная очередь telemetry events, ожидающих надежной доставки или retry во внешний transport.
 - `status topic` — transport-specific `MQTT` сообщение о состоянии southbound source или самого publisher, например `status/connection` и `status/lwt`.
-- `Kafka Event Log` — логический Kafka-compatible event stream внутри `Monitoring & Alarm Platform`: topics для telemetry events, source catalogs, source connection events, agent status events, ingestion errors и derived events.
+- `Kafka Event Log` — логический Kafka-compatible event stream внутри `Monitoring & Alarm Platform`: topics для telemetry events, source config snapshots, source connection events, agent status events, ingestion errors и derived events.
 - `Redpanda Connect` — connector pipeline, который читает MQTT topics через `mqtt` input, выполняет mapping/transform и пишет records в `Redpanda` через `redpanda` output.
 - `Redpanda` — Kafka-compatible broker внутри `Monitoring & Alarm Platform`, который хранит и обслуживает `Kafka Event Log`, retention, consumer groups и replay.
-- `Telemetry Store` — authoritative analytical store на базе `ClickHouse` для append-only telemetry events, source metadata snapshots, source connection history, agent status history, derived events, aggregates, rollups и immutable alarm history.
+- `Telemetry Store` — authoritative analytical store на базе `ClickHouse` для append-only telemetry events, source config snapshots, source connection history, agent status history, derived events, aggregates, rollups и immutable alarm history.
 - `Platform Store` — transactional store на базе `PostgreSQL` для конфигурации объектов, агентов, источников и точек, правил, notification policies, current alarm state, acknowledgements, mutes, audit и persistence Keycloak.
 - `ClickHouse` — выбранная аналитическая БД платформы для high-volume time-series/event history и Grafana/API historical queries.
 - `PostgreSQL` — выбранная транзакционная БД платформы для mutable platform state, API-конфигурации и Keycloak persistence.
-- `Telemetry Consumers` — backend workers, которые читают Kafka topics и записывают canonical telemetry events, source metadata snapshots, source connection history, agent status history и derived events в `Telemetry Store`.
+- `Telemetry Consumers` — backend workers, которые читают Kafka topics и записывают canonical telemetry events, source config snapshots, source connection history, agent status history и derived events в `Telemetry Store`.
 - `Streaming Analytics` — потоковая обработка telemetry stream для агрегатов, rollups, производных признаков и derived events для `Alarm Rule Engine`; результаты пишет в `Telemetry Store`.
-- `Grafana` — слой визуализации внутри `Monitoring & Alarm Platform`; в production-контуре читает подготовленные данные из `Telemetry Store`, а в текущей реализации может подключаться к `MQTT` через `grafana-mqtt-datasource`.
+- `Grafana` — слой визуализации внутри `Monitoring & Alarm Platform`; в production-контуре читает подготовленные данные из `Telemetry Store`.
 - `southbound-адаптеры` — адаптеры и драйверы, через которые `Edge Telemetry Agent` подключается вниз по стеку к полевым протоколам и локальным источникам данных, например `KNX`, `Modbus`, `OPC UA`, `SCADA`.
 - `northbound delivery` — доставка данных вверх по стеку из `Edge Telemetry Agent` в `Monitoring & Alarm Platform` через внешний transport, например `MQTT`.
 
 ## Конфигурационная модель
 
+- `bootstrap config` — минимальная локальная конфигурация запуска edge-agent: `agent_id`, MQTT endpoint, credentials/secret refs, local storage и observability. Не содержит registry sources/points.
+- `server-issued config` — конфигурация runtime, выданная платформенным контуром через retained MQTT topics.
+- `runtime config` — retained root config агента `wm.edge.runtime-config.v1`: `tenant_id`, `object_id`, `agent_id`, `config_revision` и список активных sources.
+- `source config` — retained config конкретного `source_id` `wm.edge.source-config.v1`: connection settings, points, acquisition/publish policies и metadata точек.
+- `config revision` — стабильная версия root runtime config, публикуемая config publisher tool и применяемая edge-agent.
+- `source_config_revision` — стабильная версия source config, которую telemetry event указывает как metadata context.
+- `config publisher` — временный operations/tooling компонент, который читает versioned YAML config bundle, валидирует его и публикует retained runtime/source configs в MQTT.
+- `YAML config bundle` — временный authoring source of truth первого этапа до появления server UI/API и хранения edge config в `Platform Store`.
 - `source` — логическое подключение агента к конкретному источнику данных, идентифицируемое `source_id`.
 - `point` — точка мониторинга внутри `source`, идентифицируемая `point_ref`.
 - `point_ref` — технический идентификатор точки внутри источника, например group address, node id или register reference.

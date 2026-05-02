@@ -1,6 +1,6 @@
 # Demo Stand Environment
 
-Этот каталог хранит production-like runtime-конфиги demo-стенда для сценария,
+Этот каталог хранит production-like профиль demo-стенда для сценария,
 в котором `Edge Telemetry Agent` работает в локальной сети объекта рядом с
 `KNX/IP` роутером.
 
@@ -14,9 +14,8 @@
 environments/demo-stand/
 ├── README.md
 └── edge_agent/
-    ├── agent.yaml
-    ├── points.d/
-    └── sources.d/
+    ├── bootstrap.yaml
+    └── config.bundle.yaml
 ```
 
 Этот профиль рассчитан на локальный dev-стек из `infra/local/`:
@@ -27,11 +26,18 @@ environments/demo-stand/
 Для текущего удаленного workstation-based сценария используйте отдельный профиль
 `environments/demo-stand-remote/edge_agent/`.
 
-Проверка конфига:
+Проверка bootstrap + retained config path:
 
 ```bash
 uv run --env-file .env --package edge-agent edge-agent check-config \
-  --config-root environments/demo-stand/edge_agent
+  --bootstrap-config environments/demo-stand/edge_agent/bootstrap.yaml
+```
+
+Для seed retained config в локальный broker используйте:
+
+```bash
+uv run --env-file .env --package wm-demo-stack publish-edge-demo \
+  --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml
 ```
 
 Секреты и machine-local overrides сюда не коммитятся.

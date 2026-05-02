@@ -9,6 +9,7 @@ services:
     command: ["/bin/sh", "/mosquitto/config/start-mosquitto.sh"]
     ports:
       - "${MQTT_PORT:-1883}:1883"
+      - "${MQTT_WS_PORT:-9001}:9001"
     volumes:
       - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/config/start-mosquitto.sh:/mosquitto/config/start-mosquitto.sh:ro
@@ -25,27 +26,105 @@ services:
       retries: 5
       start_period: 10s
 
-  grafana:
-    image: ${GRAFANA_IMAGE:-grafana/grafana-oss}
+  kafka:
+    image: ${KAFKA_IMAGE:-apache/kafka:4.2.0}
     restart: unless-stopped
+    hostname: kafka
+    ports:
+      - "${KAFKA_PORT:-19092}:9092"
+    environment:
+      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:29093"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_LISTENERS: "CONTROLLER://:29093,PLAINTEXT://:19092,PLAINTEXT_HOST://:9092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:${KAFKA_PORT:-19092}"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --list >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  kafka-init:
+    image: ${KAFKA_IMAGE:-apache/kafka:4.2.0}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        create_topic() {
+          topic="$$1"
+          shift
+          /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server kafka:19092 \
+            --create \
+            --if-not-exists \
+            --topic "$$topic" \
+            --partitions 1 \
+            --replication-factor 1 \
+            "$$@"
+        }
+        create_topic wm.platform.telemetry.events.v1 --config retention.ms=604800000
+        create_topic wm.platform.source.configs.v1 --config cleanup.policy=compact
+        create_topic wm.platform.source.connections.v1 --config cleanup.policy=compact
+        create_topic wm.platform.agent.status.v1 --config cleanup.policy=compact
+        create_topic wm.platform.ingestion.errors.v1 --config retention.ms=2592000000
+
+  redpanda-connect:
+    image: ${REDPANDA_CONNECT_IMAGE:-docker.redpanda.com/redpandadata/connect}
+    restart: unless-stopped
+    depends_on:
+      mqtt-broker:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     env_file:
       - ${LOCAL_STACK_ENV_FILE:-../../.env}
+    command: ["run", "/etc/redpanda-connect/mqtt-to-kafka.yaml"]
+    ports:
+      - "${REDPANDA_CONNECT_PORT:-4195}:4195"
+    volumes:
+      - ./redpanda-connect/mqtt-to-kafka.yaml:/etc/redpanda-connect/mqtt-to-kafka.yaml:ro
+
+  kafka-ui:
+    image: ${KAFKA_UI_IMAGE:-provectuslabs/kafka-ui}
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${KAFKA_UI_PORT:-8080}:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+      DYNAMIC_CONFIG_ENABLED: "false"
+
+  mqttx-web:
+    image: ${MQTTX_WEB_IMAGE:-emqx/mqttx-web}
+    restart: unless-stopped
     depends_on:
       mqtt-broker:
         condition: service_healthy
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
-    environment:
-      GF_PLUGINS_PREINSTALL: grafana-mqtt-datasource@${GRAFANA_MQTT_PLUGIN_VERSION:-1.3.1}
-      MQTT_DATASOURCE_URI: tcp://mqtt-broker:1883
-      GRAFANA_DASHBOARDS_PATH: /var/lib/grafana/dashboards
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - "${MQTTX_WEB_PORT:-8081}:80"
 
 volumes:
-  grafana-data:
   mosquitto-data:
   mosquitto-log:

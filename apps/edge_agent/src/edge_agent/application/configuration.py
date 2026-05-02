@@ -4,7 +4,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Annotated, Any, Iterable, Mapping, Self, TypeVar
+from typing import Annotated, Any, Mapping, Self, TypeVar
 
 from pydantic import (
     Field,
@@ -17,34 +17,51 @@ from pydantic import (
 )
 
 from edge_agent.domain.config import (
-    AcquisitionOverrides,
     AcquisitionSettings,
     AgentRuntimeConfig,
-    AgentSettings,
+    BootstrapConfig,
     ConfigurationError,
     DeliverySettings,
     MqttSettings,
     ObservabilitySettings,
-    PointDefinition,
-    PublishOverrides,
     PublishSettings,
     RuntimePoint,
-    SignalType,
     SourceDefinition,
+    SourceRuntimeRef,
     StorageSettings,
     ValueType,
 )
+from edge_agent.infrastructure.mqtt_retained_config import RetainedConfigLoader
 from edge_agent.modeling import EdgeModel
 
 try:
     import yaml
-except ModuleNotFoundError:  # pragma: no cover - dependency is installed in tests/runtime.
+except ModuleNotFoundError:  # pragma: no cover
     yaml = None
 
 
 NonEmptyStr = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, strict=True),
+]
+MqttPathId = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=128,
+        strict=True,
+        pattern=r"^[a-z0-9][a-z0-9_-]{0,127}$",
+    ),
+]
+MqttTopicRoot = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        strict=True,
+        pattern=r"^[a-z0-9][a-z0-9_-]{0,127}(?:/[a-z0-9][a-z0-9_-]{0,127})*$",
+    ),
 ]
 StrictNonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
 ModelT = TypeVar("ModelT", bound=EdgeModel)
@@ -63,26 +80,7 @@ class AcquisitionSettingsModel(ConfigModel):
     @field_validator("periodic_interval_seconds", mode="before")
     @classmethod
     def normalize_periodic_interval(cls, value: Any) -> float | None:
-        return _optional_float(
-            value,
-            field_name="periodic_interval_seconds",
-            positive=True,
-        )
-
-
-class AcquisitionOverridesModel(ConfigModel):
-    listen: StrictBool | None = None
-    read_on_start: StrictBool | None = None
-    periodic_interval_seconds: float | None = None
-
-    @field_validator("periodic_interval_seconds", mode="before")
-    @classmethod
-    def normalize_periodic_interval(cls, value: Any) -> float | None:
-        return _optional_float(
-            value,
-            field_name="periodic_interval_seconds",
-            positive=True,
-        )
+        return _optional_float(value, field_name="periodic_interval_seconds", positive=True)
 
 
 class PublishSettingsModel(ConfigModel):
@@ -92,38 +90,14 @@ class PublishSettingsModel(ConfigModel):
     @field_validator("change_threshold", mode="before")
     @classmethod
     def normalize_change_threshold(cls, value: Any) -> float | None:
-        return _optional_float(
-            value,
-            field_name="change_threshold",
-            positive=False,
-        )
+        return _optional_float(value, field_name="change_threshold", positive=False)
 
 
-class PublishOverridesModel(ConfigModel):
-    enabled: StrictBool | None = None
-    change_threshold: float | None = None
-
-    @field_validator("change_threshold", mode="before")
-    @classmethod
-    def normalize_change_threshold(cls, value: Any) -> float | None:
-        return _optional_float(
-            value,
-            field_name="change_threshold",
-            positive=False,
-        )
-
-
-class AgentSettingsModel(ConfigModel):
-    object_id: NonEmptyStr
-    name: NonEmptyStr
-    id_file: NonEmptyStr
-
-
-class MqttSettingsModel(ConfigModel):
+class BootstrapMqttSettingsModel(ConfigModel):
     enabled: StrictBool
     version: NonEmptyStr
     broker: NonEmptyStr
-    topic_root: NonEmptyStr
+    topic_root: MqttTopicRoot
     client_id_prefix: NonEmptyStr
     username_env: str | None = None
     password_env: str | None = None
@@ -131,10 +105,6 @@ class MqttSettingsModel(ConfigModel):
     clean_start: StrictBool
     session_expiry_seconds: StrictInt
     telemetry_message_expiry_seconds: StrictInt
-    publish_metadata: StrictBool
-    retain_metadata: StrictBool
-    publish_connection_status: StrictBool
-    retain_connection_status: StrictBool
     connect_timeout_seconds: StrictInt
     retry_backoff_seconds: list[StrictNonNegativeInt]
 
@@ -146,7 +116,7 @@ class MqttSettingsModel(ConfigModel):
 
 class DeliverySettingsModel(ConfigModel):
     transport: NonEmptyStr
-    mqtt: MqttSettingsModel | None = None
+    mqtt: BootstrapMqttSettingsModel | None = None
 
     @model_validator(mode="after")
     def validate_selected_transport(self) -> Self:
@@ -172,27 +142,46 @@ class ObservabilitySettingsModel(ConfigModel):
         return _optional_string(value)
 
 
-class SourceDefinitionModel(ConfigModel):
-    source_id: NonEmptyStr
-    type: NonEmptyStr
+class BootstrapDocumentModel(ConfigModel):
+    agent_id: MqttPathId
+    delivery: DeliverySettingsModel
+    storage: StorageSettingsModel
+    observability: ObservabilitySettingsModel
+
+
+class RuntimeSourceRefModel(ConfigModel):
+    source_id: MqttPathId
+    source_config_revision: NonEmptyStr
     enabled: StrictBool
-    connection: dict[NonEmptyStr, Any]
-    acquisition_defaults: AcquisitionSettingsModel
-    publish_defaults: PublishSettingsModel
 
 
-class PointDefinitionModel(ConfigModel):
+class RuntimeConfigPayloadModel(ConfigModel):
+    message_type: str
+    tenant_id: NonEmptyStr
+    object_id: MqttPathId
+    agent_id: MqttPathId
+    config_revision: NonEmptyStr
+    issued_at: NonEmptyStr
+    sources: list[RuntimeSourceRefModel]
+
+    @model_validator(mode="after")
+    def validate_message_type(self) -> Self:
+        if self.message_type != "wm.edge.runtime-config.v1":
+            raise ValueError("message_type must be wm.edge.runtime-config.v1")
+        return self
+
+
+class SourcePointModel(ConfigModel):
+    point_key: NonEmptyStr
     point_ref: NonEmptyStr
     name: NonEmptyStr
     description: str | None = None
     value_type: ValueType
     value_model: NonEmptyStr
-    signal_type: SignalType
+    signal_type: str
     unit: str | None = None
-    acquisition: AcquisitionOverridesModel = Field(
-        default_factory=AcquisitionOverridesModel
-    )
-    publish: PublishOverridesModel = Field(default_factory=PublishOverridesModel)
+    acquisition: AcquisitionSettingsModel
+    publish: PublishSettingsModel
     tags: dict[NonEmptyStr, NonEmptyStr] = Field(default_factory=dict)
 
     @field_validator("description", "unit", mode="before")
@@ -200,124 +189,197 @@ class PointDefinitionModel(ConfigModel):
     def normalize_optional_text(cls, value: Any) -> str | None:
         return _optional_string(value)
 
-
-class AgentDocumentModel(ConfigModel):
-    agent: AgentSettingsModel
-    delivery: DeliverySettingsModel
-    storage: StorageSettingsModel
-    observability: ObservabilitySettingsModel
-
-
-class SourceDocumentModel(ConfigModel):
-    sources: list[SourceDefinitionModel]
+    @model_validator(mode="after")
+    def validate_point(self) -> Self:
+        if self.point_key != _point_key_from_ref(self.point_ref):
+            raise ValueError("point_key must be percent-encoded point_ref")
+        if self.value_type != "number" and self.publish.change_threshold is not None:
+            raise ValueError("change_threshold is only allowed for number points")
+        return self
 
 
-class PointDocumentModel(ConfigModel):
-    source_id: NonEmptyStr
-    points: list[PointDefinitionModel]
+class SourceConfigPayloadModel(ConfigModel):
+    message_type: str
+    tenant_id: NonEmptyStr
+    object_id: MqttPathId
+    agent_id: MqttPathId
+    config_revision: NonEmptyStr
+    source_id: MqttPathId
+    source_config_revision: NonEmptyStr
+    source_type: NonEmptyStr
+    enabled: StrictBool
+    connection: dict[NonEmptyStr, Any]
+    acquisition_defaults: AcquisitionSettingsModel
+    publish_defaults: PublishSettingsModel
+    points: list[SourcePointModel]
+
+    @model_validator(mode="after")
+    def validate_message_type(self) -> Self:
+        if self.message_type != "wm.edge.source-config.v1":
+            raise ValueError("message_type must be wm.edge.source-config.v1")
+        return self
 
 
-def load_runtime_config(config_root: Path) -> AgentRuntimeConfig:
-    agent_path = _find_agent_path(config_root)
-    source_paths = sorted(_iter_document_paths(config_root / "sources.d"))
-    point_paths = sorted(_iter_document_paths(config_root / "points.d"))
+def load_bootstrap_config(bootstrap_config_path: Path) -> BootstrapConfig:
+    payload = _load_document(bootstrap_config_path)
+    document = _validate_model(BootstrapDocumentModel, payload, "bootstrap config")
+    return BootstrapConfig(
+        agent_id=document.agent_id,
+        delivery=_to_delivery_settings(document.delivery),
+        storage=_to_storage_settings(document.storage),
+        observability=_to_observability_settings(document.observability),
+    )
+
+
+def load_runtime_config(bootstrap_config_path: Path) -> AgentRuntimeConfig:
+    bootstrap = load_bootstrap_config(bootstrap_config_path)
+    mqtt = bootstrap.delivery.mqtt
+    if mqtt is None or not mqtt.enabled:
+        raise ConfigurationError("MQTT delivery settings are not configured or disabled")
+    retained = RetainedConfigLoader(mqtt, agent_id=bootstrap.agent_id).load()
     return build_runtime_config(
-        agent_data=_load_document(agent_path),
-        source_documents=[_load_document(path) for path in source_paths],
-        point_documents=[_load_document(path) for path in point_paths],
+        bootstrap_data=_load_document(bootstrap_config_path),
+        runtime_data=retained.runtime_config,
+        source_documents=list(retained.source_configs.values()),
     )
 
 
 def build_runtime_config(
     *,
-    agent_data: Mapping[str, object],
-    source_documents: Iterable[Mapping[str, object]],
-    point_documents: Iterable[Mapping[str, object]],
+    bootstrap_data: Mapping[str, object],
+    runtime_data: Mapping[str, object],
+    source_documents: list[Mapping[str, object]],
 ) -> AgentRuntimeConfig:
-    agent_document = _validate_model(AgentDocumentModel, agent_data, "agent config")
-    agent = _to_agent_settings(agent_document.agent)
-    delivery = _to_delivery_settings(agent_document.delivery)
-    storage = _to_storage_settings(agent_document.storage)
-    observability = _to_observability_settings(agent_document.observability)
+    bootstrap = _validate_model(BootstrapDocumentModel, bootstrap_data, "bootstrap config")
+    runtime_payload = _validate_model(
+        RuntimeConfigPayloadModel,
+        runtime_data,
+        "runtime config",
+    )
+    if runtime_payload.agent_id != bootstrap.agent_id:
+        raise ConfigurationError(
+            "Runtime config agent_id does not match bootstrap agent_id"
+        )
+
+    source_refs = {
+        item.source_id: SourceRuntimeRef(
+            source_id=item.source_id,
+            source_config_revision=item.source_config_revision,
+            enabled=item.enabled,
+        )
+        for item in runtime_payload.sources
+    }
+    source_payloads: dict[str, SourceConfigPayloadModel] = {}
+    for index, raw_source in enumerate(source_documents):
+        source_payload = _validate_model(
+            SourceConfigPayloadModel,
+            raw_source,
+            f"source config #{index}",
+        )
+        if source_payload.source_id in source_payloads:
+            raise ConfigurationError(f"Duplicate source_id: {source_payload.source_id}")
+        source_payloads[source_payload.source_id] = source_payload
+
+    missing_source_ids = sorted(set(source_refs) - set(source_payloads))
+    if missing_source_ids:
+        raise ConfigurationError(
+            "Missing retained source config for source_id(s): "
+            + ", ".join(missing_source_ids)
+        )
 
     sources: dict[str, SourceDefinition] = {}
-    for index, document in enumerate(source_documents):
-        source_document = _validate_model(
-            SourceDocumentModel,
-            document,
-            f"source document #{index}",
+    points: dict[tuple[str, str], RuntimePoint] = {}
+    for source_id, source_ref in source_refs.items():
+        source_payload = source_payloads[source_id]
+        _validate_source_matches_runtime(runtime_payload, source_ref, source_payload)
+
+        source = SourceDefinition(
+            source_id=source_payload.source_id,
+            source_config_revision=source_payload.source_config_revision,
+            source_type=source_payload.source_type,
+            enabled=source_payload.enabled,
+            connection=dict(source_payload.connection),
+            acquisition_defaults=_to_acquisition_settings(source_payload.acquisition_defaults),
+            publish_defaults=_to_publish_settings(source_payload.publish_defaults),
         )
-        for source_model in source_document.sources:
-            source = _to_source_definition(source_model)
-            if source.source_id in sources:
-                raise ConfigurationError(f"Duplicate source_id: {source.source_id}")
-            sources[source.source_id] = source
+        sources[source_id] = source
+        if not source.enabled:
+            continue
 
-    point_index: dict[tuple[str, str], RuntimePoint] = {}
-    point_names: dict[str, set[str]] = {}
-    point_refs: dict[str, set[str]] = {}
-
-    for index, document in enumerate(point_documents):
-        point_document = _validate_model(
-            PointDocumentModel,
-            document,
-            f"point document #{index}",
-        )
-        source_id = point_document.source_id
-        source = sources.get(source_id)
-        if source is None:
-            raise ConfigurationError(f"Point file references unknown source_id: {source_id}")
-        point_names.setdefault(source_id, set())
-        point_refs.setdefault(source_id, set())
-
-        for point_model in point_document.points:
-            point = _to_point_definition(source_id, point_model)
-            if point.point_ref in point_refs[source_id]:
+        point_names: set[str] = set()
+        point_refs: set[str] = set()
+        for point_model in source_payload.points:
+            if point_model.point_ref in point_refs:
                 raise ConfigurationError(
-                    f"Duplicate point_ref for source {source_id}: {point.point_ref}"
+                    f"Duplicate point_ref for source {source_id}: {point_model.point_ref}"
                 )
-            if point.name in point_names[source_id]:
+            if point_model.name in point_names:
                 raise ConfigurationError(
-                    f"Duplicate point name for source {source_id}: {point.name}"
+                    f"Duplicate point name for source {source_id}: {point_model.name}"
                 )
-            point_refs[source_id].add(point.point_ref)
-            point_names[source_id].add(point.name)
-            runtime_point = _merge_runtime_point(source, point)
-            point_index[(runtime_point.source_id, runtime_point.point_ref)] = runtime_point
+            point_refs.add(point_model.point_ref)
+            point_names.add(point_model.name)
+            runtime_point = RuntimePoint(
+                source_id=source_id,
+                source_type=source.source_type,
+                source_config_revision=source.source_config_revision,
+                point_key=point_model.point_key,
+                point_ref=point_model.point_ref,
+                name=point_model.name,
+                description=point_model.description,
+                value_type=point_model.value_type,
+                value_model=point_model.value_model,
+                signal_type=point_model.signal_type,
+                unit=point_model.unit,
+                acquisition=_to_acquisition_settings(point_model.acquisition),
+                publish=_to_publish_settings(point_model.publish),
+                tags=dict(point_model.tags),
+            )
+            points[(source_id, runtime_point.point_ref)] = runtime_point
 
     return AgentRuntimeConfig(
-        agent=agent,
-        delivery=delivery,
-        storage=storage,
-        observability=observability,
+        tenant_id=runtime_payload.tenant_id,
+        object_id=runtime_payload.object_id,
+        agent_id=runtime_payload.agent_id,
+        config_revision=runtime_payload.config_revision,
+        delivery=_to_delivery_settings(bootstrap.delivery),
+        storage=_to_storage_settings(bootstrap.storage),
+        observability=_to_observability_settings(bootstrap.observability),
         sources=sources,
-        points=point_index,
+        source_refs=source_refs,
+        points=points,
     )
 
 
-def _find_agent_path(config_root: Path) -> Path:
-    candidates = (
-        config_root / "agent.yaml",
-        config_root / "agent.yml",
-        config_root / "agent.json",
-        config_root / "agent.example.yaml",
-        config_root / "agent.example.yml",
-        config_root / "agent.example.json",
-    )
-    for path in candidates:
-        if path.exists():
-            return path
-    raise FileNotFoundError(f"Agent config not found under {config_root}")
-
-
-def _iter_document_paths(directory: Path) -> list[Path]:
-    if not directory.exists():
-        return []
-    return [
-        path
-        for path in directory.iterdir()
-        if path.is_file() and path.suffix.lower() in {".yaml", ".yml", ".json"}
-    ]
+def _validate_source_matches_runtime(
+    runtime_payload: RuntimeConfigPayloadModel,
+    source_ref: SourceRuntimeRef,
+    source_payload: SourceConfigPayloadModel,
+) -> None:
+    if source_payload.tenant_id != runtime_payload.tenant_id:
+        raise ConfigurationError(
+            f"Source {source_payload.source_id} tenant_id does not match runtime config"
+        )
+    if source_payload.object_id != runtime_payload.object_id:
+        raise ConfigurationError(
+            f"Source {source_payload.source_id} object_id does not match runtime config"
+        )
+    if source_payload.agent_id != runtime_payload.agent_id:
+        raise ConfigurationError(
+            f"Source {source_payload.source_id} agent_id does not match runtime config"
+        )
+    if source_payload.config_revision != runtime_payload.config_revision:
+        raise ConfigurationError(
+            f"Source {source_payload.source_id} config_revision does not match runtime config"
+        )
+    if source_payload.source_config_revision != source_ref.source_config_revision:
+        raise ConfigurationError(
+            f"Source {source_payload.source_id} source_config_revision does not match runtime config"
+        )
+    if source_payload.enabled != source_ref.enabled:
+        raise ConfigurationError(
+            f"Source {source_payload.source_id} enabled flag does not match runtime config"
+        )
 
 
 def _load_document(path: Path) -> object:
@@ -333,23 +395,14 @@ def _load_document(path: Path) -> object:
         return _expand_env_placeholders(yaml.safe_load(handle), source=path)
 
 
-def _to_agent_settings(model: AgentSettingsModel) -> AgentSettings:
-    return AgentSettings(
-        object_id=model.object_id,
-        name=model.name,
-        id_file=Path(model.id_file),
-    )
-
-
 def _to_delivery_settings(model: DeliverySettingsModel) -> DeliverySettings:
     mqtt = _to_mqtt_settings(model.mqtt) if model.mqtt is not None else None
-    return DeliverySettings(
-        transport=model.transport,
-        mqtt=mqtt,
-    )
+    return DeliverySettings(transport=model.transport, mqtt=mqtt)
 
 
-def _to_mqtt_settings(model: MqttSettingsModel) -> MqttSettings:
+def _to_mqtt_settings(model: BootstrapMqttSettingsModel | None) -> MqttSettings | None:
+    if model is None:
+        return None
     return MqttSettings(
         enabled=model.enabled,
         version=model.version,
@@ -362,10 +415,6 @@ def _to_mqtt_settings(model: MqttSettingsModel) -> MqttSettings:
         clean_start=model.clean_start,
         session_expiry_seconds=model.session_expiry_seconds,
         telemetry_message_expiry_seconds=model.telemetry_message_expiry_seconds,
-        publish_metadata=model.publish_metadata,
-        retain_metadata=model.retain_metadata,
-        publish_connection_status=model.publish_connection_status,
-        retain_connection_status=model.retain_connection_status,
         connect_timeout_seconds=model.connect_timeout_seconds,
         retry_backoff_seconds=tuple(model.retry_backoff_seconds),
     )
@@ -379,9 +428,7 @@ def _to_storage_settings(model: StorageSettingsModel) -> StorageSettings:
     )
 
 
-def _to_observability_settings(
-    model: ObservabilitySettingsModel,
-) -> ObservabilitySettings:
+def _to_observability_settings(model: ObservabilitySettingsModel) -> ObservabilitySettings:
     return ObservabilitySettings(
         log_level=model.log_level,
         emit_health_events=model.emit_health_events,
@@ -389,48 +436,8 @@ def _to_observability_settings(
     )
 
 
-def _to_source_definition(model: SourceDefinitionModel) -> SourceDefinition:
-    return SourceDefinition(
-        source_id=model.source_id,
-        type=model.type,
-        enabled=model.enabled,
-        connection=dict(model.connection),
-        acquisition_defaults=_to_acquisition_settings(model.acquisition_defaults),
-        publish_defaults=_to_publish_settings(model.publish_defaults),
-    )
-
-
-def _to_point_definition(
-    source_id: str,
-    model: PointDefinitionModel,
-) -> PointDefinition:
-    return PointDefinition(
-        source_id=source_id,
-        point_ref=model.point_ref,
-        name=model.name,
-        description=model.description,
-        value_type=model.value_type,
-        value_model=model.value_model,
-        signal_type=model.signal_type,
-        unit=model.unit,
-        acquisition=_to_acquisition_overrides(model.acquisition),
-        publish=_to_publish_overrides(model.publish),
-        tags=dict(model.tags),
-    )
-
-
 def _to_acquisition_settings(model: AcquisitionSettingsModel) -> AcquisitionSettings:
     return AcquisitionSettings(
-        listen=model.listen,
-        read_on_start=model.read_on_start,
-        periodic_interval_seconds=model.periodic_interval_seconds,
-    )
-
-
-def _to_acquisition_overrides(
-    model: AcquisitionOverridesModel,
-) -> AcquisitionOverrides:
-    return AcquisitionOverrides(
         listen=model.listen,
         read_on_start=model.read_on_start,
         periodic_interval_seconds=model.periodic_interval_seconds,
@@ -444,156 +451,65 @@ def _to_publish_settings(model: PublishSettingsModel) -> PublishSettings:
     )
 
 
-def _to_publish_overrides(model: PublishOverridesModel) -> PublishOverrides:
-    return PublishOverrides(
-        enabled=model.enabled,
-        change_threshold=model.change_threshold,
-    )
-
-
-def _merge_runtime_point(source: SourceDefinition, point: PointDefinition) -> RuntimePoint:
-    acquisition = AcquisitionSettings(
-        listen=(
-            source.acquisition_defaults.listen
-            if point.acquisition.listen is None
-            else point.acquisition.listen
-        ),
-        read_on_start=(
-            source.acquisition_defaults.read_on_start
-            if point.acquisition.read_on_start is None
-            else point.acquisition.read_on_start
-        ),
-        periodic_interval_seconds=(
-            source.acquisition_defaults.periodic_interval_seconds
-            if point.acquisition.periodic_interval_seconds is None
-            else point.acquisition.periodic_interval_seconds
-        ),
-    )
-    publish_enabled = (
-        source.publish_defaults.enabled
-        if point.publish.enabled is None
-        else point.publish.enabled
-    )
-    if point.signal_type == "command" and point.publish.enabled is None:
-        publish_enabled = False
-    publish = PublishSettings(
-        enabled=publish_enabled,
-        change_threshold=(
-            source.publish_defaults.change_threshold
-            if point.publish.change_threshold is None
-            else point.publish.change_threshold
-        ),
-    )
-    if point.value_type != "number" and publish.change_threshold is not None:
-        raise ConfigurationError(
-            f"Point {point.source_id}/{point.point_ref} uses change_threshold "
-            f"but value_type is {point.value_type}"
-        )
-    return RuntimePoint(
-        source_id=point.source_id,
-        source_type=source.type,
-        point_ref=point.point_ref,
-        name=point.name,
-        description=point.description,
-        value_type=point.value_type,
-        value_model=point.value_model,
-        signal_type=point.signal_type,
-        unit=point.unit,
-        acquisition=acquisition,
-        publish=publish,
-        tags=dict(point.tags),
-    )
-
-
-def _validate_model(model_type: type[ModelT], data: object, context: str) -> ModelT:
+def _validate_model(model_type: type[ModelT], raw: object, context: str) -> ModelT:
     try:
-        return model_type.model_validate(data)
+        return model_type.model_validate(raw)
     except ValidationError as exc:
-        raise ConfigurationError(_format_validation_error(context, exc)) from exc
+        first_error = exc.errors()[0]
+        location = ".".join(str(part) for part in first_error["loc"])
+        message = first_error["msg"]
+        detail = f"{context}.{location} {message}" if location else f"{context} {message}"
+        raise ConfigurationError(detail) from exc
 
 
-def _format_validation_error(context: str, exc: ValidationError) -> str:
-    details: list[str] = []
-    for error in exc.errors():
-        location = ".".join(str(part) for part in error["loc"])
-        if location:
-            details.append(f"{context}.{location}: {error['msg']}")
-        else:
-            details.append(f"{context}: {error['msg']}")
-    return "; ".join(details)
+def _optional_float(value: Any, *, field_name: str, positive: bool) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a number or null")
+    normalized = float(value)
+    if positive and normalized <= 0:
+        raise ValueError(f"{field_name} must be greater than 0")
+    if not positive and normalized < 0:
+        raise ValueError(f"{field_name} must be greater than or equal to 0")
+    return normalized
 
 
 def _optional_string(value: Any) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str):
-        raise TypeError("must be a string when set")
+        raise ValueError("must be a string or null")
     stripped = value.strip()
     return stripped or None
 
 
 def _expand_env_placeholders(value: object, *, source: Path) -> object:
+    if isinstance(value, str):
+        return ENV_PLACEHOLDER_PATTERN.sub(
+            lambda match: _required_env_value(match.group(1), source=source),
+            value,
+        )
+    if isinstance(value, list):
+        return [_expand_env_placeholders(item, source=source) for item in value]
     if isinstance(value, dict):
         return {
             key: _expand_env_placeholders(item, source=source)
             for key, item in value.items()
         }
-    if isinstance(value, list):
-        return [_expand_env_placeholders(item, source=source) for item in value]
-    if not isinstance(value, str):
-        return value
-    matches = list(ENV_PLACEHOLDER_PATTERN.finditer(value))
-    if not matches:
-        return value
-    missing = sorted(
-        {
-            match.group(1)
-            for match in matches
-            if os.getenv(match.group(1)) is None
-        }
-    )
-    if missing:
-        joined = ", ".join(missing)
-        raise ConfigurationError(
-            f"Missing environment variables in {source}: {joined}"
-        )
-    if len(matches) == 1 and matches[0].span() == (0, len(value)):
-        return _parse_env_scalar(os.environ[matches[0].group(1)])
-    return ENV_PLACEHOLDER_PATTERN.sub(
-        lambda match: os.environ[match.group(1)],
-        value,
-    )
-
-
-def _parse_env_scalar(value: str) -> object:
-    stripped = value.strip()
-    lowered = stripped.lower()
-    if lowered == "true":
-        return True
-    if lowered == "false":
-        return False
-    if lowered in {"null", "none", "~"}:
-        return None
-    if re.fullmatch(r"[+-]?\d+", stripped):
-        return int(stripped)
-    if re.fullmatch(r"[+-]?(?:\d+\.\d+|\d+\.\d*|\.\d+)", stripped):
-        return float(stripped)
     return value
 
 
-def _optional_float(
-    value: Any,
-    *,
-    field_name: str,
-    positive: bool,
-) -> float | None:
+def _required_env_value(env_name: str, *, source: Path) -> str:
+    value = os.getenv(env_name)
     if value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise TypeError(f"{field_name} must be a number when set")
-    number = float(value)
-    if positive and number <= 0:
-        raise ValueError(f"{field_name} must be positive when set")
-    if not positive and number < 0:
-        raise ValueError(f"{field_name} must be non-negative when set")
-    return number
+        raise ConfigurationError(
+            f"Environment variable {env_name!r} referenced in {source} is not set"
+        )
+    return value
+
+
+def _point_key_from_ref(point_ref: str) -> str:
+    from urllib.parse import quote
+
+    return quote(point_ref, safe="")

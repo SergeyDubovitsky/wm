@@ -5,7 +5,7 @@ model {
         description 'Универсальная edge-система, разворачиваемая на объекте рядом с полевыми протоколами и отвечающая за сбор данных, нормализацию, фильтрацию, буферизацию и доставку событий.'
         technology 'Edge collector / normalization / buffering / delivery'
 
-        -> monitoring-alarm-platform 'Публикует telemetry events и service topics через MQTT'
+        -> monitoring-alarm-platform 'Получает retained runtime/source configs и публикует реализованные telemetry events через MQTT; service topics остаются target contract'
     }
 
     monitoring-alarm-platform = developed-system 'Monitoring & Alarm Platform' {

@@ -1,40 +1,39 @@
 # Конфигурация edge agent
 
-В каталоге `config/` хранятся product-owned templates и описание формата.
+Рабочий путь runtime-конфигурации теперь один:
 
-- `examples/agent.example.yaml` — глобальная example-конфигурация агента, доставки, локального storage и observability
-- `examples/sources.d/*.yaml` — описания подключений к источникам данных (`knx`, `modbus`, `opcua`, `db` и т.д.)
-- `examples/points.d/*.yaml` — реестр точек мониторинга, сгруппированный по `source_id`
+1. локальный `edge.bootstrap-config.v1`
+2. retained `wm.edge.runtime-config.v1`
+3. retained `wm.edge.source-config.v1`
 
-Конкретные runtime-конфиги стендов и объектов должны храниться отдельно в
-`environments/<environment>/edge_agent/`.
+Этот каталог хранит только developer examples:
 
-Для `MVP` runtime-конфиги могут использовать placeholders вида `${VAR}`.
-`edge_agent` подставляет значения из уже переданного окружения в YAML/JSON-
-документы. Для локального запуска из monorepo используйте `uv run --env-file .env`.
+- `examples/bootstrap.example.yaml` — минимальный локальный bootstrap
+- `examples/config.bundle.example.yaml` — authoring bundle, из которого demo/tooling
+  публикует retained runtime/source config в MQTT
 
-Правило наследования:
+`edge_agent` читает локально только bootstrap-файл. Bundle не загружается
+напрямую рантаймом: он нужен для demo и интеграционных сценариев, где retained
+конфиг seed-ится в broker заранее.
 
-- `acquisition_defaults` и `publish_defaults` задаются на уровне source
-- в `examples/points.d/*.yaml` для каждой точки всегда задаются обязательные поля `point_ref`, `name`, `value_type`, `value_model`, `signal_type`
-- опциональные point metadata вроде `description`, `unit`, `tags` тоже задаются на уровне точки
-- в блоках `acquisition` и `publish` указываются только поля, которые отличаются от source defaults
-- итоговая runtime-конфигурация точки получается merge-ом `source defaults + point overrides`, а point metadata берется из point file напрямую и затем собирается в source-level metadata catalog для `MQTT`
+Текущие integration-тесты используют именно этот split:
+
+- временный локальный `bootstrap.yaml`, созданный в `tmp_path` на время теста
+- retained runtime/source config, заранее опубликованный в локальный broker из `config.bundle.yaml`
+- затем `edge_agent` валидирует и использует уже собранный MQTT-side runtime state
+
+Для локального запуска examples могут использовать placeholders вида `${VAR}`.
+YAML/JSON документы подхватывают значения из уже переданного окружения. Для
+запуска из monorepo используйте `uv run --env-file .env`.
+
+Fail-fast проверки нового потока:
+
+- `bootstrap.agent_id` должен совпадать с `runtime_config.agent_id`
+- для каждого `source_id` из retained runtime config должен существовать retained source config
+- `tenant_id`, `object_id`, `agent_id` и `config_revision` в source config должны совпадать с root runtime config
+- `source_config_revision` и `enabled` в source config должны совпадать с root runtime config
+- `point_key` должен быть percent-encoded представлением `point_ref`
+- `change_threshold` допускается только для числовых значений
 
 Полные контракты runtime-конфигурации, локального SQLite state и MQTT messages
 зафиксированы в `docs/contracts/edge-agent/`.
-
-При старте агент объединяет все файлы из `sources.d/` и `points.d/` внутри
-выбранного `config_root`, затем выполняет fail-fast валидацию:
-
-- `object_id` должен быть задан и должен быть уникален в системе мониторинга
-- `source_id` должен быть уникален в рамках агента
-- `point_ref` и `name` должны быть уникальны в рамках одного `source_id`
-- точка не может ссылаться на несуществующий `source_id`
-- `value_model` должен быть задан для каждой точки
-- `periodic_interval_seconds` должен быть `null` или положительным числом
-- `change_threshold` допускается только для числовых значений
-
-Для локальной проверки CLI по умолчанию использует packaged examples из
-`config/examples/`. Для реального запуска нужно передавать отдельный
-`config_root`, например `environments/demo-stand/edge_agent/`.

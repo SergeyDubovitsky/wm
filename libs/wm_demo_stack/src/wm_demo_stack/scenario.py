@@ -6,11 +6,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from wm_demo_stack.models import (
-    POINTS,
-    SWITCH_FEEDBACK_POINT,
-    TEMPERATURE_POINT,
+    BundlePoint,
+    BundleSource,
     DemoSettings,
-    PointSpec,
     PublishMessage,
     WaveConfig,
 )
@@ -18,25 +16,52 @@ from wm_demo_stack.publisher import JsonPublisher
 from wm_demo_stack.runtime import RuntimePort
 
 
-def source_meta_catalog_payload(
+def runtime_config_payload(settings: DemoSettings) -> dict[str, Any]:
+    return {
+        "message_type": "wm.edge.runtime-config.v1",
+        "tenant_id": settings.bundle.tenant_id,
+        "object_id": settings.bundle.object_id,
+        "agent_id": settings.bundle.agent_id,
+        "config_revision": settings.bundle.config_revision,
+        "issued_at": settings.bundle.issued_at,
+        "sources": [
+            {
+                "source_id": source.source_id,
+                "source_config_revision": source.source_config_revision,
+                "enabled": source.enabled,
+            }
+            for source in settings.bundle.sources
+        ],
+    }
+
+
+def source_config_payload(
     settings: DemoSettings,
     *,
-    ts: str,
+    source: BundleSource,
 ) -> dict[str, Any]:
     return {
-        "message_type": "wm.source.meta.catalog.v1",
-        "object_id": settings.scope.object_id,
-        "agent_id": settings.scope.agent_id,
-        "source_id": settings.scope.source_id,
-        "source_type": settings.source_type,
-        "ts": ts,
-        "points": [point.catalog_entry() for point in POINTS],
+        "message_type": "wm.edge.source-config.v1",
+        "tenant_id": settings.bundle.tenant_id,
+        "object_id": settings.bundle.object_id,
+        "agent_id": settings.bundle.agent_id,
+        "config_revision": settings.bundle.config_revision,
+        "source_id": source.source_id,
+        "source_config_revision": source.source_config_revision,
+        "source_type": source.source_type,
+        "enabled": source.enabled,
+        "connection": dict(source.connection),
+        "acquisition_defaults": dict(source.acquisition_defaults),
+        "publish_defaults": dict(source.publish_defaults),
+        "points": [point.source_config_entry() for point in source.points],
     }
 
 
 def telemetry_payload(
     *,
-    point: PointSpec,
+    settings: DemoSettings,
+    source: BundleSource,
+    point: BundlePoint,
     event_id: str,
     sequence: int,
     value: bool | float,
@@ -45,12 +70,14 @@ def telemetry_payload(
 ) -> dict[str, Any]:
     return {
         "message_type": "wm.telemetry.event.v1",
+        "tenant_id": settings.bundle.tenant_id,
         "event_id": event_id,
         "event_type": (
             "telemetry.changed"
             if point.value_type == "boolean"
             else "telemetry.sample"
         ),
+        "source_config_revision": source.source_config_revision,
         "ts": ts,
         "observation_mode": "listen",
         "value": value,
@@ -63,11 +90,13 @@ def telemetry_payload(
 def connection_payload(
     state: str,
     *,
+    tenant_id: str,
     ts: str,
     reason: str | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "message_type": "wm.source.connection.v1",
+        "tenant_id": tenant_id,
         "state": state,
         "ts": ts,
     }
@@ -76,43 +105,65 @@ def connection_payload(
     return payload
 
 
-def lwt_payload(status: str, *, ts: str) -> dict[str, Any]:
+def lwt_payload(status: str, *, tenant_id: str, ts: str) -> dict[str, Any]:
     return {
         "message_type": "wm.agent.lwt.v1",
+        "tenant_id": tenant_id,
         "status": status,
         "ts": ts,
     }
 
 
 @dataclass
-class GrafanaDemoScenario:
+class DemoScenario:
     settings: DemoSettings
     runtime: RuntimePort
 
-    def bootstrap_messages(self) -> list[PublishMessage]:
-        ts = self.runtime.now_utc_iso()
+    def config_messages(self) -> list[PublishMessage]:
         messages: list[PublishMessage] = []
-
-        if self.settings.publish_metadata:
+        if self.settings.publish_config:
             messages.append(
                 PublishMessage(
-                    topic=self.settings.scope.source_meta_catalog_topic(),
-                    payload=source_meta_catalog_payload(self.settings, ts=ts),
+                    topic=self.settings.scope.runtime_config_topic(),
+                    payload=runtime_config_payload(self.settings),
                     retain=True,
                 )
             )
+            for source in self.settings.bundle.sources:
+                messages.append(
+                    PublishMessage(
+                        topic=self.settings.scope.source_config_topic(source.source_id),
+                        payload=source_config_payload(self.settings, source=source),
+                        retain=True,
+                    )
+                )
+        return messages
+
+    def bootstrap_messages(self) -> list[PublishMessage]:
+        ts = self.runtime.now_utc_iso()
+        messages = self.config_messages()
 
         if self.settings.publish_status:
             messages.extend(
                 (
                     PublishMessage(
-                        topic=self.settings.scope.source_status_topic(),
-                        payload=connection_payload("connected", ts=ts),
+                        topic=self.settings.scope.source_status_topic(
+                            self.settings.telemetry_source_id
+                        ),
+                        payload=connection_payload(
+                            "connected",
+                            tenant_id=self.settings.bundle.tenant_id,
+                            ts=ts,
+                        ),
                         retain=True,
                     ),
                     PublishMessage(
                         topic=self.settings.scope.agent_lwt_topic(),
-                        payload=lwt_payload("online", ts=ts),
+                        payload=lwt_payload(
+                            "online",
+                            tenant_id=self.settings.bundle.tenant_id,
+                            ts=ts,
+                        ),
                         retain=True,
                     ),
                 )
@@ -126,36 +177,58 @@ class GrafanaDemoScenario:
         cycle: int,
         sequence: dict[str, int],
     ) -> list[PublishMessage]:
-        temperature = temperature_value(cycle, wave=self.settings.temperature)
-        sequence[TEMPERATURE_POINT.point_ref] += 1
+        source = self.settings.bundle.source(self.settings.telemetry_source_id)
+        messages: list[PublishMessage] = []
 
-        switch_on = cycle % 2 == 1
-        sequence[SWITCH_FEEDBACK_POINT.point_ref] += 1
+        numeric_point = _first_numeric_point(source)
+        if numeric_point is not None:
+            temperature = temperature_value(cycle, wave=self.settings.temperature)
+            sequence[numeric_point.point_ref] += 1
+            messages.append(
+                PublishMessage(
+                    topic=self.settings.scope.point_topic(
+                        source.source_id,
+                        numeric_point.point_key,
+                        "event",
+                    ),
+                    payload=telemetry_payload(
+                        settings=self.settings,
+                        source=source,
+                        point=numeric_point,
+                        event_id=f"manual-numeric-{cycle:06d}",
+                        sequence=sequence[numeric_point.point_ref],
+                        value=temperature,
+                        value_raw=f"{temperature:.1f}",
+                        ts=self.runtime.now_utc_iso(),
+                    ),
+                )
+            )
 
-        return [
-            PublishMessage(
-                topic=self.settings.scope.point_topic(TEMPERATURE_POINT, "event"),
-                payload=telemetry_payload(
-                    point=TEMPERATURE_POINT,
-                    event_id=f"manual-temp-{cycle:06d}",
-                    sequence=sequence[TEMPERATURE_POINT.point_ref],
-                    value=temperature,
-                    value_raw=f"{temperature:.1f}",
-                    ts=self.runtime.now_utc_iso(),
-                ),
-            ),
-            PublishMessage(
-                topic=self.settings.scope.point_topic(SWITCH_FEEDBACK_POINT, "event"),
-                payload=telemetry_payload(
-                    point=SWITCH_FEEDBACK_POINT,
-                    event_id=f"manual-switch-{cycle:06d}",
-                    sequence=sequence[SWITCH_FEEDBACK_POINT.point_ref],
-                    value=switch_on,
-                    value_raw="01" if switch_on else "00",
-                    ts=self.runtime.now_utc_iso(),
-                ),
-            ),
-        ]
+        boolean_point = _first_boolean_point(source)
+        if boolean_point is not None:
+            switch_on = cycle % 2 == 1
+            sequence[boolean_point.point_ref] += 1
+            messages.append(
+                PublishMessage(
+                    topic=self.settings.scope.point_topic(
+                        source.source_id,
+                        boolean_point.point_key,
+                        "event",
+                    ),
+                    payload=telemetry_payload(
+                        settings=self.settings,
+                        source=source,
+                        point=boolean_point,
+                        event_id=f"manual-boolean-{cycle:06d}",
+                        sequence=sequence[boolean_point.point_ref],
+                        value=switch_on,
+                        value_raw="01" if switch_on else "00",
+                        ts=self.runtime.now_utc_iso(),
+                    ),
+                )
+            )
+
+        return messages
 
     def shutdown_messages(self, *, reason: str) -> list[PublishMessage]:
         if not self.settings.publish_status:
@@ -164,13 +237,22 @@ class GrafanaDemoScenario:
         ts = self.runtime.now_utc_iso()
         return [
             PublishMessage(
-                topic=self.settings.scope.source_status_topic(),
-                payload=connection_payload("disconnected", ts=ts, reason=reason),
+                topic=self.settings.scope.source_status_topic(self.settings.telemetry_source_id),
+                payload=connection_payload(
+                    "disconnected",
+                    tenant_id=self.settings.bundle.tenant_id,
+                    ts=ts,
+                    reason=reason,
+                ),
                 retain=True,
             ),
             PublishMessage(
                 topic=self.settings.scope.agent_lwt_topic(),
-                payload=lwt_payload("offline", ts=ts),
+                payload=lwt_payload(
+                    "offline",
+                    tenant_id=self.settings.bundle.tenant_id,
+                    ts=ts,
+                ),
                 retain=True,
             ),
         ]
@@ -198,28 +280,22 @@ def run_demo(
     runtime: RuntimePort,
     output: callable = print,
 ) -> int:
-    scenario = GrafanaDemoScenario(settings=settings, runtime=runtime)
-    sequence = {point.point_ref: 0 for point in POINTS}
+    scenario = DemoScenario(settings=settings, runtime=runtime)
+    source = settings.bundle.source(settings.telemetry_source_id)
+    sequence = {point.point_ref: 0 for point in source.points}
 
     try:
         publish_messages(publisher, scenario.bootstrap_messages())
         next_bootstrap_refresh: float | None = None
         if settings.retained_refresh_seconds > 0:
-            next_bootstrap_refresh = (
-                runtime.monotonic() + settings.retained_refresh_seconds
-            )
+            next_bootstrap_refresh = runtime.monotonic() + settings.retained_refresh_seconds
 
         cycle = 0
         while settings.count == 0 or cycle < settings.count:
             current_time = runtime.monotonic()
-            if (
-                next_bootstrap_refresh is not None
-                and current_time >= next_bootstrap_refresh
-            ):
+            if next_bootstrap_refresh is not None and current_time >= next_bootstrap_refresh:
                 publish_messages(publisher, scenario.bootstrap_messages())
-                next_bootstrap_refresh = (
-                    current_time + settings.retained_refresh_seconds
-                )
+                next_bootstrap_refresh = current_time + settings.retained_refresh_seconds
 
             cycle += 1
             publish_messages(
@@ -237,7 +313,44 @@ def run_demo(
                 publisher,
                 scenario.shutdown_messages(reason="manual-stop"),
             )
-        except Exception as exc:  # pragma: no cover - best effort shutdown path.
+        except Exception as exc:  # pragma: no cover
             output(f"WARNING failed to publish shutdown status: {exc}")
 
     return 0
+
+
+def publish_config(
+    settings: DemoSettings,
+    *,
+    publisher: JsonPublisher,
+    runtime: RuntimePort,
+    output: callable = print,
+) -> int:
+    scenario = DemoScenario(settings=settings, runtime=runtime)
+    messages = scenario.config_messages()
+    publish_messages(publisher, messages)
+    output(
+        "PUBLISHED_CONFIG "
+        f"messages={len(messages)} "
+        f"sources={len(settings.bundle.sources)} "
+        f"agent_id={settings.bundle.agent_id}"
+    )
+    return len(messages)
+
+
+def _first_numeric_point(source: BundleSource) -> BundlePoint | None:
+    for point in source.points:
+        if point.value_type == "number" and point.publish.get("enabled", True):
+            return point
+    return None
+
+
+def _first_boolean_point(source: BundleSource) -> BundlePoint | None:
+    for point in source.points:
+        if (
+            point.value_type == "boolean"
+            and point.signal_type != "command"
+            and point.publish.get("enabled", True)
+        ):
+            return point
+    return None

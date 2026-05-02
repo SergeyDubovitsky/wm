@@ -15,6 +15,16 @@ SQLite на edge является локальным техническим со
 - счетчики sequence, попытки доставки и статусы retry
 - поддержка warm restart после перезапуска агента
 
+## Статус реализации
+
+Сейчас в коде реализована runtime-critical часть этого контракта:
+
+- `Delivery Outbox` реализован и используется runtime-ом
+- `Point State Cache` реализован как persistent SQLite table и используется `ObservationProcessor`
+
+Поэтому текущий runtime использует `sqlite_path` как общий local state store для
+outbox и point-state cache. `schema_migrations` пока остается target contract.
+
 SQLite не является:
 
 - историческим архивом телеметрии
@@ -32,19 +42,17 @@ SQLite не является:
 
 | Table | Contract-id | Primary / unique keys | Статус |
 | --- | --- | --- | --- |
-| `point_state_cache` | `edge.sqlite-point-state-cache.v1` | primary key `(source_id, point_ref)` | target contract |
-| `delivery_outbox` | `edge.sqlite-outbox-record.v1` | primary key `id`, unique `(event_id)` | target contract |
+| `point_state_cache` | `edge.sqlite-point-state-cache.v1` | primary key `(source_id, point_ref)` | implemented |
+| `delivery_outbox` | `edge.sqlite-outbox-record.v1` | primary key `id`, unique `(event_id)` | implemented |
 | `schema_migrations` | `edge.sqlite-storage.v1` | primary key `version` | target contract |
-
-Текущая реализация edge-agent использует физическую таблицу `outbox`. Это
-допустимый current implementation detail до миграции на target-имя
-`delivery_outbox`. Контракт выше фиксирует целевую физическую модель для
-следующего runtime-инкремента.
 
 ## Point State Cache
 
 `Point State Cache` нужен, чтобы после restart агент не терял контекст фильтрации
 изменений и sequence.
+
+Текущее примечание: `ObservationProcessor` держит hot in-memory copy, а
+persistent representation хранится в `point_state_cache`.
 
 Минимальные обязанности:
 
@@ -52,6 +60,21 @@ SQLite не является:
 - хранить `last_observed_*` и `last_published_*`
 - хранить `sequence` последней опубликованной telemetry event
 - обновляться до постановки нового события в outbox
+
+Physical columns:
+
+- `source_id`
+- `point_ref`
+- `last_observed_at`
+- `last_observed_value_json`
+- `last_observed_raw`
+- `last_observed_quality`
+- `last_published_at`
+- `last_published_value_json`
+- `last_published_raw`
+- `last_published_quality`
+- `sequence`
+- `updated_at`
 
 ## Delivery Outbox
 
@@ -65,7 +88,7 @@ SQLite не является:
 - хранить `available_at`, `attempt_count`, `last_error`
 - иметь lease/recovery semantics для `inflight`, чтобы события не зависали после падения delivery worker
 
-Current implementation columns:
+Physical columns:
 
 - `id`
 - `event_id`
@@ -84,6 +107,9 @@ Current implementation columns:
 semantics. При старте или следующем reserve delivery worker возвращает expired
 `inflight` records обратно в `pending`.
 
-Metadata catalog и status messages могут публиковаться напрямую и переиздаваться
-при connect. Они не обязаны проходить через delivery outbox, если для них не
-нужна такая же retry-гарантия, как для telemetry events.
+Config status, connection status и agent status messages могут публиковаться
+напрямую. Они не обязаны проходить через delivery outbox, если для них не нужна
+такая же retry-гарантия, как для telemetry events.
+
+Текущее примечание: текущая реализация runtime пока публикует только telemetry
+через outbox flow. Operational status messages остаются следующей фазой.

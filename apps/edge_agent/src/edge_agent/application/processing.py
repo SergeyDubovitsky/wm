@@ -1,14 +1,22 @@
 from __future__ import annotations
 
-from edge_agent.application.catalog import source_catalog_revision
+from datetime import datetime
+from typing import Protocol
+
 from edge_agent.domain.config import AgentRuntimeConfig, RuntimePoint
-from edge_agent.domain.events import Observation, TelemetryEvent
+from edge_agent.domain.events import Observation, Quality, TelemetryEvent
 from edge_agent.modeling import EdgeModel, FrozenEdgeModel
 
 
 class PointState(EdgeModel):
     last_observed_value: object | None = None
+    last_observed_at: datetime | None = None
+    last_observed_raw: str | None = None
+    last_observed_quality: Quality | None = None
     last_published_value: object | None = None
+    last_published_at: datetime | None = None
+    last_published_raw: str | None = None
+    last_published_quality: Quality | None = None
     published_count: int = 0
 
 
@@ -17,44 +25,55 @@ class ProcessingResult(FrozenEdgeModel):
     suppressed_reason: str | None = None
 
 
+class PointStateStore(Protocol):
+    def get(self, source_id: str, point_ref: str) -> PointState | None:
+        ...
+
+    def save(self, source_id: str, point_ref: str, state: PointState) -> None:
+        ...
+
+
 class ObservationProcessor:
-    def __init__(self, runtime_config: AgentRuntimeConfig, agent_id: str) -> None:
+    def __init__(
+        self,
+        runtime_config: AgentRuntimeConfig,
+        agent_id: str,
+        *,
+        state_store: PointStateStore | None = None,
+    ) -> None:
         self._runtime_config = runtime_config
         self._agent_id = agent_id
+        self._state_store = state_store
         self._states: dict[tuple[str, str], PointState] = {}
-        self._catalog_revisions = {
-            source.source_id: source_catalog_revision(
-                source_type=source.type,
-                points=[
-                    point
-                    for (point_source_id, _), point in runtime_config.points.items()
-                    if point_source_id == source.source_id
-                ],
-            )
-            for source in runtime_config.sources.values()
-        }
 
     def process(self, observation: Observation) -> ProcessingResult:
         point = self._runtime_config.point(observation.source_id, observation.point_ref)
-        state = self._states.setdefault(
-            (observation.source_id, observation.point_ref),
-            PointState(),
-        )
+        state = self._state_for(observation.source_id, observation.point_ref)
         state.last_observed_value = observation.value
+        state.last_observed_at = observation.observed_at
+        state.last_observed_raw = observation.value_raw
+        state.last_observed_quality = observation.quality
         if not point.publish.enabled:
+            self._save_state(observation.source_id, observation.point_ref, state)
             return ProcessingResult(event=None, suppressed_reason="publish_disabled")
         if not self._should_publish(point, state.last_published_value, observation.value):
+            self._save_state(observation.source_id, observation.point_ref, state)
             return ProcessingResult(event=None, suppressed_reason="not_significant")
 
         state.published_count += 1
         state.last_published_value = observation.value
+        state.last_published_at = observation.observed_at
+        state.last_published_raw = observation.value_raw
+        state.last_published_quality = observation.quality
+        self._save_state(observation.source_id, observation.point_ref, state)
         event = TelemetryEvent.new(
             event_type=_event_type_for(point),
             agent_id=self._agent_id,
-            object_id=self._runtime_config.agent.object_id,
+            tenant_id=self._runtime_config.tenant_id,
+            object_id=self._runtime_config.object_id,
             source_id=point.source_id,
             source_type=point.source_type,
-            catalog_revision=self._catalog_revisions[point.source_id],
+            source_config_revision=point.source_config_revision,
             point_ref=point.point_ref,
             name=point.name,
             description=point.description,
@@ -71,6 +90,20 @@ class ObservationProcessor:
             ts=observation.observed_at,
         )
         return ProcessingResult(event=event)
+
+    def _state_for(self, source_id: str, point_ref: str) -> PointState:
+        key = (source_id, point_ref)
+        existing = self._states.get(key)
+        if existing is not None:
+            return existing
+        persisted = self._state_store.get(source_id, point_ref) if self._state_store else None
+        state = persisted or PointState()
+        self._states[key] = state
+        return state
+
+    def _save_state(self, source_id: str, point_ref: str, state: PointState) -> None:
+        if self._state_store is not None:
+            self._state_store.save(source_id, point_ref, state)
 
     def _should_publish(
         self,

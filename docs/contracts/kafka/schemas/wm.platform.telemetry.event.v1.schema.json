@@ -17,7 +17,7 @@
         "point_id",
         "point_key",
         "point_ref",
-        "catalog_revision",
+        "source_config_revision",
         "ts",
         "ingested_at",
         "event_type",
@@ -61,6 +61,7 @@
         },
         "point_id": {
             "type": "string",
+            "description": "Stable Platform Registry id when available. MVP fallback: {tenant_id}|{object_id}|{source_id}|{point_key}.",
             "minLength": 1
         },
         "point_key": {
@@ -71,7 +72,7 @@
             "type": "string",
             "minLength": 1
         },
-        "catalog_revision": {
+        "source_config_revision": {
             "type": "string",
             "minLength": 1
         },

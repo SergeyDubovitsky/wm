@@ -7,12 +7,17 @@
     "additionalProperties": false,
     "required": [
         "message_type",
+        "tenant_id",
         "status",
         "ts"
     ],
     "properties": {
         "message_type": {
             "const": "wm.agent.lwt.v1"
+        },
+        "tenant_id": {
+            "type": "string",
+            "minLength": 1
         },
         "status": {
             "type": "string",

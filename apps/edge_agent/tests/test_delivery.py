@@ -54,12 +54,8 @@ class FakeOutbox:
 
 def _runtime_config():
     return build_runtime_config(
-        agent_data={
-            "agent": {
-                "object_id": "demo-stand-01",
-                "name": "main-panel",
-                "id_file": "/tmp/edge-agent/agent_id",
-            },
+        bootstrap_data={
+            "agent_id": "edge-agent-001",
             "delivery": {
                 "transport": "mqtt",
                 "mqtt": {
@@ -74,10 +70,6 @@ def _runtime_config():
                     "clean_start": True,
                     "session_expiry_seconds": 0,
                     "telemetry_message_expiry_seconds": 86400,
-                    "publish_metadata": True,
-                    "retain_metadata": True,
-                    "publish_connection_status": True,
-                    "retain_connection_status": True,
                     "connect_timeout_seconds": 5,
                     "retry_backoff_seconds": [5, 15, 60],
                 },
@@ -93,37 +85,60 @@ def _runtime_config():
                 "metrics_bind": "0.0.0.0:9108",
             },
         },
+        runtime_data={
+            "message_type": "wm.edge.runtime-config.v1",
+            "tenant_id": "tenant-001",
+            "object_id": "demo-stand-01",
+            "agent_id": "edge-agent-001",
+            "config_revision": "rev-2026-05-02-001",
+            "issued_at": "2026-05-02T00:00:00Z",
+            "sources": [
+                {
+                    "source_id": "knx_main",
+                    "source_config_revision": "rev-2026-05-02-001-knx-main",
+                    "enabled": True,
+                }
+            ],
+        },
         source_documents=[
             {
-                "sources": [
-                    {
-                        "source_id": "knx_main",
-                        "type": "knx",
-                        "enabled": True,
-                        "connection": {"gateway_ip": "127.0.0.1", "gateway_port": 3671},
-                        "acquisition_defaults": {
-                            "listen": True,
-                            "read_on_start": False,
-                            "periodic_interval_seconds": None,
-                        },
-                        "publish_defaults": {
-                            "enabled": True,
-                            "change_threshold": None,
-                        },
-                    }
-                ]
-            }
-        ],
-        point_documents=[
-            {
+                "message_type": "wm.edge.source-config.v1",
+                "tenant_id": "tenant-001",
+                "object_id": "demo-stand-01",
+                "agent_id": "edge-agent-001",
+                "config_revision": "rev-2026-05-02-001",
                 "source_id": "knx_main",
+                "source_config_revision": "rev-2026-05-02-001-knx-main",
+                "source_type": "knx",
+                "enabled": True,
+                "connection": {"gateway_ip": "127.0.0.1", "gateway_port": 3671},
+                "acquisition_defaults": {
+                    "listen": True,
+                    "read_on_start": False,
+                    "periodic_interval_seconds": None,
+                },
+                "publish_defaults": {
+                    "enabled": True,
+                    "change_threshold": None,
+                },
                 "points": [
                     {
+                        "point_key": "0%2F0%2F7",
                         "point_ref": "0/0/7",
                         "name": "switch_feedback",
                         "value_type": "boolean",
                         "value_model": "knx.dpt.1.001",
                         "signal_type": "feedback",
+                        "acquisition": {
+                            "listen": True,
+                            "read_on_start": False,
+                            "periodic_interval_seconds": None,
+                        },
+                        "publish": {
+                            "enabled": True,
+                            "change_threshold": None,
+                        },
+                        "tags": {},
                     }
                 ],
             }
@@ -134,11 +149,12 @@ def _runtime_config():
 def _event_payload_json() -> str:
     event = TelemetryEvent.new(
         event_type="telemetry.changed",
-        agent_id="agent-1",
+        agent_id="edge-agent-001",
+        tenant_id="tenant-001",
         object_id="demo-stand-01",
         source_id="knx_main",
         source_type="knx",
-        catalog_revision="sha256:test",
+        source_config_revision="rev-2026-05-02-001-knx-main",
         point_ref="0/0/7",
         name="switch_feedback",
         description=None,
@@ -157,22 +173,6 @@ def _event_payload_json() -> str:
     return json.dumps(event.canonical_payload())
 
 
-def test_delivery_worker_publishes_startup_catalogs() -> None:
-    publisher = FakePublisher()
-    worker = DeliveryWorker(
-        runtime_config=_runtime_config(),
-        agent_id="agent-1",
-        outbox=FakeOutbox([]),
-        publisher=publisher,
-    )
-
-    count = worker.publish_startup_catalogs(now=datetime(2026, 3, 28, 10, 0, tzinfo=UTC))
-
-    assert count == 1
-    assert publisher.publications[0].retain is True
-    assert publisher.publications[0].topic.endswith("/sources/knx_main/meta/catalog")
-
-
 def test_delivery_worker_publishes_outbox_telemetry_and_marks_sent() -> None:
     publisher = FakePublisher()
     outbox = FakeOutbox(
@@ -180,7 +180,7 @@ def test_delivery_worker_publishes_outbox_telemetry_and_marks_sent() -> None:
     )
     worker = DeliveryWorker(
         runtime_config=_runtime_config(),
-        agent_id="agent-1",
+        agent_id="edge-agent-001",
         outbox=outbox,
         publisher=publisher,
     )
@@ -193,10 +193,13 @@ def test_delivery_worker_publishes_outbox_telemetry_and_marks_sent() -> None:
     assert publisher.publications[0].retain is False
     assert publisher.publications[0].message_expiry_seconds == 86400
     assert publisher.publications[0].topic == (
-        "wm/v1/objects/demo-stand-01/agents/agent-1/sources/knx_main/points/0%2F0%2F7/event"
+        "wm/v1/objects/demo-stand-01/agents/edge-agent-001/sources/knx_main/points/0%2F0%2F7/event"
     )
     assert publisher.publications[0].payload["message_type"] == "wm.telemetry.event.v1"
-    assert publisher.publications[0].payload["catalog_revision"] == "sha256:test"
+    assert publisher.publications[0].payload["tenant_id"] == "tenant-001"
+    assert publisher.publications[0].payload["source_config_revision"] == (
+        "rev-2026-05-02-001-knx-main"
+    )
 
 
 def test_delivery_worker_retries_failed_publish() -> None:
@@ -205,7 +208,7 @@ def test_delivery_worker_retries_failed_publish() -> None:
     )
     worker = DeliveryWorker(
         runtime_config=_runtime_config(),
-        agent_id="agent-1",
+        agent_id="edge-agent-001",
         outbox=outbox,
         publisher=FakePublisher(fail=True),
     )
@@ -225,7 +228,7 @@ def test_delivery_worker_dead_letters_after_max_attempts() -> None:
     )
     worker = DeliveryWorker(
         runtime_config=_runtime_config(),
-        agent_id="agent-1",
+        agent_id="edge-agent-001",
         outbox=outbox,
         publisher=FakePublisher(fail=True),
     )

@@ -1,170 +1,116 @@
-# Local Infrastructure
+# Локальный MQTT/Kafka стек
 
-Этот каталог хранит локальную инфраструктуру разработки:
+Этот каталог хранит локальный docker compose стек для разработки и
+интеграционных тестов вокруг `edge_agent`.
 
-- `compose.yaml`
-- конфиг `MQTT broker`
-- provisioning `Grafana`
-- другие shared dev services
+Основной сценарий сейчас такой:
 
-## Сервисы
+- поднять локальный `MQTT broker`
+- поднять локальный `Apache Kafka` как Kafka-compatible event log
+- поднять `Redpanda Connect` как ingestion pipeline `MQTT -> Kafka`
+- запаблишить retained runtime/source config из `config.bundle.yaml`
+- проверить поток `KNX-shaped telemetry -> edge_agent -> MQTT -> Kafka`
 
-- `mqtt-broker` — `Eclipse Mosquitto` на `localhost:1883`
-- `grafana` — локальный UI на `http://localhost:3000`
-- `grafana-mqtt-datasource` — установленный datasource plugin для live-подписки на `MQTT`
-- dashboard содержит quick cards для `Текущее значение`, `Последнее качество`, `Статус источника`, `Статус агента`
+## Что поднимается
 
-## Запуск
+- `mqtt-broker` — локальный `Eclipse Mosquitto`
+- `kafka` — локальный single-node `Apache Kafka` в KRaft mode
+- `kafka-init` — одноразовое создание platform topics
+- `redpanda-connect` — connector pipeline, который читает `wm/v1/#`,
+  обогащает telemetry retained source config и пишет platform records в Kafka
+- `kafka-ui` — web UI для просмотра Kafka topics/messages
+- `mqttx-web` — web MQTT-клиент для ручной подписки на MQTT topics
+
+## Быстрый старт
+
+Только MQTT-срез:
 
 ```bash
-cd <repo-root>
-cp .env.example .env
 cd infra/local
-docker compose --env-file ../../.env up -d
+docker compose --env-file ../../.env up -d mqtt-broker
 ```
 
-Остановить стек:
+Полный local platform slice:
 
 ```bash
-docker compose down
+cd infra/local
+docker compose --env-file ../../.env up -d \
+  mqtt-broker kafka kafka-init redpanda-connect kafka-ui mqttx-web
 ```
 
-## Файлы
+После старта:
 
-- `mosquitto/config/mosquitto.conf` — конфиг локального broker
-- `mosquitto/config/start-mosquitto.sh` — генерация `password_file` из `.env` и запуск broker
-- `grafana/grafana.ini` — базовый конфиг Grafana
-- `grafana/provisioning/` — file provisioning
-- `grafana/dashboards/local-stack-overview.json` — dashboard c topic filters по `ADR-005`
-- `scripts/publish_grafana_demo.py` — совместимый shim для запуска demo publisher из старых инструкций
-- `../../libs/wm_demo_stack/` — библиотека и CLI для demo/scenario потока `MQTT -> Grafana`
+- `MQTT broker` доступен на `localhost:1883`
+- `MQTT websocket` доступен на `localhost:9001`
+- `Kafka` host listener доступен на `localhost:19092`
+- `Redpanda Connect` HTTP endpoint доступен на `localhost:4195`
+- `Kafka UI` доступен на `http://localhost:8080`
+- `MQTTX Web` доступен на `http://localhost:8081`
+- для доступа нужны `MQTT_USERNAME` и `MQTT_PASSWORD`
 
-## Доступ
+Для ручной проверки в `MQTTX Web` создайте connection:
 
-- `MQTT broker` требует `MQTT_USERNAME` и `MQTT_PASSWORD`
-- `Grafana` требует `GF_SECURITY_ADMIN_USER` и `GF_SECURITY_ADMIN_PASSWORD`
+- protocol: `ws`
+- host: `localhost`
+- port: `9001`
+- username/password: значения из `.env`
+- subscribe topic: `wm/v1/#`
 
-Для `MVP` стек использует общий root-level `.env`, который можно подготовить из
-`<repo-root>/.env.example` и затем передать в
-`docker compose` через `--env-file ../../.env`.
+В `Kafka UI` откройте cluster `local` и topics:
 
-## Текущая роль Grafana
+- `wm.platform.telemetry.events.v1`
+- `wm.platform.source.configs.v1`
+- `wm.platform.source.connections.v1`
+- `wm.platform.agent.status.v1`
+- `wm.platform.ingestion.errors.v1`
 
-Grafana поднимается с `grafana-mqtt-datasource` как текущий слой визуализации
-`Monitoring & Alarm Platform`.
+## Публикация retained config и demo telemetry
 
-- plugin показывает live-streaming данные из `MQTT`
-- plugin не хранит историю и не заменяет telemetry store
-- plugin не умеет query-based template variables, поэтому dropdown-ы задаются как `Custom` / `Text box`, а не discover-ятся из broker
-- panel должна быть открыта до публикации тестового сообщения
-- данные появляются в панели на ближайшем query interval, для текущего
-  dashboard это обычно около `15-20s`
-- status/meta panels особенно чувствительны к live-only модели plugin:
-  в локальном demo наиболее устойчиво работает `agent_id = +`, потому что
-  точный `agent_id` на source-topics может упираться в текущий баг
-  `grafana-mqtt-datasource` с `Invalid channel ID`
-- нижние панели, которые оказываются ниже первого экрана, Grafana может
-  подписывать только после попадания в viewport: прокрутите к ним и дайте
-  один короткий live-cycle на обновление
-- этот контур используется для smoke-test, визуальной проверки topic tree,
-  payload contract и текущего operator-facing live view
-
-## Smoke Test
-
-1. Откройте dashboard `Local / Обзор локального стека` в Grafana.
-2. Оставьте дефолтные фильтры:
-
-- `object_id = demo-stand-01`
-- `agent_id = +`
-- `source_id = knx_main`
-- `point_key = 2%2F0%2F0`
-
-3. Опубликуйте тестовое telemetry-сообщение в topic из `wm.mqtt.topic-tree.v1`:
+Из корня репозитория:
 
 ```bash
-docker compose exec -T mqtt-broker sh -lc '
-  mosquitto_pub \
-    -h 127.0.0.1 \
-    -p 1883 \
-    -u "$MQTT_USERNAME" \
-    -P "$MQTT_PASSWORD" \
-    -t "wm/v1/objects/demo-stand-01/agents/test-agent/sources/knx_main/points/2%2F0%2F0/event" \
-    -m "{\"message_type\":\"wm.telemetry.event.v1\",\"event_id\":\"demo-smoke-001\",\"event_type\":\"telemetry.sample\",\"catalog_revision\":\"sha256:demo-smoke\",\"ts\":\"2026-03-28T08:55:00Z\",\"observation_mode\":\"listen\",\"value\":24.2,\"value_raw\":\"24.2\",\"quality\":\"good\",\"sequence\":1}"
-'
+uv run --env-file .env --package wm-demo-stack publish-edge-demo \
+  --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml
 ```
 
-Для локального `MQTT -> Grafana` smoke допускается произвольный строковый
-`catalog_revision`, потому что текущий dashboard читает wire payload напрямую.
+CLI:
 
-4. Подождите до одного query interval и проверьте, что:
+- публикует retained `wm.edge.runtime-config.v1`
+- публикует retained `wm.edge.source-config.v1`
+- публикует demo telemetry events
+- публикует retained source connection status и agent LWT
 
-- график `График значения` показывает новую точку
-- таблица `Поток telemetry-событий` показывает поля `message_type`, `event_id`, `event_type`, `value`, `quality`, `sequence`, `ts`
+При запущенном `redpanda-connect` эти MQTT-сообщения перекладываются в Kafka:
 
-## Manual Data Generator
+- telemetry -> `wm.platform.telemetry.events.v1`
+- source config -> `wm.platform.source.configs.v1`
+- source connection -> `wm.platform.source.connections.v1`
+- agent LWT -> `wm.platform.agent.status.v1`
+- ingestion errors -> `wm.platform.ingestion.errors.v1`
 
-Для ручной проверки Grafana можно запустить генератор demo-потока из корня репозитория.
-Предпочтительный способ теперь идет через package entrypoint библиотеки:
-
-```bash
-uv run --env-file .env --package wm-demo-stack publish-grafana-demo
-```
-
-Совместимый запуск через прежний shim тоже поддерживается:
+Shim через `infra/local/scripts` тоже доступен:
 
 ```bash
 uv run --env-file .env --group integration \
-  python infra/local/scripts/publish_grafana_demo.py
+  python infra/local/scripts/publish_edge_demo.py \
+  --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml
 ```
 
-По умолчанию CLI берет `MQTT_BROKER`, `MQTT_USERNAME` и `MQTT_PASSWORD`
-из root-level `.env`, переданного через `uv --env-file .env`.
-
-Что он делает:
-
-- публикует один retained source metadata catalog для `knx_main`
-- публикует retained `status/connection = connected` и `lwt = online`
-- периодически репаблишит retained metadata/status, чтобы live-панели Grafana
-  не пустели после короткого time range
-- циклически отправляет telemetry events для `2/0/0` и `0/0/7`
-- при остановке через `Ctrl+C` публикует `disconnected` и `offline`
-
-Полезные варианты:
-
-```bash
-uv run --env-file .env --package wm-demo-stack \
-  publish-grafana-demo --count 10
-
-uv run --env-file .env --package wm-demo-stack \
-  publish-grafana-demo --interval-seconds 1.0
-
-uv run --env-file .env --package wm-demo-stack \
-  publish-grafana-demo --agent-id test-agent-01
-
-uv run --env-file .env --package wm-demo-stack \
-  publish-grafana-demo --retained-refresh-seconds 15
-```
-
-## Automated Integration Test
-
-Автоматизированный smoke/E2E-тест поднимает isolated `docker compose` project,
-выбирает свободные host ports, публикует telemetry event в topic из `ADR-005`
-и проверяет через `Playwright`, что Grafana отрисовала строку в таблице
-`Поток telemetry-событий`.
-
-Подготовка и запуск выполняются из корня репозитория:
+## Интеграционные тесты
 
 ```bash
 uv sync --all-packages --group integration
-uv run --group integration playwright install chromium
-uv run --group integration pytest tests/integration/test_local_mqtt_grafana.py
+uv run --group integration pytest \
+  tests/integration/test_edge_agent_mqtt_publisher.py \
+  tests/integration/test_edge_agent_knx_to_mqtt.py
 ```
 
-Что тест покрывает:
+Эти тесты проверяют:
 
-- provisioning datasource `Local MQTT`
-- provisioning dashboard `Обзор локального стека`
-- аутентификацию в Grafana
-- доставку telemetry event в `MQTT broker`
-- отображение live telemetry и metadata в Grafana по topic filter из `ADR-005`
-- реальный UI-path через `Playwright`, включая поведение live-only datasource
+- `test_edge_agent_mqtt_publisher.py` содержит два smoke-сценария:
+  raw `PahoMqttPublisher -> MQTT` и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
+- `test_edge_agent_knx_to_mqtt.py` проверяет end-to-end путь
+  `config bundle -> retained runtime/source config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+- `local_stack` fixture поднимает только `mqtt-broker`
+- `local_platform_stack` fixture поднимает `mqtt-broker`, `kafka`, `kafka-init`
+  и `redpanda-connect`; Grafana не входит в текущий demo/integration surface

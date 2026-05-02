@@ -76,10 +76,6 @@ def _settings() -> MqttSettings:
         clean_start=True,
         session_expiry_seconds=0,
         telemetry_message_expiry_seconds=86400,
-        publish_metadata=True,
-        retain_metadata=True,
-        publish_connection_status=True,
-        retain_connection_status=True,
         connect_timeout_seconds=5,
         retry_backoff_seconds=(5, 15, 60),
     )

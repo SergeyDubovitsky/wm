@@ -6,7 +6,7 @@ model {
             icon tech:kafka-icon
 
             -> kafka-event-log 'Подписываются на Kafka topics с consumer group telemetry-store-writer.v1'
-            -> telemetry-store 'Записывают canonical telemetry, service events и source metadata snapshots по wm.clickhouse.telemetry-store.v1'
+            -> telemetry-store 'Записывают canonical telemetry, service events и source config snapshots по wm.clickhouse.telemetry-store.v1'
         }
     }
 }

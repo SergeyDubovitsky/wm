@@ -64,6 +64,8 @@ jobs:
                       test_path: apps/knx_demo/tests
                     - package: knx-parser
                       test_path: libs/knx_parser/tests
+                    - package: wm-demo-stack
+                      test_path: libs/wm_demo_stack/tests
 
         steps:
             - name: Checkout
@@ -83,4 +85,43 @@ jobs:
               run: uv sync --frozen --all-packages
 
             - name: Run tests
-              run: uv run --frozen --package ${{ matrix.package }} pytest ${{ matrix.test_path }}
+              run: uv run --frozen --package ${{ matrix.package }} pytest ${{ matrix.test_path
+                  }}
+
+    integration:
+        name: Integration
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Set up Python
+              uses: actions/setup-python@v6
+              with:
+                  python-version-file: ".python-version"
+
+            - name: Set up uv
+              uses: astral-sh/setup-uv@v7
+              with:
+                  enable-cache: true
+
+            - name: Sync workspace
+              run: uv sync --frozen --all-packages --group integration
+
+            - name: Check compose config
+              run: docker compose -f infra/local/compose.yaml config --quiet
+
+            - name: Lint Redpanda Connect pipeline
+              run: |
+                  docker run --rm \
+                    -e MQTT_USERNAME=lint \
+                    -e MQTT_PASSWORD=lint \
+                    -v "$PWD/infra/local/redpanda-connect/mqtt-to-kafka.yaml:/mqtt-to-kafka.yaml:ro" \
+                    docker.redpanda.com/redpandadata/connect lint /mqtt-to-kafka.yaml
+
+            - name: Run integration tests
+              run: |
+                  uv run --frozen --group integration pytest \
+                    tests/integration/test_edge_agent_mqtt_publisher.py \
+                    tests/integration/test_edge_agent_knx_to_mqtt.py

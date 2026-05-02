@@ -9,20 +9,37 @@ cp .env.example .env
 uv sync
 uv run --package edge-agent pytest apps/edge_agent/tests
 uv run --package edge-agent edge-agent --help
-uv run --package edge-agent edge-agent check-config
-uv run --package edge-agent edge-agent show-config --format json
-uv run --package edge-agent edge-agent agent-id
-uv run --package edge-agent edge-agent show-catalog --agent-id demo-agent
-uv run --package edge-agent edge-agent enqueue-demo-event --agent-id demo-agent
-uv run --env-file .env --package edge-agent edge-agent deliver-once --agent-id demo-agent
-uv run --env-file .env --package edge-agent edge-agent check-config --config-root environments/demo-stand/edge_agent
+uv run --env-file .env --package edge-agent edge-agent \
+  check-config --bootstrap-config environments/demo-stand/edge_agent/bootstrap.yaml
+uv run --env-file .env --package edge-agent edge-agent \
+  show-config --bootstrap-config environments/demo-stand/edge_agent/bootstrap.yaml --format json
+uv run --env-file .env --package edge-agent edge-agent \
+  enqueue-demo-event --bootstrap-config environments/demo-stand/edge_agent/bootstrap.yaml
+uv run --env-file .env --package edge-agent edge-agent \
+  deliver-once --bootstrap-config environments/demo-stand/edge_agent/bootstrap.yaml
 ```
+
+## Integration Tests
+
+```bash
+uv sync --all-packages --group integration
+uv run --group integration pytest \
+  tests/integration/test_edge_agent_mqtt_publisher.py \
+  tests/integration/test_edge_agent_knx_to_mqtt.py
+```
+
+Текущее покрытие:
+
+- `test_edge_agent_mqtt_publisher.py` — transport smoke и CLI-сценарий `enqueue-demo-event -> deliver-once`
+- `test_edge_agent_knx_to_mqtt.py` — реальный `ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT` для demo `knx_main`
+- retained runtime/source config для integration-сценариев seed-ится из `environments/demo-stand/edge_agent/config.bundle.yaml`
 
 ## Runtime Assets
 
-- `config/examples/` — example agent, source, and point configuration
+- `config/examples/bootstrap.example.yaml` — локальный bootstrap example
+- `config/examples/config.bundle.example.yaml` — authoring bundle example для retained runtime/source config
 - `../../docs/contracts/edge-agent/` — canonical edge contracts, MQTT topic tree, and payload schemas
 - `docs/data-contracts.md` — guide по edge runtime dataflow, config model, and contract usage
 - `docs/mqtt-topics.md` — guide по MQTT publish rules и ссылкам на canonical topic tree
-- `../../environments/<environment>/edge_agent/` — runtime configs for a concrete stand or site
-- `../../infra/local/` — local `MQTT broker` and `Grafana` stack for the current implementation
+- `../../environments/demo-stand/edge_agent/` — demo-stand bootstrap и config bundle
+- `../../infra/local/` — local `MQTT broker` stack for development and integration tests

@@ -1,4 +1,4 @@
-# ADR-005: `MQTT 5.0` как transport MVP, telemetry events, source metadata catalog и status topics
+# ADR-005: `MQTT 5.0` как transport, telemetry events, source config и status topics
 
 Дата: 2026-03-28  
 Статус: accepted
@@ -8,7 +8,7 @@
 Целевой transport для edge agent выбран как `MQTT`, а не `HTTP batch push`. При этом нужно определить:
 
 - как публиковать телеметрию: batch per source или one message per point
-- как публиковать metadata: per-point topics или source-level catalog
+- как доставлять source metadata и point registry
 - нужен ли отдельный `state` topic
 - какие части идентичности хранить в topic, а какие в payload
 - как избежать конфликтов с protocol-specific идентификаторами вроде `KNX group address`, содержащими `/`
@@ -35,13 +35,14 @@
 
 ### 2. Telemetry model
 
-В MVP агент публикует telemetry events, source metadata catalog и status topics.
+Агент получает source config из retained MQTT topic и публикует telemetry events
+и status topics.
 
 - отдельный `state` topic не используется
 - текущее состояние точки вычисляется в monitoring backend из последнего валидного события в БД
 - retained telemetry state не вводится, чтобы не дублировать state management между broker и backend
-- retained metadata публикуется не по одной точке, а одним catalog-сообщением на source
-- per-point retained `meta` topics не используются, чтобы не умножать число retained records и стартовых `PUBLISH`
+- source metadata публикуется не по одной точке, а одним source config record на `source_id`
+- per-point retained `meta` topics не используются, чтобы не умножать число retained records и subscriptions
 
 ### 3. Гранулярность публикации
 
@@ -50,7 +51,7 @@
 - batch payload на уровень source не используется
 - один telemetry event соответствует одному `PUBLISH`
 - topic привязан к одной точке, а не к целому источнику
-- metadata публикуется как один retained catalog на source, а не как `N` отдельных point metadata records
+- source config публикуется как один retained record на source, а не как `N` отдельных point metadata records
 
 ### 4. Topic tree
 
@@ -62,19 +63,20 @@ Telemetry topic:
 
 - `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event`
 
-Metadata topic:
+Config topics:
 
-- `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/meta/catalog`
+- `wm/v1/agents/{agent_id}/config/runtime`
+- `wm/v1/agents/{agent_id}/sources/{source_id}/config`
 
 Status topics:
 
+- `wm/v1/agents/{agent_id}/status/config`
 - `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/status/connection`
 - `wm/v1/objects/{object_id}/agents/{agent_id}/status/lwt`
 
 Правила:
 
-- `object_id`, `source_id` должны быть slug-safe
-- `agent_id` допускается как UUID
+- `object_id`, `agent_id`, `source_id` должны соответствовать MQTT-safe path-id contract
 - `point_key` не должен использовать raw protocol reference напрямую, если он содержит `/` или другие неудобные символы
 - для `point_key` используется обратимо-кодируемое safe representation, например percent-encoding от `point_ref`
 
@@ -88,32 +90,34 @@ Telemetry payload principles:
 - не повторяет `agent_id`
 - не повторяет `source_id`
 - не повторяет `point_key`
-- не повторяет статические point metadata, которые приходят через retained source catalog
+- не повторяет статические point metadata, которые приходят через retained source config
 - содержит только динамические данные события и поля, нужные для дедупликации/диагностики
+- содержит `tenant_id` claim из retained runtime config
+- содержит `source_config_revision`, использованную при формировании события
 - для MVP ограничен scalar values: `boolean`, `number`, `string`
 - complex protocol values вроде массивов, структур или `ByteString` не входят в текущую версию wire contract
 
 Полная схема telemetry payload является контрактом `wm.telemetry.event.v1` и
 зафиксирована в `docs/contracts/edge-agent/`.
 
-Metadata catalog payload:
+Source config payload:
 
 - публикуется как retained self-describing record на уровень source
-- содержит статическое описание всех точек источника
+- содержит connection settings, acquisition/publish policies и описание всех точек источника
 - позволяет consumer-у сделать одну retained subscription на source вместо `N` per-point metadata subscriptions
 
-Полная схема metadata payload является контрактом
-`wm.source.meta.catalog.v1` и зафиксирована в `docs/contracts/edge-agent/`.
+Полная схема source config payload является контрактом
+`wm.edge.source-config.v1` и зафиксирована в `docs/contracts/edge-agent/`.
 
 ### 6. QoS и свойства публикации
 
 - telemetry topics: `QoS 1`, `retain = false`
-- metadata catalog topics: `QoS 1`, `retain = true`
+- runtime/source config topics: `QoS 1`, `retain = true`
 - `Message Expiry Interval` задается конфигом и по умолчанию может быть `86400` секунд
 - `Content Type` для JSON payload: `application/json`
 - status topics могут использовать `retain = true`
 - `lwt` публикуется как retained `offline`, а после успешного connect агент публикует retained `online`
-- metadata catalog публикуется при успешном connect и при изменении конфигурации source/points
+- source config публикуется config publisher tool-ом при выпуске новой revision
 - publisher должен использовать `Topic Alias`, если broker вернул ненулевой `Topic Alias Maximum`, потому что telemetry topics длинные и часто повторяются
 
 ### 7. Session policy
@@ -130,7 +134,7 @@ Metadata catalog payload:
 - backend обязан считать `event_id` ключом дедупликации
 - `event_id` является непрозрачной непустой строкой; backend не должен требовать UUID-only формат
 - consumer восстанавливает routing context из topic
-- consumer восстанавливает статические point metadata из retained source catalog по `point_key`
+- consumer восстанавливает статические point metadata из retained source config по `point_key`
 - canonical event в backend может строиться как `topic-derived identity + MQTT payload`
 
 ## Обоснование
@@ -138,7 +142,7 @@ Metadata catalog payload:
 - per-point event topics лучше соответствуют ordered delivery semantics MQTT
 - `retain` бесполезен для batch telemetry и естественно работает только на уровне одного topic
 - отсутствие `state` topic убирает дублирование state management между MQTT broker и БД monitoring-сервиса
-- один retained source catalog дает self-describing контракт для внешних MQTT consumer-ов без `N` per-point metadata publishes
+- один retained source config дает self-describing контракт для внешних MQTT consumer-ов без `N` per-point metadata publishes
 - `QoS 1` дает разумный баланс надежности и нагрузки для edge-сценария
 - `MQTT 5.0` дает полезные transport properties без необходимости изобретать свои служебные поля
 - тонкий telemetry payload уменьшает сетевой overhead на каждое событие
@@ -151,14 +155,14 @@ Metadata catalog payload:
 - MQTT становится primary transport уже в MVP
 - subscriber может избирательно подписываться по `object/source/point`
 - event stream остается компактным и без дублирования topic identity и стабильной point metadata в payload
-- один source catalog уменьшает число retained records, startup publishes и metadata subscriptions
+- один source config на source уменьшает число retained records и metadata subscriptions
 - monitoring backend строит текущее состояние в одном месте, в БД
 
 Отрицательные:
 
 - backend ingestion должен уметь разбирать topic tree
 - для protocol-specific `point_ref` нужен стабильный алгоритм построения `point_key`
-- consumer-у нужно джойнить event stream с source catalog, если ему нужны имя, unit или tags
+- consumer-у нужно джойнить event stream с source config, если ему нужны имя, unit или tags
 - без retained `state` новый внешний MQTT subscriber не получит текущее значение без участия backend
 - future support for complex `OPC UA` values потребует новой версии payload contract
 
@@ -171,4 +175,4 @@ Metadata catalog payload:
 - Batch per source topic: хуже для selective subscribe, retained semantics и per-point ordering.
 - Отдельный `state` topic в MVP: дублирует state management, хотя monitoring backend уже может считать state из БД.
 - Полное дублирование routing identity в payload: увеличивает размер сообщений без необходимости.
-- Per-point retained `meta` topics: дают self-describing контракт, но создают лишние retained records, лишние startup publishes и лишнюю нагрузку на consumer discovery.
+- Per-point retained `meta` topics: дают self-describing контракт, но создают лишние retained records и лишнюю нагрузку на consumer discovery.

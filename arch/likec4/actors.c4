@@ -1,9 +1,11 @@
 model {
     service-engineer = actor 'Сервисный инженер' {
-        description 'Настраивает источники данных, схему сигналов, правила доставки и эксплуатационные параметры edge-агента и центральной платформы.'
+        description 'Устанавливает edge-agent на объекте, задает bootstrap-параметры подключения к платформе и настраивает источники, точки, alarm и панели через центральный платформенный контур.'
 
-        -[interact-with]-> edge-telemetry-agent 'Настраивает адаптеры, модель сигналов, polling и доставку'
-        -[interact-with]-> monitoring-alarm-platform 'Настраивает правила alarm, получателей и панели мониторинга'
+        -[interact-with]-> edge-telemetry-agent 'Устанавливает агент и задает bootstrap config: agent_id, MQTT endpoint и credentials refs'
+        -[interact-with]-> monitoring-alarm-platform 'Настраивает источники, точки мониторинга, правила alarm и панели мониторинга'
+        -[interact-with]-> monitoring-alarm-platform.yaml-config-bundle 'Редактирует versioned YAML config bundle с runtime/source configs'
+        -[interact-with]-> monitoring-alarm-platform.edge-config-publisher 'Запускает validation/publish retained runtime/source configs'
         -[interact-with]-> monitoring-alarm-platform.grafana 'Настраивает dashboards и проверяет поток телеметрии'
     }
 

@@ -59,7 +59,7 @@ deployment {
         description 'Удаленный хост вне demo-стенда: мой компьютер с IP, разрешенным во внешнем KNX/IP маршруте.'
 
         network-zone developer-network 'Developer Network' {
-            description 'Сеть рабочего места, из которой Edge Telemetry Agent подключается к стенду через whitelist, а текущий dev-контур использует локальный MQTT broker и Grafana.'
+            description 'Сеть рабочего места, из которой Edge Telemetry Agent подключается к стенду через whitelist, а текущий dev/integration-контур использует локальный MQTT broker.'
 
             local-mqtt-broker = network-endpoint 'Local MQTT Broker' {
                 technology 'mqtt://localhost:1883 / Eclipse Mosquitto'
@@ -68,17 +68,16 @@ deployment {
 
             edge-host = host 'Developer Workstation' {
                 technology 'Remote workstation / whitelisted IP'
-                description 'Хост, на котором запускается Edge Telemetry Agent. Подключается к KNX демо-стенду удаленно, а не размещается на самом стенде. На этом же рабочем месте текущая реализация поднимает Grafana и использует локальный MQTT broker.'
+                description 'Хост, на котором запускается Edge Telemetry Agent. Подключается к KNX демо-стенду удаленно, а не размещается на самом стенде. На этом же рабочем месте текущая реализация использует локальный MQTT broker.'
 
-                configuration-bundle = instanceOf edge-telemetry-agent.configuration-bundle
+                bootstrap-configuration = instanceOf edge-telemetry-agent.bootstrap-configuration
+                runtime-config-cache = instanceOf edge-telemetry-agent.runtime-config-cache
                 collector-runtime = instanceOf edge-telemetry-agent.collector-runtime
                 local-state-store = instanceOf edge-telemetry-agent.local-state-store
                 delivery-worker = instanceOf edge-telemetry-agent.delivery-worker
-                grafana = instanceOf monitoring-alarm-platform.grafana
 
                 collector-runtime -> demo-stand.remote-access.public-knx-endpoint 'Подключается к стенду через whitelisted public KNX/IP endpoint'
-                delivery-worker -> local-mqtt-broker 'Публикует telemetry events и service topics в локальный MQTT broker'
-                grafana -> local-mqtt-broker 'Подписывается через grafana-mqtt-datasource на live MQTT topics'
+                delivery-worker -> local-mqtt-broker 'Публикует реализованные telemetry events в локальный MQTT broker; service topics остаются target contract'
             }
         }
     }
@@ -94,6 +93,8 @@ deployment {
                 description 'Хост облачного контура Monitoring & Alarm Platform для приема telemetry events, Kafka-compatible streaming, хранения и визуализации.'
 
                 mqtt-ingestion-gateway = instanceOf monitoring-alarm-platform.mqtt-ingestion-gateway
+                yaml-config-bundle = instanceOf monitoring-alarm-platform.yaml-config-bundle
+                edge-config-publisher = instanceOf monitoring-alarm-platform.edge-config-publisher
                 redpanda-connect = instanceOf monitoring-alarm-platform.redpanda-connect
                 redpanda = instanceOf monitoring-alarm-platform.redpanda
                 kafka-event-log = instanceOf monitoring-alarm-platform.kafka-event-log
@@ -106,6 +107,8 @@ deployment {
                 platform-store = instanceOf monitoring-alarm-platform.platform-store
                 grafana = instanceOf monitoring-alarm-platform.grafana
 
+                edge-config-publisher -> yaml-config-bundle 'Читает versioned YAML config bundle'
+                edge-config-publisher -> mqtt-ingestion-gateway 'Публикует retained runtime/source configs'
                 redpanda-connect -> mqtt-ingestion-gateway 'Подписывается на MQTT telemetry events и service topics'
                 redpanda-connect -> redpanda 'Пишет canonical events через Redpanda output'
                 redpanda -> kafka-event-log 'Хранит и обслуживает Kafka topics'

@@ -261,8 +261,9 @@ uv run --env-file .env --package wm-demo-stack publish-edge-demo \
 
 CLI:
 
-- по умолчанию публикует Kafka config delivery records в
-  `wm.platform.edge.configs.v1`
+- по умолчанию импортирует bundle в `Config Registry API`, вызывает
+  `render-config`, а отдельный `config-registry-outbox-publisher` публикует
+  Kafka config delivery records в `wm.platform.edge.configs.v1`
 - retained `wm.edge.runtime-config.v1` и `wm.edge.source-config.v1`
   материализуются через `redpanda-connect-config-projection`
 - публикует demo telemetry events

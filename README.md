@@ -194,7 +194,8 @@ docker compose --env-file ../../.env up -d \
   `CLICKHOUSE_PASSWORD` из `.env`
 - доступ к `Grafana` использует `GRAFANA_ADMIN_USER` и
   `GRAFANA_ADMIN_PASSWORD` из `.env`
-- для seed Kafka config delivery records используйте
+- для seed demo config через `Config Registry API -> outbox worker -> Kafka`
+  используйте
   `uv run --env-file .env --package wm-demo-stack publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml`
 - для автоматизированной проверки используйте интеграционные тесты
   `uv run --group integration pytest tests/integration/test_edge_agent_mqtt_publisher.py tests/integration/test_edge_agent_knx_to_mqtt.py tests/integration/test_kafka_to_clickhouse_storage.py tests/integration/test_grafana_clickhouse.py`

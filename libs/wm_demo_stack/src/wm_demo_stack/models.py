@@ -17,6 +17,12 @@ class KafkaConfig:
 
 
 @dataclass(frozen=True)
+class ConfigRegistryConfig:
+    base_url: str
+    timeout_seconds: float = 30.0
+
+
+@dataclass(frozen=True)
 class TopicScope:
     topic_root: str
     asset_id: str
@@ -121,6 +127,7 @@ class WaveConfig:
 class DemoSettings:
     broker: BrokerConfig
     kafka: KafkaConfig
+    config_registry: ConfigRegistryConfig
     username: str | None
     password: str | None
     client_id: str

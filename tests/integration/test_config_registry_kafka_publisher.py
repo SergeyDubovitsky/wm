@@ -377,16 +377,18 @@ def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
     )
 
 
-def test_publish_edge_demo_cli_seeds_config_through_kafka_by_default(
-    local_platform_stack,
+def test_publish_edge_demo_cli_seeds_config_through_config_registry_api_by_default(
+    local_config_delivery_stack,
 ) -> None:
     env = os.environ.copy()
     env.update(
         {
-            "MQTT_BROKER": f"mqtt://127.0.0.1:{local_platform_stack.mqtt_port}",
-            "MQTT_USERNAME": local_platform_stack.mqtt_username,
-            "MQTT_PASSWORD": local_platform_stack.mqtt_password,
-            "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{local_platform_stack.kafka_port}",
+            "MQTT_BROKER": f"mqtt://127.0.0.1:{local_config_delivery_stack.mqtt_port}",
+            "MQTT_USERNAME": local_config_delivery_stack.mqtt_username,
+            "MQTT_PASSWORD": local_config_delivery_stack.mqtt_password,
+            "CONFIG_REGISTRY_URL": (
+                f"http://127.0.0.1:{local_config_delivery_stack.config_registry_port}"
+            ),
             "KNX_LOCAL_GATEWAY_IP": "127.0.0.1",
             "KNX_LOCAL_GATEWAY_PORT": "3671",
             "KNX_LOCAL_ROUTE_BACK": "false",
@@ -420,24 +422,25 @@ def test_publish_edge_demo_cli_seeds_config_through_kafka_by_default(
     )
 
     assert result.returncode == 0, result.stderr
-    assert "PUBLISHED_CONFIG_DELIVERY records=2" in result.stdout
+    assert "CONFIG_REGISTRY_UPSERTED " in result.stdout
+    assert "CONFIG_REGISTRY_RENDERED " in result.stdout
     assert "RETAINED_CONFIG_READY topics=2" in result.stdout
-    assert "PUBLISHED_KAFKA topic=wm.platform.edge.configs.v1" in result.stdout
-    runtime_message = local_platform_stack.wait_for_mqtt_json(
+    assert "PUBLISHED_CONFIG_DELIVERY records=2" not in result.stdout
+    runtime_message = local_config_delivery_stack.wait_for_mqtt_json(
         "wm/v1/agents/demo-stand-local/config/runtime",
         timeout=45,
     )
-    source_message = local_platform_stack.wait_for_mqtt_json(
+    source_message = local_config_delivery_stack.wait_for_mqtt_json(
         "wm/v1/agents/demo-stand-local/sources/knx_main/config",
         timeout=45,
     )
     if not runtime_message.retained:
-        runtime_message = local_platform_stack.wait_for_mqtt_json(
+        runtime_message = local_config_delivery_stack.wait_for_mqtt_json(
             "wm/v1/agents/demo-stand-local/config/runtime",
             timeout=10,
         )
     if not source_message.retained:
-        source_message = local_platform_stack.wait_for_mqtt_json(
+        source_message = local_config_delivery_stack.wait_for_mqtt_json(
             "wm/v1/agents/demo-stand-local/sources/knx_main/config",
             timeout=10,
         )

@@ -110,6 +110,7 @@ def make_settings(tmp_path: Path, **overrides: object) -> DemoSettings:
         broker = "mqtt://localhost:1883"
         kafka_bootstrap_servers = "localhost:19092"
         kafka_client_id = "demo-kafka-client"
+        config_registry_url = "http://localhost:8000"
         config_delivery = "mqtt"
         config_projection_timeout_seconds = 15.0
         username = "demo-user"
@@ -228,6 +229,7 @@ def test_settings_from_args_rejects_username_without_password(tmp_path: Path) ->
         broker = "mqtt://localhost:1883"
         kafka_bootstrap_servers = "localhost:19092"
         kafka_client_id = "demo-kafka-client"
+        config_registry_url = "http://localhost:8000"
         config_delivery = "mqtt"
         config_projection_timeout_seconds = 15.0
         username = "demo-user"

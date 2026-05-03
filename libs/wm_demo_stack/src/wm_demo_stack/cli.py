@@ -7,9 +7,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from wm_demo_stack.bundle import load_bundle
+from wm_demo_stack.config_registry_client import publish_bundle_via_config_registry
 from wm_demo_stack.kafka_publisher import connect_kafka_publisher
 from wm_demo_stack.models import (
     BrokerConfig,
+    ConfigRegistryConfig,
     DemoSettings,
     KafkaConfig,
     TopicScope,
@@ -24,12 +26,17 @@ from wm_demo_stack.scenario import config_delivery_records, run_demo
 def parse_args() -> argparse.Namespace:
     default_broker = os.environ.get("MQTT_BROKER", "mqtt://localhost:1883")
     default_kafka = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
+    default_config_registry_url = os.environ.get(
+        "CONFIG_REGISTRY_URL",
+        "http://localhost:8000",
+    )
     default_username = os.environ.get("MQTT_USERNAME")
     default_password = os.environ.get("MQTT_PASSWORD")
 
     parser = argparse.ArgumentParser(
         description=(
-            "Publish demo config delivery records to Kafka and telemetry to MQTT."
+            "Seed demo edge config through Config Registry API and publish "
+            "telemetry to MQTT."
         ),
     )
     parser.add_argument(
@@ -116,18 +123,25 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--config-registry-url",
+        default=default_config_registry_url,
+        help=(
+            "Config Registry API base URL. Defaults to CONFIG_REGISTRY_URL "
+            "or http://localhost:8000."
+        ),
+    )
+    parser.add_argument(
         "--kafka-client-id",
         default="manual-edge-demo-config-publisher",
         help="Kafka producer client id for config delivery records.",
     )
     parser.add_argument(
         "--config-delivery",
-        choices=("kafka", "mqtt", "none"),
-        default="kafka",
+        choices=("api", "kafka", "mqtt", "none"),
+        default="api",
         help=(
-            "How to seed runtime/source config. Default kafka publishes "
-            "wm.platform.edge.config.delivery.v1 records and relies on "
-            "Redpanda Connect retained MQTT projection."
+            "How to seed runtime/source config. Default api imports the bundle "
+            "through Config Registry API and relies on the outbox worker."
         ),
     )
     parser.add_argument(
@@ -135,9 +149,9 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=15.0,
         help=(
-            "When --config-delivery kafka is used, wait this long for retained "
-            "runtime/source configs to appear in MQTT before telemetry starts. "
-            "0 disables waiting."
+            "When --config-delivery api or kafka is used, wait this long for "
+            "retained runtime/source configs to appear in MQTT before telemetry "
+            "starts. 0 disables waiting."
         ),
     )
     parser.add_argument(
@@ -196,6 +210,9 @@ def settings_from_args(args: argparse.Namespace) -> DemoSettings:
             bootstrap_servers=args.kafka_bootstrap_servers,
             client_id=args.kafka_client_id,
         ),
+        config_registry=ConfigRegistryConfig(
+            base_url=args.config_registry_url.rstrip("/")
+        ),
         username=args.username,
         password=args.password,
         client_id=args.client_id,
@@ -241,6 +258,16 @@ def main() -> int:
             )
         finally:
             kafka_publisher.close()
+        wait_for_retained_config_projection(
+            settings,
+            timeout_seconds=args.config_projection_timeout_seconds,
+        )
+        settings = replace(settings, publish_config=False)
+    elif settings.config_delivery == "api":
+        publish_bundle_via_config_registry(
+            config=settings.config_registry,
+            bundle=settings.bundle,
+        )
         wait_for_retained_config_projection(
             settings,
             timeout_seconds=args.config_projection_timeout_seconds,

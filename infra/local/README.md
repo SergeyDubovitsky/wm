@@ -10,6 +10,7 @@
 - поднять `Redpanda Connect` как ingestion pipeline `MQTT -> Kafka`
 - поднять `ClickHouse` как локальный `Telemetry Store` foundation
 - поднять `Kafka Connect` с `ClickHouse Kafka Connect Sink`
+- поднять `Grafana` с provisioned ClickHouse datasource/dashboard
 - запаблишить retained runtime/source config из `config.bundle.yaml`
 - проверить поток
   `KNX-shaped telemetry -> edge_agent -> MQTT -> Kafka -> ClickHouse landing`
@@ -22,12 +23,13 @@
   internal topics будущего Kafka Connect runtime
 - `redpanda-connect` — connector pipeline, который читает `wm/v1/#`,
   обогащает telemetry retained source config и пишет platform records в Kafka
-- `clickhouse` — локальный `ClickHouse` для будущего пути
-  `Kafka -> Kafka Connect -> ClickHouse`
+- `clickhouse` — локальный `ClickHouse` для пути
+  `Kafka -> Kafka Connect -> ClickHouse` и read models для Grafana
 - `kafka-connect` — distributed Kafka Connect worker с установленным
   `ClickHouse Kafka Connect Sink`
 - `kafka-ui` — web UI для просмотра Kafka topics/messages
 - `mqttx-web` — web MQTT-клиент для ручной подписки на MQTT topics
+- `grafana` — локальный dashboard над ClickHouse read models
 
 ## Быстрый старт
 
@@ -43,7 +45,7 @@ docker compose --env-file ../../.env up -d mqtt-broker
 ```bash
 cd infra/local
 docker compose --env-file ../../.env up -d \
-  mqtt-broker kafka kafka-init redpanda-connect clickhouse kafka-connect kafka-ui mqttx-web
+  mqtt-broker kafka kafka-init redpanda-connect clickhouse kafka-connect kafka-ui mqttx-web grafana
 ```
 
 После старта:
@@ -58,9 +60,11 @@ docker compose --env-file ../../.env up -d \
 - `ClickHouse native` доступен на `localhost:9000`
 - `Kafka UI` доступен на `http://localhost:8080`
 - `MQTTX Web` доступен на `http://localhost:8081`
+- `Grafana` доступна на `http://localhost:3000`
 - для доступа нужны `MQTT_USERNAME` и `MQTT_PASSWORD`
 - для ClickHouse используются `CLICKHOUSE_DATABASE`, `CLICKHOUSE_USER` и
   `CLICKHOUSE_PASSWORD`
+- для Grafana используются `GRAFANA_ADMIN_USER` и `GRAFANA_ADMIN_PASSWORD`
 
 Для ручной проверки в `MQTTX Web` создайте connection:
 
@@ -98,10 +102,42 @@ docker compose --env-file ../../.env exec clickhouse \
 `Kafka -> Kafka Connect -> ClickHouse` использует raw landing tables и
 materialized views, которые преобразуют raw JSON в contract tables.
 
+## Grafana -> ClickHouse read models
+
+Grafana поставляется как локальная read-only поверхность над ClickHouse.
+Datasource и dashboard создаются через provisioning, без ручной настройки в UI.
+
+Provisioning files:
+
+- `infra/local/grafana/provisioning/datasources/clickhouse.yaml`
+- `infra/local/grafana/provisioning/dashboards/dashboards.yaml`
+- `infra/local/grafana/dashboards/telemetry-overview.json`
+
+Dashboard `Telemetry Overview` читает:
+
+- `telemetry_latest_v1` — последние значения по точкам
+- `telemetry_1m_v1` — минутные тренды
+- `telemetry_1h_v1` — часовые агрегаты
+- `telemetry_events_dedup_v1` и raw/contract tables — ingestion diagnostics
+
+Быстрый seed для ручной проверки:
+
+```bash
+uv run --env-file .env wm-clickhouse migrate up
+uv run --env-file .env wm-clickhouse load-poc telemetry-read-models \
+  --rows 50000 \
+  --points 100 \
+  --batch-size 10000 \
+  --duplicate-every 10
+```
+
+После этого откройте `http://localhost:3000`, войдите с credentials из `.env`
+и выберите `Web Monitoring / Telemetry Overview`.
+
 ## ClickHouse migrations
 
-Миграции ClickHouse хранятся в `infra/clickhouse/migrations` и применяются
-forward-only CLI:
+Миграции ClickHouse хранятся рядом с CLI в
+`tools/clickhouse_migrations/migrations` и применяются forward-only CLI:
 
 ```bash
 uv run wm-clickhouse migrate status
@@ -177,7 +213,8 @@ uv sync --all-packages --group integration
 uv run --group integration pytest \
   tests/integration/test_edge_agent_mqtt_publisher.py \
   tests/integration/test_edge_agent_knx_to_mqtt.py \
-  tests/integration/test_kafka_to_clickhouse_storage.py
+  tests/integration/test_kafka_to_clickhouse_storage.py \
+  tests/integration/test_grafana_clickhouse.py
 ```
 
 Эти тесты проверяют:
@@ -190,8 +227,13 @@ uv run --group integration pytest \
   `Kafka -> Kafka Connect -> ClickHouse raw landing -> contract table`,
   byte-for-byte сохранение Kafka value в `payload_json` и storage DLQ для
   невалидных records
+- `test_grafana_clickhouse.py` проверяет путь
+  `ClickHouse read models -> Grafana provisioned datasource/dashboard` и
+  минимальный datasource query через Grafana API
 - `local_stack` fixture поднимает только `mqtt-broker`
 - `local_platform_stack` fixture поднимает `mqtt-broker`, `kafka`, `kafka-init`
-  и `redpanda-connect`; Grafana не входит в текущий demo/integration surface
+  и `redpanda-connect`
 - `local_storage_stack` fixture поднимает `kafka`, `kafka-init`, `clickhouse`
   и `kafka-connect`, применяет миграции и bootstrap connector config
+- `local_grafana_clickhouse_stack` fixture поднимает только `clickhouse` и
+  `grafana`, применяет миграции и seed-ит данные через load PoC в самом тесте

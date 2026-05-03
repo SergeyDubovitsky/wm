@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import contextlib
 import json
 import os
@@ -61,12 +62,9 @@ def _docker_is_available() -> bool:
 
 
 @dataclass(frozen=True)
-class LocalMqttStack:
+class LocalComposeStack:
     project_name: str
     env_file: Path
-    mqtt_port: int
-    mqtt_username: str
-    mqtt_password: str
 
     def compose(
         self,
@@ -101,6 +99,13 @@ class LocalMqttStack:
     def logs(self) -> str:
         result = self.compose("logs", "--no-color", check=False, timeout=120)
         return "\n".join(part for part in (result.stdout, result.stderr) if part).strip()
+
+
+@dataclass(frozen=True)
+class LocalMqttStack(LocalComposeStack):
+    mqtt_port: int
+    mqtt_username: str
+    mqtt_password: str
 
     def wait_for_mqtt(self, timeout: float = 90.0) -> None:
         deadline = time.monotonic() + timeout
@@ -417,6 +422,123 @@ class LocalStorageStack(LocalPlatformStack):
         )
 
 
+@dataclass(frozen=True)
+class LocalGrafanaClickHouseStack(LocalComposeStack):
+    clickhouse_http_port: int
+    clickhouse_native_port: int
+    grafana_port: int
+    grafana_admin_user: str
+    grafana_admin_password: str
+
+    def wait_for_clickhouse(self, timeout: float = 120.0) -> None:
+        deadline = time.monotonic() + timeout
+        last_error = "ClickHouse has not accepted queries yet."
+
+        while time.monotonic() < deadline:
+            result = self.clickhouse_query("SELECT 1", check=False)
+            if result.returncode == 0:
+                return
+            last_error = "\n".join(
+                part for part in (result.stdout, result.stderr) if part
+            ).strip()
+            time.sleep(1)
+
+        raise AssertionError(
+            f"ClickHouse did not become healthy within {timeout:.0f}s. "
+            f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
+        )
+
+    def clickhouse_query(
+        self,
+        query: str,
+        *,
+        check: bool = True,
+        timeout: int = 30,
+    ) -> subprocess.CompletedProcess[str]:
+        return self.compose(
+            "exec",
+            "-T",
+            "clickhouse",
+            "clickhouse-client",
+            "--user",
+            "wm",
+            "--password",
+            "change-me-local-clickhouse",
+            "--database",
+            "wm",
+            "--query",
+            query,
+            check=check,
+            timeout=timeout,
+        )
+
+    def apply_clickhouse_migrations(self) -> None:
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--env-file",
+                str(self.env_file),
+                "wm-clickhouse",
+                "migrate",
+                "up",
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            raise AssertionError(
+                "ClickHouse migrations failed.\n\n"
+                f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
+            )
+
+    def wait_for_grafana(self, timeout: float = 180.0) -> None:
+        deadline = time.monotonic() + timeout
+        last_error = "Grafana has not accepted API requests yet."
+
+        while time.monotonic() < deadline:
+            try:
+                health = self.grafana_json("GET", "/api/health")
+                if health.get("database") == "ok":
+                    return
+                last_error = json.dumps(health, sort_keys=True)
+            except (OSError, urllib.error.URLError) as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+            time.sleep(1)
+
+        raise AssertionError(
+            f"Grafana did not become healthy within {timeout:.0f}s. "
+            f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
+        )
+
+    def grafana_json(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, object] | None = None,
+        *,
+        timeout: int = 30,
+    ) -> dict[str, object] | list[object]:
+        url = f"http://127.0.0.1:{self.grafana_port}{path}"
+        data = None
+        if payload is not None:
+            data = json.dumps(payload).encode()
+        request = urllib.request.Request(url, data=data, method=method)
+        request.add_header("Accept", "application/json")
+        request.add_header("Content-Type", "application/json")
+        token = base64.b64encode(
+            f"{self.grafana_admin_user}:{self.grafana_admin_password}".encode()
+        ).decode()
+        request.add_header("Authorization", f"Basic {token}")
+
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            response_text = response.read().decode()
+        return json.loads(response_text) if response_text else {}
+
+
 def publish_json_message(
     *,
     host: str,
@@ -631,6 +753,61 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
     except subprocess.CalledProcessError as exc:
         raise AssertionError(
             "Failed to start the local storage stack.\n\n"
+            f"stdout:\n{exc.stdout}\n\nstderr:\n{exc.stderr}"
+        ) from exc
+    finally:
+        stack.compose("down", "-v", "--remove-orphans", check=False, timeout=300)
+
+
+@pytest.fixture()
+def local_grafana_clickhouse_stack(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> LocalGrafanaClickHouseStack:
+    if not _docker_is_available():
+        pytest.skip("Docker Compose is required for Grafana integration tests.")
+
+    env_values = _read_env_file(BASE_ENV_FILE)
+    clickhouse_http_port = _reserve_free_port()
+    clickhouse_native_port = _reserve_free_port()
+    grafana_port = _reserve_free_port()
+    grafana_admin_user = f"wm_admin_{uuid.uuid4().hex[:8]}"
+    grafana_admin_password = secrets.token_urlsafe(18)
+
+    env_values.update(
+        {
+            "CLICKHOUSE_HOST": "127.0.0.1",
+            "CLICKHOUSE_HTTP_PORT": str(clickhouse_http_port),
+            "CLICKHOUSE_NATIVE_PORT": str(clickhouse_native_port),
+            "GRAFANA_PORT": str(grafana_port),
+            "GRAFANA_ADMIN_USER": grafana_admin_user,
+            "GRAFANA_ADMIN_PASSWORD": grafana_admin_password,
+        }
+    )
+
+    env_dir = tmp_path_factory.mktemp("grafana-clickhouse-stack")
+    env_file = env_dir / ".env.integration"
+    _write_env_file(env_file, env_values)
+
+    stack = LocalGrafanaClickHouseStack(
+        project_name=f"wm-it-{uuid.uuid4().hex[:10]}",
+        env_file=env_file,
+        clickhouse_http_port=clickhouse_http_port,
+        clickhouse_native_port=clickhouse_native_port,
+        grafana_port=grafana_port,
+        grafana_admin_user=grafana_admin_user,
+        grafana_admin_password=grafana_admin_password,
+    )
+
+    try:
+        stack.compose("build", "grafana", timeout=1200)
+        stack.compose("up", "-d", "clickhouse", "grafana", timeout=900)
+        stack.wait_for_clickhouse()
+        stack.apply_clickhouse_migrations()
+        stack.wait_for_grafana()
+        yield stack
+    except subprocess.CalledProcessError as exc:
+        raise AssertionError(
+            "Failed to start the local Grafana + ClickHouse stack.\n\n"
             f"stdout:\n{exc.stdout}\n\nstderr:\n{exc.stderr}"
         ) from exc
     finally:

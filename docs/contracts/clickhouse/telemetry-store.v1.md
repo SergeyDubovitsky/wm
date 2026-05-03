@@ -18,9 +18,10 @@ Kafka consumers. DDL не является production-validated performance sche
 | `agent_status_events_v1` | История agent online/offline status | `telemetry-store-writer.v1` |
 | `derived_events_v1` | Derived events from Streaming Analytics | `telemetry-store-writer.v1`, `streaming-analytics.v1` |
 | `alarm_history_events_v1` | Immutable alarm lifecycle history | `alarm-rule-engine.v1` |
-| `telemetry_1m_v1` | Rollup по точке за 1 минуту | materialized view / streaming analytics |
-| `telemetry_1h_v1` | Rollup по точке за 1 час | materialized view / streaming analytics |
-| `telemetry_latest_v1` | Последнее значение по точке для быстрых UI/API запросов | materialized view / writer |
+| `telemetry_events_dedup_v1` | Deduplicated view для безопасного чтения истории telemetry | query view |
+| `telemetry_latest_v1` | Последнее значение по точке для быстрых UI/API запросов | query view |
+| `telemetry_1m_v1` | Correctness-first rollup view по точке за 1 минуту | query view |
+| `telemetry_1h_v1` | Correctness-first rollup view по точке за 1 час | query view |
 
 ## Kafka landing tables
 
@@ -168,6 +169,19 @@ eventual-dedup storage layer, а не мгновенно уникальным st
   `idempotency_key`/`FINAL` semantics, когда источником являются raw contract
   tables.
 
+Третья миграция добавляет correctness-first query views поверх
+`telemetry_events_v1 FINAL`:
+
+- `telemetry_events_dedup_v1` возвращает deduplicated telemetry history.
+- `telemetry_latest_v1` возвращает последнее событие по grain
+  `tenant_id + object_id + source_id + point_key`.
+- `telemetry_1m_v1` и `telemetry_1h_v1` агрегируют deduplicated события по
+  минутному/часовому bucket.
+
+Эти views являются безопасным API/UI baseline, но не production performance
+optimization. Материализованные latest/rollup tables можно добавить отдельной
+миграцией после нагрузочного PoC и явной стратегии dedup/replay для rollups.
+
 ## Snapshot and status tables
 
 `source_config_snapshots_v1`:
@@ -224,21 +238,25 @@ eventual-dedup storage layer, а не мгновенно уникальным st
 `telemetry_1m_v1`:
 
 - grain: `tenant_id + object_id + source_id + point_key + toStartOfMinute(ts)`
-- value columns: `count`, `min`, `max`, `avg`, `last`, `good_count`, `bad_count`
-- retention: `400d`
+- shape: query view over `telemetry_events_dedup_v1`
+- value columns: `event_count`, `good_count`, `uncertain_count`, `bad_count`,
+  `number_count`, `value_min`, `value_max`, `value_avg`, `value_last`
+- retention: inherited from `telemetry_events_v1`
 
 `telemetry_1h_v1`:
 
 - grain: `tenant_id + object_id + source_id + point_key + toStartOfHour(ts)`
-- value columns: `count`, `min`, `max`, `avg`, `last`, `good_count`, `bad_count`
-- retention: `5y`
+- shape: query view over `telemetry_events_dedup_v1`
+- value columns: `event_count`, `good_count`, `uncertain_count`, `bad_count`,
+  `number_count`, `value_min`, `value_max`, `value_avg`, `value_last`
+- retention: inherited from `telemetry_events_v1`
 
 `telemetry_latest_v1`:
 
 - grain: `tenant_id + object_id + source_id + point_key`
 - value columns mirror latest telemetry typed value columns
-- intended engine: `ReplacingMergeTree(ts)` or equivalent latest-state view
-- retention: no TTL; row is replaced by newer latest state
+- shape: query view over `telemetry_events_dedup_v1`
+- retention: inherited from `telemetry_events_v1`
 
 ## Compatibility
 

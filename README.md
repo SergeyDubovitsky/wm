@@ -147,7 +147,7 @@ docker compose --env-file ../../.env up -d mqtt-broker
 ```bash
 cd infra/local
 docker compose --env-file ../../.env up -d \
-  mqtt-broker kafka kafka-init redpanda-connect clickhouse kafka-connect kafka-ui mqttx-web
+  mqtt-broker kafka kafka-init redpanda-connect clickhouse kafka-connect kafka-ui mqttx-web grafana
 ```
 
 После старта:
@@ -162,13 +162,16 @@ docker compose --env-file ../../.env up -d \
 - `ClickHouse native` доступен на `localhost:9000`
 - `Kafka UI` доступен на [http://localhost:8080](http://localhost:8080)
 - `MQTTX Web` доступен на [http://localhost:8081](http://localhost:8081)
+- `Grafana` доступна на [http://localhost:3000](http://localhost:3000)
 - доступ к `MQTT broker` требует `MQTT_USERNAME` / `MQTT_PASSWORD`
 - доступ к `ClickHouse` использует `CLICKHOUSE_DATABASE`, `CLICKHOUSE_USER` и
   `CLICKHOUSE_PASSWORD` из `.env`
+- доступ к `Grafana` использует `GRAFANA_ADMIN_USER` и
+  `GRAFANA_ADMIN_PASSWORD` из `.env`
 - для seed retained runtime/source config используйте
   `uv run --env-file .env --package wm-demo-stack publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml`
 - для автоматизированной проверки используйте интеграционные тесты
-  `uv run --group integration pytest tests/integration/test_edge_agent_mqtt_publisher.py tests/integration/test_edge_agent_knx_to_mqtt.py tests/integration/test_kafka_to_clickhouse_storage.py`
+  `uv run --group integration pytest tests/integration/test_edge_agent_mqtt_publisher.py tests/integration/test_edge_agent_knx_to_mqtt.py tests/integration/test_kafka_to_clickhouse_storage.py tests/integration/test_grafana_clickhouse.py`
 
 Для `edge_agent` уже подготовлен bootstrap + retained config профиль под этот стек:
 
@@ -203,3 +206,19 @@ Kafka Connect connector для raw landing path применяется так:
 ```bash
 uv run --env-file .env python infra/local/kafka-connect/bootstrap_connector.py
 ```
+
+ClickHouse analytical read-model PoC:
+
+```bash
+uv run --env-file .env wm-clickhouse load-poc telemetry-read-models \
+  --rows 50000 \
+  --points 100 \
+  --batch-size 10000 \
+  --duplicate-every 10
+```
+
+После загрузки PoC откройте `Grafana -> Web Monitoring -> Telemetry Overview`.
+Dashboard читает `telemetry_latest_v1`, `telemetry_1m_v1`,
+`telemetry_1h_v1` и ingestion diagnostics из ClickHouse. Это локальная
+read-only поверхность поверх ClickHouse read models; старый MQTT/Grafana
+dashboard path не используется.

@@ -27,7 +27,9 @@ def parse_args() -> argparse.Namespace:
     default_password = os.environ.get("MQTT_PASSWORD")
 
     parser = argparse.ArgumentParser(
-        description="Publish demo retained config and telemetry to MQTT.",
+        description=(
+            "Publish demo config delivery records to Kafka and telemetry to MQTT."
+        ),
     )
     parser.add_argument(
         "--bundle-config",
@@ -62,7 +64,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--topic-root",
         default="wm/v1",
-        help="MQTT topic root for retained config and telemetry topics.",
+        help="MQTT topic root for projected retained config and telemetry topics.",
     )
     parser.add_argument(
         "--source-id",
@@ -142,7 +144,8 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=30.0,
         help=(
-            "Republish retained config and status while running. 0 disables refresh."
+            "Republish MQTT retained config only in --config-delivery mqtt mode; "
+            "status refresh still uses this interval. 0 disables refresh."
         ),
     )
     return parser.parse_args()

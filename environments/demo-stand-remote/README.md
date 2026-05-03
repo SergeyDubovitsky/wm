@@ -19,14 +19,14 @@ environments/demo-stand-remote/
     └── config.bundle.yaml
 ```
 
-Проверка bootstrap + retained config path:
+Проверка bootstrap + retained config path после Kafka delivery seed:
 
 ```bash
 uv run --env-file .env --package edge-agent edge-agent check-config \
   --bootstrap-config environments/demo-stand-remote/edge_agent/bootstrap.yaml
 ```
 
-Для seed retained config в локальный broker используйте matching remote bundle:
+Для seed config delivery records в Kafka используйте matching remote bundle:
 
 ```bash
 uv run --env-file .env --package wm-demo-stack publish-edge-demo \

@@ -26,14 +26,14 @@ environments/demo-stand/
 Для текущего удаленного workstation-based сценария используйте отдельный профиль
 `environments/demo-stand-remote/edge_agent/`.
 
-Проверка bootstrap + retained config path:
+Проверка bootstrap + retained config path после Kafka delivery seed:
 
 ```bash
 uv run --env-file .env --package edge-agent edge-agent check-config \
   --bootstrap-config environments/demo-stand/edge_agent/bootstrap.yaml
 ```
 
-Для seed retained config в локальный broker используйте:
+Для seed config delivery records в Kafka используйте:
 
 ```bash
 uv run --env-file .env --package wm-demo-stack publish-edge-demo \

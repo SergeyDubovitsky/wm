@@ -33,7 +33,7 @@
 - `apps/knx_demo/` — KNX demo utilities
 - `apps/config_registry/` — первый backend-срез Config Registry
 - `libs/knx_parser/` — библиотека для разбора ETS `.knxproj`
-- `libs/wm_demo_stack/` — библиотека demo/scenario потока `config bundle -> retained MQTT config -> telemetry`
+- `libs/wm_demo_stack/` — библиотека demo/scenario потока `config bundle -> Kafka config delivery -> retained MQTT config -> telemetry`
 - `tools/clickhouse_migrations/` — repo-native operational tooling и migration CLI
 - `environments/` — versioned edge profiles конкретных стендов и окружений
 - `infra/` — локальная инфраструктура разработки и будущие `compose`-артефакты
@@ -96,7 +96,7 @@ uv run --group integration pytest \
 - `tests/integration/test_config_registry_postgres.py` — `Config Registry -> PostgreSQL`
   через Alembic migration и FastAPI tenant endpoints
 - `tests/integration/test_edge_agent_mqtt_publisher.py` — raw `paho` publisher smoke и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
-- `tests/integration/test_edge_agent_knx_to_mqtt.py` — `KNX-shaped retained config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+- `tests/integration/test_edge_agent_knx_to_mqtt.py` — `config bundle -> Kafka config delivery -> retained MQTT config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
 - `tests/integration/test_kafka_to_clickhouse_storage.py` —
   `Kafka -> Kafka Connect -> ClickHouse raw landing -> contract table`,
   включая byte-for-byte проверку `payload_json` и storage DLQ для невалидных
@@ -137,7 +137,7 @@ uv run --group integration pytest \
 - `apps/edge_agent/docs/mqtt-topics.md` — guide по MQTT publish contract и
   ссылкам на канонический topic tree
 - `apps/edge_agent/config/examples/bootstrap.example.yaml` — bootstrap example для edge agent
-- `apps/edge_agent/config/examples/config.bundle.example.yaml` — config bundle example для retained runtime/source config
+- `apps/edge_agent/config/examples/config.bundle.example.yaml` — config bundle example для Kafka-first retained runtime/source config projection
 - `apps/edge_agent/config/README.md` — описание структуры конфигурации и разделения examples/environment configs
 
 ## LikeC4
@@ -173,7 +173,11 @@ docker compose --env-file ../../.env up -d \
 - `MQTT broker` доступен на `localhost:1883`
 - `MQTT websocket` доступен на `localhost:9001`
 - `Kafka` host listener доступен на `localhost:19092`
-- `Redpanda Connect` HTTP endpoint доступен на `localhost:4195`
+- `Redpanda Connect MQTT -> Kafka` HTTP endpoint доступен на `localhost:4195`
+- `Redpanda Connect Kafka -> MQTT config projection` HTTP endpoint доступен на
+  `localhost:4196`
+- `Redpanda Connect source config snapshot projector` HTTP endpoint доступен на
+  `localhost:4197`
 - `Kafka Connect REST` доступен на `localhost:8083`
 - `Kafka Connect JMX` подготовлен на `localhost:9102`
 - `ClickHouse HTTP` доступен на `localhost:8123`
@@ -186,12 +190,12 @@ docker compose --env-file ../../.env up -d \
   `CLICKHOUSE_PASSWORD` из `.env`
 - доступ к `Grafana` использует `GRAFANA_ADMIN_USER` и
   `GRAFANA_ADMIN_PASSWORD` из `.env`
-- для seed retained runtime/source config используйте
+- для seed Kafka config delivery records используйте
   `uv run --env-file .env --package wm-demo-stack publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml`
 - для автоматизированной проверки используйте интеграционные тесты
   `uv run --group integration pytest tests/integration/test_edge_agent_mqtt_publisher.py tests/integration/test_edge_agent_knx_to_mqtt.py tests/integration/test_kafka_to_clickhouse_storage.py tests/integration/test_grafana_clickhouse.py`
 
-Для `edge_agent` уже подготовлен bootstrap + retained config профиль под этот стек:
+Для `edge_agent` уже подготовлен bootstrap + config bundle профиль под этот стек:
 
 ```bash
 uv run --env-file .env --package edge-agent edge-agent check-config \
@@ -205,7 +209,7 @@ uv run --env-file .env --package edge-agent edge-agent check-config \
   --bootstrap-config environments/demo-stand-remote/edge_agent/bootstrap.yaml
 ```
 
-Если нужно seed-ить retained config именно для remote-profile:
+Если нужно seed-ить config delivery records именно для remote-profile:
 
 ```bash
 uv run --env-file .env --package wm-demo-stack publish-edge-demo \

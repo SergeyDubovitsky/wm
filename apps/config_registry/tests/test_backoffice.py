@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -22,6 +23,8 @@ from config_registry.infrastructure.backoffice import (
 )
 from config_registry.main import create_app
 from config_registry.settings import ConfigRegistrySettings
+
+CONFIG_REGISTRY_SRC = Path(__file__).resolve().parents[1] / "src" / "config_registry"
 
 
 def test_backoffice_mounts_in_internal_mode_with_postgres_uow() -> None:
@@ -59,6 +62,16 @@ def test_backoffice_model_views_disable_edit_and_delete() -> None:
 def test_backoffice_registers_render_config_custom_view() -> None:
     assert RenderConfigBackofficeView in BACKOFFICE_CUSTOM_VIEWS
     assert ConfigOutboxActionsBackofficeView in BACKOFFICE_CUSTOM_VIEWS
+
+
+def test_sqladmin_dependency_stays_out_of_domain_and_application_layers() -> None:
+    guarded_roots = [
+        CONFIG_REGISTRY_SRC / "domain",
+        CONFIG_REGISTRY_SRC / "application",
+    ]
+    for root in guarded_roots:
+        for path in root.rglob("*.py"):
+            assert "sqladmin" not in path.read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio

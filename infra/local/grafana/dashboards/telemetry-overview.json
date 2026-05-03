@@ -327,7 +327,7 @@
           },
           "pluginVersion": "4.15.0",
           "queryType": "table",
-          "rawSql": "SELECT ts, tenant_id, object_id, source_id, point_key, value_type, coalesce(toString(value_float), toString(value_bool), value_string) AS value, quality FROM telemetry_latest_v1 ORDER BY ts DESC, point_key ASC LIMIT 100",
+          "rawSql": "SELECT ts, tenant_id, asset_id, source_id, point_key, value_type, coalesce(toString(value_float), toString(value_bool), value_string) AS value, quality FROM telemetry_latest_v1 ORDER BY ts DESC, point_key ASC LIMIT 100",
           "refId": "A"
         }
       ],
@@ -401,7 +401,7 @@
           },
           "pluginVersion": "4.15.0",
           "queryType": "table",
-          "rawSql": "SELECT bucket_start, tenant_id, object_id, source_id, point_key, event_count, good_count, value_min, value_max, value_avg, value_last FROM telemetry_1h_v1 ORDER BY bucket_start DESC, point_key ASC LIMIT 100",
+          "rawSql": "SELECT bucket_start, tenant_id, asset_id, source_id, point_key, event_count, good_count, value_min, value_max, value_avg, value_last FROM telemetry_1h_v1 ORDER BY bucket_start DESC, point_key ASC LIMIT 100",
           "refId": "A"
         }
       ],

@@ -37,8 +37,8 @@
   - group addresses
   - `DatapointType`
   - устройства
-  - communication objects
-  - связи communication objects <-> group addresses
+  - communication assets
+  - связи communication assets <-> group addresses
 - `apps/knx_demo` уже использует `xknx` для подключения к `KNX/IP`,
   чтения значений и получения telegrams
 - `apps/edge_agent` уже содержит:
@@ -375,8 +375,8 @@ addresses. Поэтому в конфиге нужно явно моделиро
 
 - group addresses
 - `DatapointType`
-- устройства и communication objects
-- связи communication objects с group addresses
+- устройства и communication assets
+- связи communication assets с group addresses
 
 ### 10.2. Что еще нужно допроектировать
 

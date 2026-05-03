@@ -9,6 +9,8 @@
 - поднять локальный `Apache Kafka` как Kafka-compatible event log
 - поднять `Redpanda Connect` как ingestion pipeline `MQTT -> Kafka`
 - поднять `ClickHouse` как локальный `Telemetry Store` foundation
+- поднять `PostgreSQL` как локальный `Platform Store` foundation для
+  `Config Registry`
 - поднять `Kafka Connect` с `ClickHouse Kafka Connect Sink`
 - поднять `Grafana` с provisioned ClickHouse datasource/dashboard
 - запаблишить retained runtime/source config из `config.bundle.yaml`
@@ -25,6 +27,7 @@
   обогащает telemetry retained source config и пишет platform records в Kafka
 - `clickhouse` — локальный `ClickHouse` для пути
   `Kafka -> Kafka Connect -> ClickHouse` и read models для Grafana
+- `postgres` — локальный `PostgreSQL` для `Config Registry`
 - `kafka-connect` — distributed Kafka Connect worker с установленным
   `ClickHouse Kafka Connect Sink`
 - `kafka-ui` — web UI для просмотра Kafka topics/messages
@@ -45,7 +48,7 @@ docker compose --env-file ../../.env up -d mqtt-broker
 ```bash
 cd infra/local
 docker compose --env-file ../../.env up -d \
-  mqtt-broker kafka kafka-init redpanda-connect clickhouse kafka-connect kafka-ui mqttx-web grafana
+  mqtt-broker kafka kafka-init redpanda-connect clickhouse postgres kafka-connect kafka-ui mqttx-web grafana
 ```
 
 После старта:
@@ -58,6 +61,7 @@ docker compose --env-file ../../.env up -d \
 - `Kafka Connect JMX` подготовлен на `localhost:9102`
 - `ClickHouse HTTP` доступен на `localhost:8123`
 - `ClickHouse native` доступен на `localhost:9000`
+- `PostgreSQL` доступен на `localhost:5432`
 - `Kafka UI` доступен на `http://localhost:8080`
 - `MQTTX Web` доступен на `http://localhost:8081`
 - `Grafana` доступна на `http://localhost:3000`
@@ -65,6 +69,8 @@ docker compose --env-file ../../.env up -d \
 - для ClickHouse используются `CLICKHOUSE_DATABASE`, `CLICKHOUSE_USER` и
   `CLICKHOUSE_PASSWORD`
 - для Grafana используются `GRAFANA_ADMIN_USER` и `GRAFANA_ADMIN_PASSWORD`
+- для PostgreSQL используются `POSTGRES_DB`, `POSTGRES_USER` и
+  `POSTGRES_PASSWORD`
 
 Для ручной проверки в `MQTTX Web` создайте connection:
 
@@ -148,6 +154,25 @@ CLI читает `CLICKHOUSE_HOST`, `CLICKHOUSE_HTTP_PORT`, `CLICKHOUSE_DATABASE
 `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` и `CLICKHOUSE_SECURE` из окружения.
 Metadata хранится в таблице `schema_migrations`; изменение checksum уже
 примененной миграции считается fatal drift.
+
+## Config Registry PostgreSQL migrations
+
+`Config Registry` использует Alembic и async SQLAlchemy поверх PostgreSQL.
+Локальный URL задается через `CONFIG_REGISTRY_DATABASE_URL`.
+
+```bash
+docker compose --env-file ../../.env up -d postgres
+uv run --env-file .env --package config-registry alembic \
+  -c apps/config_registry/alembic.ini upgrade head
+```
+
+Первый migration slice создает core registry tables:
+
+- `tenants`
+- `assets`
+- `agents`
+- `sources`
+- `points`
 
 ## Kafka Connect -> ClickHouse connector
 

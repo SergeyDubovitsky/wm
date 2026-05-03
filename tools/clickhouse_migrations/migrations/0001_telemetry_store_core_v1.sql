@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS telemetry_events_v1
     tenant_id String,
     event_id String,
     idempotency_key String,
-    object_id String,
+    asset_id String,
     agent_id String,
     source_id String,
     source_type LowCardinality(String),
@@ -25,13 +25,13 @@ CREATE TABLE IF NOT EXISTS telemetry_events_v1
 )
 ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(ts)
-ORDER BY (tenant_id, object_id, source_id, point_key, ts, idempotency_key)
+ORDER BY (tenant_id, asset_id, source_id, point_key, ts, idempotency_key)
 TTL toDateTime(ts) + INTERVAL 180 DAY DELETE;
 
 CREATE TABLE IF NOT EXISTS source_config_snapshots_v1
 (
     tenant_id String,
-    object_id String,
+    asset_id String,
     agent_id String,
     source_id String,
     source_type LowCardinality(String),
@@ -42,13 +42,13 @@ CREATE TABLE IF NOT EXISTS source_config_snapshots_v1
 )
 ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(ts)
-ORDER BY (tenant_id, object_id, agent_id, source_id, source_config_revision)
+ORDER BY (tenant_id, asset_id, agent_id, source_id, source_config_revision)
 TTL toDateTime(ts) + INTERVAL 400 DAY DELETE;
 
 CREATE TABLE IF NOT EXISTS source_connection_events_v1
 (
     tenant_id String,
-    object_id String,
+    asset_id String,
     agent_id String,
     source_id String,
     state LowCardinality(String),
@@ -58,13 +58,13 @@ CREATE TABLE IF NOT EXISTS source_connection_events_v1
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(ts)
-ORDER BY (tenant_id, object_id, source_id, ts)
+ORDER BY (tenant_id, asset_id, source_id, ts)
 TTL toDateTime(ts) + INTERVAL 400 DAY DELETE;
 
 CREATE TABLE IF NOT EXISTS agent_status_events_v1
 (
     tenant_id String,
-    object_id String,
+    asset_id String,
     agent_id String,
     status LowCardinality(String),
     ts DateTime64(3, 'UTC'),
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS agent_status_events_v1
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(ts)
-ORDER BY (tenant_id, object_id, agent_id, ts)
+ORDER BY (tenant_id, asset_id, agent_id, ts)
 TTL toDateTime(ts) + INTERVAL 400 DAY DELETE;
 
 CREATE TABLE IF NOT EXISTS derived_events_v1
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS derived_events_v1
     tenant_id String,
     derived_event_id String,
     idempotency_key String,
-    object_id String,
+    asset_id String,
     rule_or_metric_id Nullable(String),
     event_type LowCardinality(String),
     ts DateTime64(3, 'UTC'),
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS derived_events_v1
 )
 ENGINE = ReplacingMergeTree(produced_at)
 PARTITION BY toYYYYMM(ts)
-ORDER BY (tenant_id, object_id, event_type, ts, idempotency_key)
+ORDER BY (tenant_id, asset_id, event_type, ts, idempotency_key)
 TTL toDateTime(ts) + INTERVAL 180 DAY DELETE;
 
 CREATE TABLE IF NOT EXISTS alarm_history_events_v1
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS alarm_history_events_v1
     tenant_id String,
     alarm_event_id String,
     alarm_id String,
-    object_id String,
+    asset_id String,
     event_type LowCardinality(String),
     severity LowCardinality(String),
     state LowCardinality(String),
@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS alarm_history_events_v1
 )
 ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(ts)
-ORDER BY (tenant_id, object_id, alarm_id, ts, alarm_event_id)
+ORDER BY (tenant_id, asset_id, alarm_id, ts, alarm_event_id)
 TTL toDateTime(ts) + INTERVAL 5 YEAR DELETE;
 
 CREATE TABLE IF NOT EXISTS kafka_telemetry_events_raw_v1

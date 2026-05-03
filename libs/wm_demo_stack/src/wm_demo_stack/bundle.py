@@ -47,7 +47,7 @@ def load_bundle(path: Path) -> ConfigBundle:
         )
     return ConfigBundle(
         tenant_id=_required_string(raw, "tenant_id"),
-        object_id=_required_string(raw, "object_id"),
+        asset_id=_required_string(raw, "asset_id"),
         agent_id=_required_string(raw, "agent_id"),
         config_revision=_required_string(raw, "config_revision"),
         issued_at=_required_string(raw, "issued_at"),

@@ -48,7 +48,7 @@ def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
 
     point = bundle.source("knx_main").points[2]
     topic = (
-        f"wm/v1/objects/{bundle.object_id}/agents/{bundle.agent_id}"
+        f"wm/v1/assets/{bundle.asset_id}/agents/{bundle.agent_id}"
         f"/sources/knx_main/points/{point.point_key}/event"
     )
     connected = threading.Event()
@@ -145,16 +145,16 @@ def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
             kafka_payload,
             KAFKA_SCHEMAS_ROOT / "wm.platform.telemetry.event.v1.schema.json",
         )
-        assert kafka_key == f"{bundle.tenant_id}|{bundle.object_id}|knx_main|{point.point_key}"
+        assert kafka_key == f"{bundle.tenant_id}|{bundle.asset_id}|knx_main|{point.point_key}"
         assert kafka_payload["message_type"] == "wm.platform.telemetry.event.v1"
         assert kafka_payload["tenant_id"] == bundle.tenant_id
-        assert kafka_payload["object_id"] == bundle.object_id
+        assert kafka_payload["asset_id"] == bundle.asset_id
         assert kafka_payload["agent_id"] == bundle.agent_id
         assert kafka_payload["source_id"] == "knx_main"
         assert kafka_payload["source_type"] == "knx"
         assert kafka_payload["source_config_revision"] == "rev-demo-stand-knx-main-001"
         assert kafka_payload["point_id"] == (
-            f"{bundle.tenant_id}|{bundle.object_id}|knx_main|{point.point_key}"
+            f"{bundle.tenant_id}|{bundle.asset_id}|knx_main|{point.point_key}"
         )
         assert kafka_payload["point_ref"] == point.point_ref
         assert kafka_payload["value"] == 24.8
@@ -162,14 +162,14 @@ def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
 
         clickhouse_row = local_storage_stack.wait_for_clickhouse_value(
             f"""
-            SELECT tenant_id, object_id, agent_id, source_id, point_key, value_type, value_float
+            SELECT tenant_id, asset_id, agent_id, source_id, point_key, value_type, value_float
             FROM telemetry_events_v1
             WHERE event_id = '{kafka_payload["event_id"]}'
             FORMAT TabSeparatedRaw
             """.strip()
         )
         assert clickhouse_row == (
-            f"{bundle.tenant_id}\t{bundle.object_id}\t{bundle.agent_id}"
+            f"{bundle.tenant_id}\t{bundle.asset_id}\t{bundle.agent_id}"
             f"\tknx_main\t{point.point_key}\tnumber\t24.8"
         )
     finally:
@@ -192,7 +192,7 @@ def test_mqtt_to_kafka_ingestion_routes_unresolved_telemetry_to_error_topic(
     point = bundle.source("knx_main").points[2]
     scope = TopicScope(
         topic_root="wm/v1",
-        object_id=bundle.object_id,
+        asset_id=bundle.asset_id,
         agent_id=bundle.agent_id,
     )
     publish_json_message(
@@ -224,7 +224,7 @@ def test_mqtt_to_kafka_ingestion_routes_unresolved_telemetry_to_error_topic(
         KAFKA_SCHEMAS_ROOT / "wm.platform.ingestion.error.v1.schema.json",
     )
     assert kafka_key == (
-        f"{bundle.object_id}|{bundle.agent_id}|knx_main|wm.telemetry.event.v1"
+        f"{bundle.asset_id}|{bundle.agent_id}|knx_main|wm.telemetry.event.v1"
     )
     assert kafka_payload["message_type"] == "wm.platform.ingestion.error.v1"
     assert kafka_payload["reason_code"] == "source_config_revision_missing"
@@ -232,7 +232,7 @@ def test_mqtt_to_kafka_ingestion_routes_unresolved_telemetry_to_error_topic(
         "knx_main", point.point_key, "event"
     )
     assert kafka_payload["message_type_in"] == "wm.telemetry.event.v1"
-    assert kafka_payload["object_id"] == bundle.object_id
+    assert kafka_payload["asset_id"] == bundle.asset_id
     assert kafka_payload["agent_id"] == bundle.agent_id
     assert kafka_payload["source_id"] == "knx_main"
     assert kafka_payload["point_key"] == point.point_key
@@ -243,7 +243,7 @@ def test_mqtt_to_kafka_status_ingestion_does_not_require_config_cache(
 ) -> None:
     scope = TopicScope(
         topic_root="wm/v1",
-        object_id="demo-stand-01",
+        asset_id="demo-stand-01",
         agent_id="demo-stand-local",
     )
 
@@ -381,7 +381,7 @@ def _seed_retained_config(*, local_stack, bundle) -> None:
     settings = type("BundleSettings", (), {"bundle": bundle})()
     scope = TopicScope(
         topic_root="wm/v1",
-        object_id=bundle.object_id,
+        asset_id=bundle.asset_id,
         agent_id=bundle.agent_id,
     )
     publish_json_message(

@@ -110,7 +110,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 
 1. `Config Registry` хранит rendered runtime/source config revisions в PostgreSQL и создает `config_outbox` record.
 2. `Config Event Publisher` публикует `wm.platform.edge.config.delivery.v1` records в Kafka topic `wm.platform.edge.configs.v1`.
-3. `Redpanda Connect` материализует config delivery records в retained MQTT runtime/source topics; edge-agent получает `tenant_id`, `object_id`, `sources` и `points` из этих retained configs.
+3. `Redpanda Connect` материализует config delivery records в retained MQTT runtime/source topics; edge-agent получает `tenant_id`, `asset_id`, `sources` и `points` из этих retained configs.
 4. `Source Config Snapshot Projector` строит `wm.platform.source.configs.v1` из `wm.platform.edge.configs.v1`; retained MQTT source configs не являются authoritative Kafka ingress для source config snapshots.
 5. `Edge Telemetry Agent` в текущем runtime baseline публикует telemetry events по `MQTT 5.0`; source connection status, config status и agent LWT/status остаются target contracts следующей runtime-фазы.
 6. `MQTT Ingestion Gateway` принимает MQTT-поток, валидирует payload и восстанавливает routing context.
@@ -127,7 +127,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 Решение по persistence зафиксировано в `ADR-007`.
 
 - `Telemetry Store` — `ClickHouse`, authoritative analytical store для append-only telemetry events, source config snapshots, source connection history, agent status history, derived events, aggregates, rollups и immutable alarm history.
-- `Platform Store` — `PostgreSQL`, transactional store для objects, agents, sources, point registry, alarm rules, notification policies, current alarm state, acknowledgements, mutes, audit и Keycloak persistence.
+- `Platform Store` — `PostgreSQL`, transactional store для assets, agents, sources, point registry, alarm rules, notification policies, current alarm state, acknowledgements, mutes, audit и Keycloak persistence.
 - `Redpanda` и `Kafka Event Log` являются streaming/replay слоем и не заменяют долговременное хранилище платформы.
 
 Source of truth для ingestion, Kafka topics и ClickHouse DDL draft находится в
@@ -207,7 +207,7 @@ production-контуре как слой визуализации.
 1. Сервис загружает `edge.bootstrap-config.v1`.
 2. Подключается к MQTT broker и подписывается на retained runtime/source config topics.
 3. Получает `wm.edge.runtime-config.v1`, затем `wm.edge.source-config.v1` для каждого активного `source_id`.
-4. Валидирует `tenant_id`, `object_id`, `config_revision` и `source_config_revision`; публикация `status/config` остается target contract следующей runtime-фазы.
+4. Валидирует `tenant_id`, `asset_id`, `config_revision` и `source_config_revision`; публикация `status/config` остается target contract следующей runtime-фазы.
 5. Поднимает southbound-соединение для активных адаптеров.
 6. Выполняет `read_on_start` по разрешенным endpoints.
 7. Запускает пассивное прослушивание и фоновую публикацию Delivery Outbox в `MQTT`.
@@ -243,7 +243,7 @@ production-контуре как слой визуализации.
 - `event_id`
 - `tenant_id`
 - `agent_id`
-- `object_id`
+- `asset_id`
 - `source_id`
 - `source_type`
 - `point_ref`
@@ -262,8 +262,8 @@ production-контуре как слой визуализации.
 
 Во внешний контур публикуются только те status topics, которые зафиксированы transport-контрактом в `ADR-005`:
 
-- `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/status/connection`
-- `wm/v1/objects/{object_id}/agents/{agent_id}/status/lwt`
+- `wm/v1/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/status/connection`
+- `wm/v1/assets/{asset_id}/agents/{agent_id}/status/lwt`
 
 Во внутренних operational logs дополнительно полезны:
 

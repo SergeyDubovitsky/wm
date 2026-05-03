@@ -51,7 +51,7 @@ Observation
 | Contract-id | Файл | Назначение |
 | --- | --- | --- |
 | `edge.bootstrap-config.v1` | `schemas/edge.bootstrap-config.v1.schema.json` | Минимальная локальная конфигурация запуска: `agent_id`, MQTT endpoint, local storage и observability |
-| `wm.edge.runtime-config.v1` | `schemas/wm.edge.runtime-config.v1.schema.json` | Retained root runtime config агента: `tenant_id`, `object_id`, `agent_id`, `config_revision`, список `sources` |
+| `wm.edge.runtime-config.v1` | `schemas/wm.edge.runtime-config.v1.schema.json` | Retained root runtime config агента: `tenant_id`, `asset_id`, `agent_id`, `config_revision`, список `sources` |
 | `wm.edge.source-config.v1` | `schemas/wm.edge.source-config.v1.schema.json` | Retained source config по `source_id`: connection, points, acquisition/publish policies |
 | `wm.edge.config.status.v1` | `schemas/wm.edge.config.status.v1.schema.json` | Retained статус применения конфигурации агентом |
 | `edge.telemetry-event.v1` | `schemas/edge.telemetry-event.v1.schema.json` | Каноническое telemetry event внутри edge-agent до MQTT wire transform |
@@ -70,7 +70,7 @@ Observation
   `wm.source.connection.v1` и `wm.agent.lwt.v1`, чтобы ingestion мог писать
   Kafka status records без зависимости от порядка replay retained config topics.
 - `source_config_revision` связывает telemetry event с retained source config, по которому backend выполняет enrichment.
-- `object_id`, `agent_id`, `source_id` и segments `topic_root` должны соответствовать `mqtt_path_id`: `^[a-z0-9][a-z0-9_-]{0,127}$`.
+- `asset_id`, `agent_id`, `source_id` и segments `topic_root` должны соответствовать `mqtt_path_id`: `^[a-z0-9][a-z0-9_-]{0,127}$`.
 - `point_key` — обратимое percent-encoding от `point_ref`, пригодное для MQTT topic path.
 - `command` points по умолчанию не публикуются как telemetry, если `publish.enabled` не задан явно.
 - SQLite на edge хранит техническое состояние агента, а не исторический архив телеметрии.

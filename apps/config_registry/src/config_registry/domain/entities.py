@@ -6,7 +6,7 @@ from typing import Any
 
 from config_registry.domain.value_objects import (
     AgentStatus,
-    ObjectStatus,
+    AssetStatus,
     SignalType,
     TenantStatus,
     ValueType,
@@ -42,12 +42,12 @@ class Tenant:
 
 
 @dataclass(frozen=True)
-class MonitoredObject:
+class Asset:
     tenant_id: str
-    object_id: str
+    asset_id: str
     name: str
     description: str | None = None
-    status: ObjectStatus = ObjectStatus.ACTIVE
+    status: AssetStatus = AssetStatus.ACTIVE
     created_at: datetime = field(default_factory=utc_now)
     updated_at: datetime = field(default_factory=utc_now)
 
@@ -59,8 +59,8 @@ class MonitoredObject:
         )
         object.__setattr__(
             self,
-            "object_id",
-            require_path_id(self.object_id, field_name="object_id"),
+            "asset_id",
+            require_path_id(self.asset_id, field_name="asset_id"),
         )
         object.__setattr__(
             self,
@@ -72,7 +72,7 @@ class MonitoredObject:
 @dataclass(frozen=True)
 class Agent:
     tenant_id: str
-    object_id: str
+    asset_id: str
     agent_id: str
     name: str | None = None
     status: AgentStatus = AgentStatus.ACTIVE
@@ -88,8 +88,8 @@ class Agent:
         )
         object.__setattr__(
             self,
-            "object_id",
-            require_path_id(self.object_id, field_name="object_id"),
+            "asset_id",
+            require_path_id(self.asset_id, field_name="asset_id"),
         )
         object.__setattr__(
             self,
@@ -101,7 +101,7 @@ class Agent:
 @dataclass(frozen=True)
 class Source:
     tenant_id: str
-    object_id: str
+    asset_id: str
     agent_id: str
     source_id: str
     source_type: str
@@ -122,8 +122,8 @@ class Source:
         )
         object.__setattr__(
             self,
-            "object_id",
-            require_path_id(self.object_id, field_name="object_id"),
+            "asset_id",
+            require_path_id(self.asset_id, field_name="asset_id"),
         )
         object.__setattr__(
             self,
@@ -145,7 +145,7 @@ class Source:
 @dataclass(frozen=True)
 class Point:
     tenant_id: str
-    object_id: str
+    asset_id: str
     agent_id: str
     source_id: str
     point_id: str
@@ -172,8 +172,8 @@ class Point:
         )
         object.__setattr__(
             self,
-            "object_id",
-            require_path_id(self.object_id, field_name="object_id"),
+            "asset_id",
+            require_path_id(self.asset_id, field_name="asset_id"),
         )
         object.__setattr__(
             self,

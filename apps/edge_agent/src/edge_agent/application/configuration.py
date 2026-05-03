@@ -158,7 +158,7 @@ class RuntimeSourceRefModel(ConfigModel):
 class RuntimeConfigPayloadModel(ConfigModel):
     message_type: str
     tenant_id: NonEmptyStr
-    object_id: MqttPathId
+    asset_id: MqttPathId
     agent_id: MqttPathId
     config_revision: NonEmptyStr
     issued_at: NonEmptyStr
@@ -201,7 +201,7 @@ class SourcePointModel(ConfigModel):
 class SourceConfigPayloadModel(ConfigModel):
     message_type: str
     tenant_id: NonEmptyStr
-    object_id: MqttPathId
+    asset_id: MqttPathId
     agent_id: MqttPathId
     config_revision: NonEmptyStr
     source_id: MqttPathId
@@ -339,7 +339,7 @@ def build_runtime_config(
 
     return AgentRuntimeConfig(
         tenant_id=runtime_payload.tenant_id,
-        object_id=runtime_payload.object_id,
+        asset_id=runtime_payload.asset_id,
         agent_id=runtime_payload.agent_id,
         config_revision=runtime_payload.config_revision,
         delivery=_to_delivery_settings(bootstrap.delivery),
@@ -360,9 +360,9 @@ def _validate_source_matches_runtime(
         raise ConfigurationError(
             f"Source {source_payload.source_id} tenant_id does not match runtime config"
         )
-    if source_payload.object_id != runtime_payload.object_id:
+    if source_payload.asset_id != runtime_payload.asset_id:
         raise ConfigurationError(
-            f"Source {source_payload.source_id} object_id does not match runtime config"
+            f"Source {source_payload.source_id} asset_id does not match runtime config"
         )
     if source_payload.agent_id != runtime_payload.agent_id:
         raise ConfigurationError(

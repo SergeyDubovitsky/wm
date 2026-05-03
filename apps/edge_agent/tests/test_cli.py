@@ -57,7 +57,7 @@ def _runtime_config(tmp_path: Path):
         runtime_data={
             "message_type": "wm.edge.runtime-config.v1",
             "tenant_id": "tenant-001",
-            "object_id": "demo-stand-01",
+            "asset_id": "demo-stand-01",
             "agent_id": "edge-agent-001",
             "config_revision": "rev-2026-05-02-001",
             "issued_at": "2026-05-02T00:00:00Z",
@@ -73,7 +73,7 @@ def _runtime_config(tmp_path: Path):
             {
                 "message_type": "wm.edge.source-config.v1",
                 "tenant_id": "tenant-001",
-                "object_id": "demo-stand-01",
+                "asset_id": "demo-stand-01",
                 "agent_id": "edge-agent-001",
                 "config_revision": "rev-2026-05-02-001",
                 "source_id": "demo_source",
@@ -273,7 +273,7 @@ def test_deliver_once_publishes_pending_outbox_event_and_marks_sent(
     assert len(fake_publisher.publications) == 1
     publication = fake_publisher.publications[0]
     assert publication.topic == (
-        "wm/v1/objects/demo-stand-01/agents/edge-agent-001"
+        "wm/v1/assets/demo-stand-01/agents/edge-agent-001"
         "/sources/demo_source/points/temperature/event"
     )
     assert publication.payload["tenant_id"] == "tenant-001"

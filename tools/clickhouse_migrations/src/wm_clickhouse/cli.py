@@ -86,7 +86,7 @@ def _build_parser() -> argparse.ArgumentParser:
     load_poc.add_argument(
         "--run-id",
         default=None,
-        help="Optional run id used in tenant/object ids. Defaults to current UTC timestamp.",
+        help="Optional run id used in tenant/asset ids. Defaults to current UTC timestamp.",
     )
     load_poc.add_argument(
         "--start-ts",

@@ -1,5 +1,5 @@
 tenant_id: "demo-tenant"
-object_id: "demo-stand-01"
+asset_id: "demo-stand-01"
 agent_id: "demo-stand-local"
 config_revision: "rev-demo-stand-001"
 issued_at: "2026-05-02T00:00:00Z"

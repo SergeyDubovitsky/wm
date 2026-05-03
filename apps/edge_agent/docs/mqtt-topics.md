@@ -23,7 +23,7 @@ schemas находится в:
 
 ## Routing principles
 
-- Telemetry topic содержит `object_id`, `agent_id`, `source_id` и `point_key`.
+- Telemetry topic содержит `asset_id`, `agent_id`, `source_id` и `point_key`.
 - Telemetry payload содержит `tenant_id` claim и не дублирует routing identity или стабильную point metadata.
 - Retained operational status payloads содержат `tenant_id`, чтобы ingestion не
   зависел от порядка replay retained config/status topics.

@@ -50,7 +50,7 @@ def _runtime_payload() -> dict[str, object]:
     return {
         "message_type": "wm.edge.runtime-config.v1",
         "tenant_id": "tenant-001",
-        "object_id": "demo-stand-01",
+        "asset_id": "demo-stand-01",
         "agent_id": "edge-agent-001",
         "config_revision": "rev-2026-05-02-001",
         "issued_at": "2026-05-02T00:00:00Z",
@@ -68,7 +68,7 @@ def _source_payload() -> dict[str, object]:
     return {
         "message_type": "wm.edge.source-config.v1",
         "tenant_id": "tenant-001",
-        "object_id": "demo-stand-01",
+        "asset_id": "demo-stand-01",
         "agent_id": "edge-agent-001",
         "config_revision": "rev-2026-05-02-001",
         "source_id": "knx_main",
@@ -185,7 +185,7 @@ def test_build_runtime_config_assembles_runtime() -> None:
     )
 
     assert runtime.tenant_id == "tenant-001"
-    assert runtime.object_id == "demo-stand-01"
+    assert runtime.asset_id == "demo-stand-01"
     assert runtime.agent_id == "edge-agent-001"
     assert runtime.config_revision == "rev-2026-05-02-001"
     assert runtime.point("knx_main", "2/0/0").source_config_revision == (
@@ -286,11 +286,11 @@ def test_load_bootstrap_config_rejects_invalid_topic_root(tmp_path) -> None:
         load_bootstrap_config(bootstrap_path)
 
 
-def test_build_runtime_config_rejects_invalid_object_id() -> None:
+def test_build_runtime_config_rejects_invalid_asset_id() -> None:
     runtime_payload = _runtime_payload()
-    runtime_payload["object_id"] = "Demo Stand 01"
+    runtime_payload["asset_id"] = "Demo Stand 01"
 
-    with pytest.raises(ConfigurationError, match="runtime config.object_id"):
+    with pytest.raises(ConfigurationError, match="runtime config.asset_id"):
         build_runtime_config(
             bootstrap_data=_bootstrap_data(),
             runtime_data=runtime_payload,

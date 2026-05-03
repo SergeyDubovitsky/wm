@@ -6,7 +6,7 @@
 ## Контекст
 
 `ADR-010` фиксирует первый backend-срез платформы: `Config Registry` на
-`FastAPI async + SQLAlchemy 2.x + PostgreSQL` для хранения tenants, objects,
+`FastAPI async + SQLAlchemy 2.x + PostgreSQL` для хранения tenants, assets,
 agents, sources, points и config revisions.
 
 Для быстрого operational workflow нужна простая админка, чтобы внутренняя команда
@@ -64,7 +64,7 @@ FastAPI app
 Правило:
 
 - read-only views могут читать ORM-модели напрямую
-- любые операции, которые меняют tenants, objects, agents, sources, points или
+- любые операции, которые меняют tenants, assets, agents, sources, points или
   runtime/source config, должны вызывать application use cases из `ADR-010`
 - выпуск новой `config_revision` должен идти через use case, который атомарно
   пишет config revision и `config_outbox`

@@ -33,7 +33,7 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `Streaming Analytics` — потоковая обработка telemetry stream для агрегатов, rollups, производных признаков и derived events для `Alarm Rule Engine`; результаты пишет в `Telemetry Store`.
 - `Grafana` — слой визуализации внутри `Monitoring & Alarm Platform`; в production-контуре читает подготовленные данные из `Telemetry Store`.
 - `Platform API` — общий контейнер backend API платформы в LikeC4.
-- `Config Registry` — первый backend-срез внутри `Platform API`: хранит tenants, objects, agents, sources, points и config revisions в PostgreSQL.
+- `Config Registry` — первый backend-срез внутри `Platform API`: хранит tenants, assets, agents, sources, points и config revisions в PostgreSQL.
 - `Backoffice Admin UI` — внутренний operational UI на базе `SQLAdmin` для команды платформы; не доступен tenant/client users, а write operations обязаны идти через application use cases и transactional outbox.
 - `Platform Frontend` — отдельное browser-приложение, которое аутентифицируется через Keycloak и работает с платформой через `Platform API`.
 - `Keycloak` — IAM-компонент платформы: пользователи, группы, роли, OIDC clients, sessions и JWT issuance.
@@ -46,7 +46,7 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 
 - `bootstrap config` — минимальная локальная конфигурация запуска edge-agent: `agent_id`, MQTT endpoint, credentials/secret refs, local storage и observability. Не содержит registry sources/points.
 - `server-issued config` — конфигурация runtime, выданная платформенным контуром через retained MQTT topics.
-- `runtime config` — retained root config агента `wm.edge.runtime-config.v1`: `tenant_id`, `object_id`, `agent_id`, `config_revision` и список активных sources.
+- `runtime config` — retained root config агента `wm.edge.runtime-config.v1`: `tenant_id`, `asset_id`, `agent_id`, `config_revision` и список активных sources.
 - `source config` — retained config конкретного `source_id` `wm.edge.source-config.v1`: connection settings, points, acquisition/publish policies и metadata точек.
 - `config revision` — стабильная версия root runtime config, выпускаемая через Kafka-first delivery log и применяемая edge-agent после материализации в MQTT retained topics.
 - `source_config_revision` — стабильная версия source config, которую telemetry event указывает как metadata context.

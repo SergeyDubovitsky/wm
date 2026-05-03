@@ -11,7 +11,7 @@
         "ts",
         "agent_id",
         "tenant_id",
-        "object_id",
+        "asset_id",
         "source_id",
         "source_type",
         "source_config_revision",
@@ -51,7 +51,7 @@
             "type": "string",
             "minLength": 1
         },
-        "object_id": {
+        "asset_id": {
             "type": "string",
             "minLength": 1
         },

@@ -44,7 +44,7 @@ def _write_bundle(tmp_path: Path) -> Path:
     bundle_path.write_text(
         """
 tenant_id: tenant-001
-object_id: demo-stand-01
+asset_id: demo-stand-01
 agent_id: manual-edge-demo
 config_revision: rev-2026-05-02-001
 issued_at: "2026-05-02T00:00:00Z"

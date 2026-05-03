@@ -33,7 +33,7 @@ error.
 
 | Поле | Источник |
 | --- | --- |
-| `object_id` | topic segment `objects/{object_id}` |
+| `asset_id` | topic segment `assets/{asset_id}` |
 | `agent_id` | topic segment `agents/{agent_id}` |
 | `source_id` | topic segment `sources/{source_id}` для telemetry/source status topics |
 | `point_key` | topic segment `points/{point_key}` для telemetry events |
@@ -48,17 +48,17 @@ error.
 Tenant validation:
 
 - input field: `tenant_id` из `wm.telemetry.event.v1`
-- validation key: `tenant_id + object_id + agent_id + source_id`
+- validation key: `tenant_id + asset_id + agent_id + source_id`
 - validation source: config registry/cache, сформированный из `wm.platform.source.configs.v1` и/или `Platform Store`
 - output field: `tenant_id` сохраняется без изменения
 
 Point enrichment для telemetry events:
 
-- lookup key: `tenant_id + object_id + source_id + point_key`
+- lookup key: `tenant_id + asset_id + source_id + point_key`
 - lookup source: config registry/cache
 - output fields: `point_id`, `point_ref`, `source_type`, metadata fields
 - MVP default до появления Platform Registry: `point_id` формируется
-  детерминированно как `{tenant_id}|{object_id}|{source_id}|{point_key}`.
+  детерминированно как `{tenant_id}|{asset_id}|{source_id}|{point_key}`.
   Этот fallback является provisional compatibility layer и должен быть заменен
   на stable registry id после появления Platform Store/API.
 
@@ -85,13 +85,13 @@ delivery projection для edge-agent и не являются authoritative MQT
 Telemetry idempotency key:
 
 ```text
-{tenant_id}|{object_id}|{agent_id}|{event_id}
+{tenant_id}|{asset_id}|{agent_id}|{event_id}
 ```
 
 Telemetry Kafka key:
 
 ```text
-{tenant_id}|{object_id}|{source_id}|{point_key}
+{tenant_id}|{asset_id}|{source_id}|{point_key}
 ```
 
 Этот key сохраняет ordering по одной точке внутри Kafka partition. `event_id`

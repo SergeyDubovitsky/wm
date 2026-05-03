@@ -22,13 +22,13 @@ wm/v1
 | `runtime-config` | `wm/v1/agents/{agent_id}/config/runtime` | `wm.edge.runtime-config.v1` | `1` | `true` | нет | Config publisher tool публикует root runtime config агента |
 | `source-config` | `wm/v1/agents/{agent_id}/sources/{source_id}/config` | `wm.edge.source-config.v1` | `1` | `true` | нет | Config publisher tool публикует config конкретного source |
 | `config-status` | `wm/v1/agents/{agent_id}/status/config` | `wm.edge.config.status.v1` | `1` | `true` | нет | Target contract: edge-agent сообщает pending/applied/rejected config revision |
-| `event` | `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event` | `wm.telemetry.event.v1` | `1` | `false` | `telemetry_message_expiry_seconds` | Реализовано: публикуется, когда point прошел publish filter |
-| `connection` | `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/status/connection` | `wm.source.connection.v1` | `1` | `true` | нет | Target contract: при изменении состояния southbound source |
-| `lwt` | `wm/v1/objects/{object_id}/agents/{agent_id}/status/lwt` | `wm.agent.lwt.v1` | `1` | `true` | нет | Target contract: `offline` публикует broker как Will, `online` публикует агент после connect |
+| `event` | `wm/v1/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event` | `wm.telemetry.event.v1` | `1` | `false` | `telemetry_message_expiry_seconds` | Реализовано: публикуется, когда point прошел publish filter |
+| `connection` | `wm/v1/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/status/connection` | `wm.source.connection.v1` | `1` | `true` | нет | Target contract: при изменении состояния southbound source |
+| `lwt` | `wm/v1/assets/{asset_id}/agents/{agent_id}/status/lwt` | `wm.agent.lwt.v1` | `1` | `true` | нет | Target contract: `offline` публикует broker как Will, `online` публикует агент после connect |
 
 ## Routing rules
 
-- `object_id`, `agent_id`, `source_id` и каждый segment `topic_root` должны соответствовать `mqtt_path_id`.
+- `asset_id`, `agent_id`, `source_id` и каждый segment `topic_root` должны соответствовать `mqtt_path_id`.
 - `mqtt_path_id` pattern: `^[a-z0-9][a-z0-9_-]{0,127}$`.
 - `point_key` строится как обратимое percent-encoding от `point_ref`.
 - `point_key` должен быть одним MQTT topic segment и соответствовать pattern `^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$`.

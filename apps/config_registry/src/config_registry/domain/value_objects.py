@@ -13,7 +13,7 @@ class TenantStatus(StrEnum):
     DISABLED = "disabled"
 
 
-class ObjectStatus(StrEnum):
+class AssetStatus(StrEnum):
     ACTIVE = "active"
     DISABLED = "disabled"
 

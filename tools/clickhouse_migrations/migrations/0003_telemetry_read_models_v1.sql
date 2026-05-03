@@ -3,7 +3,7 @@ AS SELECT
     tenant_id,
     event_id,
     idempotency_key,
-    object_id,
+    asset_id,
     agent_id,
     source_id,
     source_type,
@@ -29,7 +29,7 @@ AS SELECT
     tenant_id,
     event_id,
     idempotency_key,
-    object_id,
+    asset_id,
     agent_id,
     source_id,
     source_type,
@@ -51,17 +51,17 @@ AS SELECT
 FROM telemetry_events_dedup_v1
 ORDER BY
     tenant_id ASC,
-    object_id ASC,
+    asset_id ASC,
     source_id ASC,
     point_key ASC,
     ts DESC,
     ingested_at DESC
-LIMIT 1 BY tenant_id, object_id, source_id, point_key;
+LIMIT 1 BY tenant_id, asset_id, source_id, point_key;
 
 CREATE VIEW IF NOT EXISTS telemetry_1m_v1
 AS SELECT
     tenant_id,
-    object_id,
+    asset_id,
     source_id,
     point_key,
     toStartOfMinute(ts) AS bucket_start,
@@ -84,7 +84,7 @@ AS SELECT
 FROM telemetry_events_dedup_v1
 GROUP BY
     tenant_id,
-    object_id,
+    asset_id,
     source_id,
     point_key,
     bucket_start;
@@ -92,7 +92,7 @@ GROUP BY
 CREATE VIEW IF NOT EXISTS telemetry_1h_v1
 AS SELECT
     tenant_id,
-    object_id,
+    asset_id,
     source_id,
     point_key,
     toStartOfHour(ts) AS bucket_start,
@@ -115,7 +115,7 @@ AS SELECT
 FROM telemetry_events_dedup_v1
 GROUP BY
     tenant_id,
-    object_id,
+    asset_id,
     source_id,
     point_key,
     bucket_start;

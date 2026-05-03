@@ -8,7 +8,7 @@
     "required": [
         "message_type",
         "tenant_id",
-        "object_id",
+        "asset_id",
         "agent_id",
         "status",
         "ts",
@@ -22,7 +22,7 @@
             "type": "string",
             "minLength": 1
         },
-        "object_id": {
+        "asset_id": {
             "type": "string",
             "minLength": 1
         },

@@ -141,7 +141,7 @@ def test_edge_agent_deliver_once_sends_sqlite_outbox_event_to_local_broker(
 
     point = bundle.source("knx_main").points[1]
     topic = (
-        f"wm/v1/objects/{bundle.object_id}/agents/{bundle.agent_id}"
+        f"wm/v1/assets/{bundle.asset_id}/agents/{bundle.agent_id}"
         f"/sources/knx_main/points/{point.point_key}/event"
     )
     connected = threading.Event()
@@ -238,7 +238,7 @@ def _seed_retained_config(*, local_stack, bundle) -> None:
     settings = type("BundleSettings", (), {"bundle": bundle})()
     scope = TopicScope(
         topic_root="wm/v1",
-        object_id=bundle.object_id,
+        asset_id=bundle.asset_id,
         agent_id=bundle.agent_id,
     )
     publish_json_message(

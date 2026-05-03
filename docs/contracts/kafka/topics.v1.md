@@ -12,13 +12,13 @@
 
 | Topic | Value schema | Kafka key | Retention | Compaction | Producers | Consumers |
 | --- | --- | --- | --- | --- | --- | --- |
-| `wm.platform.telemetry.events.v1` | `wm.platform.telemetry.event.v1` | `{tenant_id}|{object_id}|{source_id}|{point_key}` | `7d` | no | Redpanda Connect | `telemetry-store-writer.v1`, `streaming-analytics.v1`, `alarm-rule-engine.v1` |
-| `wm.platform.edge.configs.v1` | `wm.platform.edge.config.delivery.v1` | `{tenant_id}|{object_id}|{agent_id}|{config_scope}` | `30d` | yes | Config Event Publisher | Redpanda Connect MQTT projection, Source Config Snapshot Projector, operations tooling |
-| `wm.platform.source.configs.v1` | `wm.platform.source.config.v1` | `{tenant_id}|{object_id}|{agent_id}|{source_id}` | `30d` | yes | Source Config Snapshot Projector from `wm.platform.edge.configs.v1` | `telemetry-store-writer.v1`, `streaming-analytics.v1`, ingestion registry/cache |
-| `wm.platform.source.connections.v1` | `wm.platform.source.connection.v1` | `{tenant_id}|{object_id}|{agent_id}|{source_id}` | `30d` | yes | Redpanda Connect | `telemetry-store-writer.v1`, `alarm-rule-engine.v1` |
-| `wm.platform.agent.status.v1` | `wm.platform.agent.status.v1` | `{tenant_id}|{object_id}|{agent_id}` | `30d` | yes | Redpanda Connect | `telemetry-store-writer.v1`, `alarm-rule-engine.v1` |
-| `wm.platform.ingestion.errors.v1` | `wm.platform.ingestion.error.v1` | `{object_id}|{agent_id}|{source_id}|{message_kind}` | `30d` | no | Redpanda Connect | operations tooling |
-| `wm.platform.derived.events.v1` | `wm.platform.derived.event.v1` | `{tenant_id}|{object_id}|{rule_or_metric_id}` | `7d` | no | Streaming Analytics | `telemetry-store-writer.v1`, `alarm-rule-engine.v1` |
+| `wm.platform.telemetry.events.v1` | `wm.platform.telemetry.event.v1` | `{tenant_id}|{asset_id}|{source_id}|{point_key}` | `7d` | no | Redpanda Connect | `telemetry-store-writer.v1`, `streaming-analytics.v1`, `alarm-rule-engine.v1` |
+| `wm.platform.edge.configs.v1` | `wm.platform.edge.config.delivery.v1` | `{tenant_id}|{asset_id}|{agent_id}|{config_scope}` | `30d` | yes | Config Event Publisher | Redpanda Connect MQTT projection, Source Config Snapshot Projector, operations tooling |
+| `wm.platform.source.configs.v1` | `wm.platform.source.config.v1` | `{tenant_id}|{asset_id}|{agent_id}|{source_id}` | `30d` | yes | Source Config Snapshot Projector from `wm.platform.edge.configs.v1` | `telemetry-store-writer.v1`, `streaming-analytics.v1`, ingestion registry/cache |
+| `wm.platform.source.connections.v1` | `wm.platform.source.connection.v1` | `{tenant_id}|{asset_id}|{agent_id}|{source_id}` | `30d` | yes | Redpanda Connect | `telemetry-store-writer.v1`, `alarm-rule-engine.v1` |
+| `wm.platform.agent.status.v1` | `wm.platform.agent.status.v1` | `{tenant_id}|{asset_id}|{agent_id}` | `30d` | yes | Redpanda Connect | `telemetry-store-writer.v1`, `alarm-rule-engine.v1` |
+| `wm.platform.ingestion.errors.v1` | `wm.platform.ingestion.error.v1` | `{asset_id}|{agent_id}|{source_id}|{message_kind}` | `30d` | no | Redpanda Connect | operations tooling |
+| `wm.platform.derived.events.v1` | `wm.platform.derived.event.v1` | `{tenant_id}|{asset_id}|{rule_or_metric_id}` | `7d` | no | Streaming Analytics | `telemetry-store-writer.v1`, `alarm-rule-engine.v1` |
 
 ## Consumer groups
 

@@ -9,7 +9,7 @@
 сразу, а только для хранения и управления настройками:
 
 - tenants
-- objects
+- assets
 - edge agents
 - sources
 - points
@@ -135,7 +135,7 @@ apps/config_registry/
 Поля:
 
 - `tenant_id`
-- `object_id`
+- `asset_id`
 - `name`
 - `description`
 - `status`
@@ -144,8 +144,8 @@ apps/config_registry/
 
 Инварианты:
 
-- `(tenant_id, object_id)` уникален
-- `object_id` должен соответствовать MQTT path-id contract:
+- `(tenant_id, asset_id)` уникален
+- `asset_id` должен соответствовать MQTT path-id contract:
   `^[a-z0-9][a-z0-9_-]{0,127}$`
 
 ### Agent
@@ -155,7 +155,7 @@ apps/config_registry/
 Поля:
 
 - `tenant_id`
-- `object_id`
+- `asset_id`
 - `agent_id`
 - `name`
 - `status`
@@ -169,7 +169,7 @@ registry точек.
 
 Инварианты:
 
-- `(tenant_id, object_id, agent_id)` уникален
+- `(tenant_id, asset_id, agent_id)` уникален
 - `agent_id` должен соответствовать MQTT path-id contract
 
 ### Source
@@ -179,7 +179,7 @@ registry точек.
 Поля:
 
 - `tenant_id`
-- `object_id`
+- `asset_id`
 - `agent_id`
 - `source_id`
 - `source_type`
@@ -194,7 +194,7 @@ registry точек.
 
 Инварианты:
 
-- `(tenant_id, object_id, agent_id, source_id)` уникален
+- `(tenant_id, asset_id, agent_id, source_id)` уникален
 - `source_id` должен соответствовать MQTT path-id contract
 - `source_type` задает тип адаптера: `knx`, `modbus`, `opc-ua`, `db` или
   другой поддержанный source type
@@ -208,7 +208,7 @@ registry точек.
 Поля:
 
 - `tenant_id`
-- `object_id`
+- `asset_id`
 - `agent_id`
 - `source_id`
 - `point_id`
@@ -230,8 +230,8 @@ registry точек.
 Инварианты:
 
 - `(tenant_id, point_id)` уникален
-- `(tenant_id, object_id, agent_id, source_id, point_key)` уникален
-- `(tenant_id, object_id, agent_id, source_id, point_ref)` уникален
+- `(tenant_id, asset_id, agent_id, source_id, point_key)` уникален
+- `(tenant_id, asset_id, agent_id, source_id, point_ref)` уникален
 - `point_key` должен соответствовать contract pattern:
   `^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$`
 - `point_key` строится обратимо из `point_ref`
@@ -246,7 +246,7 @@ registry точек.
 Поля:
 
 - `tenant_id`
-- `object_id`
+- `asset_id`
 - `agent_id`
 - `config_revision`
 - `status`
@@ -256,7 +256,7 @@ registry точек.
 
 Инварианты:
 
-- `(tenant_id, object_id, agent_id, config_revision)` уникален
+- `(tenant_id, asset_id, agent_id, config_revision)` уникален
 - `runtime_payload_json` должен валидироваться как `wm.edge.runtime-config.v1`
 - active revision на одного agent может быть только одна
 
@@ -267,7 +267,7 @@ registry точек.
 Поля:
 
 - `tenant_id`
-- `object_id`
+- `asset_id`
 - `agent_id`
 - `source_id`
 - `source_config_revision`
@@ -279,7 +279,7 @@ registry точек.
 
 Инварианты:
 
-- `(tenant_id, object_id, agent_id, source_id, source_config_revision)` уникален
+- `(tenant_id, asset_id, agent_id, source_id, source_config_revision)` уникален
 - `source_payload_json` должен валидироваться как `wm.edge.source-config.v1`
 - `config_revision` связывает source revision с root runtime revision
 
@@ -292,7 +292,7 @@ config events.
 
 - `tenant_id`
 - `outbox_id`
-- `object_id`
+- `asset_id`
 - `agent_id`
 - `config_revision`
 - `config_scope`
@@ -317,7 +317,7 @@ config events.
 
 - `tenant_id`
 - `job_id`
-- `object_id`
+- `asset_id`
 - `agent_id`
 - `config_revision`
 - `status`
@@ -344,7 +344,7 @@ config events.
 | Table | Назначение |
 | --- | --- |
 | `tenants` | Tenants платформы |
-| `objects` | Объекты мониторинга |
+| `assets` | Объекты мониторинга |
 | `agents` | Edge agent registry |
 | `sources` | Source registry и source-level defaults |
 | `points` | Point registry и point-level policies |
@@ -379,12 +379,12 @@ config events.
 | `created_at` | `timestamptz` | `not null` |
 | `updated_at` | `timestamptz` | `not null` |
 
-`objects`
+`assets`
 
 | Column | Type draft | Constraints / notes |
 | --- | --- | --- |
 | `tenant_id` | `text` | `not null`, FK -> `tenants.tenant_id` |
-| `object_id` | `text` | `not null`, MQTT path-id pattern |
+| `asset_id` | `text` | `not null`, MQTT path-id pattern |
 | `name` | `text` | `not null` |
 | `description` | `text` | nullable |
 | `status` | `text` | `not null`, enum-like: `active`, `disabled` |
@@ -393,7 +393,7 @@ config events.
 
 Keys:
 
-- primary key: `(tenant_id, object_id)`
+- primary key: `(tenant_id, asset_id)`
 - index: `(tenant_id, status)`
 
 `agents`
@@ -401,7 +401,7 @@ Keys:
 | Column | Type draft | Constraints / notes |
 | --- | --- | --- |
 | `tenant_id` | `text` | `not null` |
-| `object_id` | `text` | `not null` |
+| `asset_id` | `text` | `not null` |
 | `agent_id` | `text` | `not null`, MQTT path-id pattern |
 | `name` | `text` | nullable |
 | `status` | `text` | `not null`, enum-like: `active`, `disabled`, `retired` |
@@ -411,8 +411,8 @@ Keys:
 
 Keys:
 
-- primary key: `(tenant_id, object_id, agent_id)`
-- FK: `(tenant_id, object_id)` -> `objects`
+- primary key: `(tenant_id, asset_id, agent_id)`
+- FK: `(tenant_id, asset_id)` -> `assets`
 - index: `(tenant_id, agent_id)`
 
 `sources`
@@ -420,7 +420,7 @@ Keys:
 | Column | Type draft | Constraints / notes |
 | --- | --- | --- |
 | `tenant_id` | `text` | `not null` |
-| `object_id` | `text` | `not null` |
+| `asset_id` | `text` | `not null` |
 | `agent_id` | `text` | `not null` |
 | `source_id` | `text` | `not null`, MQTT path-id pattern |
 | `source_type` | `text` | `not null`, examples: `knx`, `modbus`, `opc-ua`, `db` |
@@ -435,16 +435,16 @@ Keys:
 
 Keys:
 
-- primary key: `(tenant_id, object_id, agent_id, source_id)`
-- FK: `(tenant_id, object_id, agent_id)` -> `agents`
-- index: `(tenant_id, object_id, source_type)`
+- primary key: `(tenant_id, asset_id, agent_id, source_id)`
+- FK: `(tenant_id, asset_id, agent_id)` -> `agents`
+- index: `(tenant_id, asset_id, source_type)`
 
 `points`
 
 | Column | Type draft | Constraints / notes |
 | --- | --- | --- |
 | `tenant_id` | `text` | `not null` |
-| `object_id` | `text` | `not null` |
+| `asset_id` | `text` | `not null` |
 | `agent_id` | `text` | `not null` |
 | `source_id` | `text` | `not null` |
 | `point_id` | `text` | `not null`, stable platform id |
@@ -466,17 +466,17 @@ Keys:
 Keys:
 
 - primary key: `(tenant_id, point_id)`
-- unique: `(tenant_id, object_id, agent_id, source_id, point_key)`
-- unique: `(tenant_id, object_id, agent_id, source_id, point_ref)`
-- FK: `(tenant_id, object_id, agent_id, source_id)` -> `sources`
-- index: `(tenant_id, object_id, agent_id, source_id, enabled)`
+- unique: `(tenant_id, asset_id, agent_id, source_id, point_key)`
+- unique: `(tenant_id, asset_id, agent_id, source_id, point_ref)`
+- FK: `(tenant_id, asset_id, agent_id, source_id)` -> `sources`
+- index: `(tenant_id, asset_id, agent_id, source_id, enabled)`
 
 `runtime_config_revisions`
 
 | Column | Type draft | Constraints / notes |
 | --- | --- | --- |
 | `tenant_id` | `text` | `not null` |
-| `object_id` | `text` | `not null` |
+| `asset_id` | `text` | `not null` |
 | `agent_id` | `text` | `not null` |
 | `config_revision` | `text` | `not null` |
 | `status` | `text` | `not null`, enum-like: `draft`, `rendered`, `active`, `superseded`, `failed` |
@@ -486,16 +486,16 @@ Keys:
 
 Keys:
 
-- primary key: `(tenant_id, object_id, agent_id, config_revision)`
-- FK: `(tenant_id, object_id, agent_id)` -> `agents`
-- partial unique index for active revision: `(tenant_id, object_id, agent_id)` where `status = 'active'`
+- primary key: `(tenant_id, asset_id, agent_id, config_revision)`
+- FK: `(tenant_id, asset_id, agent_id)` -> `agents`
+- partial unique index for active revision: `(tenant_id, asset_id, agent_id)` where `status = 'active'`
 
 `source_config_revisions`
 
 | Column | Type draft | Constraints / notes |
 | --- | --- | --- |
 | `tenant_id` | `text` | `not null` |
-| `object_id` | `text` | `not null` |
+| `asset_id` | `text` | `not null` |
 | `agent_id` | `text` | `not null` |
 | `source_id` | `text` | `not null` |
 | `source_config_revision` | `text` | `not null` |
@@ -507,10 +507,10 @@ Keys:
 
 Keys:
 
-- primary key: `(tenant_id, object_id, agent_id, source_id, source_config_revision)`
-- FK: `(tenant_id, object_id, agent_id, source_id)` -> `sources`
-- FK: `(tenant_id, object_id, agent_id, config_revision)` -> `runtime_config_revisions`
-- partial unique index for active source revision: `(tenant_id, object_id, agent_id, source_id)` where `status = 'active'`
+- primary key: `(tenant_id, asset_id, agent_id, source_id, source_config_revision)`
+- FK: `(tenant_id, asset_id, agent_id, source_id)` -> `sources`
+- FK: `(tenant_id, asset_id, agent_id, config_revision)` -> `runtime_config_revisions`
+- partial unique index for active source revision: `(tenant_id, asset_id, agent_id, source_id)` where `status = 'active'`
 
 `config_outbox`
 
@@ -519,7 +519,7 @@ Keys:
 | `tenant_id` | `text` | `not null` |
 | `outbox_id` | `uuid` | `primary key` |
 | `idempotency_key` | `text` | `not null unique` |
-| `object_id` | `text` | `not null` |
+| `asset_id` | `text` | `not null` |
 | `agent_id` | `text` | `not null` |
 | `config_revision` | `text` | `not null` |
 | `config_scope` | `text` | `not null`, `runtime` или `source:{source_id}` |
@@ -527,7 +527,7 @@ Keys:
 | `source_config_revision` | `text` | nullable для `runtime`, `not null` для source config delivery |
 | `message_type` | `text` | `not null`, `wm.platform.edge.config.delivery.v1` |
 | `kafka_topic` | `text` | `not null`, default `wm.platform.edge.configs.v1` |
-| `kafka_key` | `text` | `not null`, `{tenant_id}|{object_id}|{agent_id}|{config_scope}` |
+| `kafka_key` | `text` | `not null`, `{tenant_id}|{asset_id}|{agent_id}|{config_scope}` |
 | `payload_json` | `jsonb` | `not null`, validates `wm.platform.edge.config.delivery.v1` |
 | `status` | `text` | `not null`, `pending`, `inflight`, `published`, `retry`, `dead_letter` |
 | `available_at` | `timestamptz` | `not null` |
@@ -545,7 +545,7 @@ Keys:
 - unique: `idempotency_key`
 - index for reservation: `(status, available_at)`
 - index for lease recovery: `(status, lease_expires_at)`
-- index: `(tenant_id, object_id, agent_id, config_revision, config_scope)`
+- index: `(tenant_id, asset_id, agent_id, config_revision, config_scope)`
 - check: `config_scope = 'runtime'` implies `source_id is null`
 - check: `config_scope like 'source:%'` implies `source_id is not null`
 
@@ -555,7 +555,7 @@ Keys:
 | --- | --- | --- |
 | `tenant_id` | `text` | `not null` |
 | `job_id` | `uuid` | `primary key` |
-| `object_id` | `text` | `not null` |
+| `asset_id` | `text` | `not null` |
 | `agent_id` | `text` | `not null` |
 | `config_revision` | `text` | `not null` |
 | `status` | `text` | `not null`, enum-like: `requested`, `running`, `done`, `failed` |
@@ -567,7 +567,7 @@ Keys:
 Keys:
 
 - primary key: `job_id`
-- index: `(tenant_id, object_id, agent_id, config_revision)`
+- index: `(tenant_id, asset_id, agent_id, config_revision)`
 
 `config_publish_results`
 
@@ -594,7 +594,7 @@ Keys:
 `wm.edge.runtime-config.v1` строится из:
 
 - `tenants.tenant_id`
-- `objects.object_id`
+- `assets.asset_id`
 - `agents.agent_id`
 - `runtime_config_revisions.config_revision`
 - active `sources.source_id`
@@ -603,7 +603,7 @@ Keys:
 `wm.edge.source-config.v1` строится из:
 
 - `tenants`
-- `objects`
+- `assets`
 - `agents`
 - `sources`
 - `points`
@@ -705,9 +705,9 @@ Kafka wm.platform.edge.configs.v1
 - `config_outbox` record содержит deterministic `event_id` или
   `idempotency_key`.
 - Для runtime config `idempotency_key`:
-  `{tenant_id}|{object_id}|{agent_id}|{config_revision}|runtime`.
+  `{tenant_id}|{asset_id}|{agent_id}|{config_revision}|runtime`.
 - Для source config `idempotency_key`:
-  `{tenant_id}|{object_id}|{agent_id}|{config_revision}|source|{source_id}`.
+  `{tenant_id}|{asset_id}|{agent_id}|{config_revision}|source|{source_id}`.
 - `Config Event Publisher` резервирует outbox records через lease, чтобы
   несколько publisher instances не публиковали одну запись одновременно.
 - Outbox statuses: `pending`, `inflight`, `published`, `retry`, `dead_letter`.
@@ -716,7 +716,7 @@ Kafka wm.platform.edge.configs.v1
 - Publisher должен быть idempotent: повторная публикация одного delivery record
   в Kafka не должна выпускать новую logical config revision.
 - Kafka key должен обеспечивать порядок конфигураций для одного agent/source:
-  `{tenant_id}|{object_id}|{agent_id}|{config_scope}`.
+  `{tenant_id}|{asset_id}|{agent_id}|{config_scope}`.
 - Ошибки публикации сохраняются в `last_error`, `attempt_count` и
   `next_attempt_at`.
 - После успешной записи в Kafka publisher помечает outbox record как
@@ -732,16 +732,16 @@ Kafka wm.platform.edge.configs.v1
 - `GET /ready`
 - `POST /tenants`
 - `GET /tenants`
-- `POST /tenants/{tenant_id}/objects`
-- `GET /tenants/{tenant_id}/objects`
-- `POST /tenants/{tenant_id}/objects/{object_id}/agents`
-- `GET /tenants/{tenant_id}/objects/{object_id}/agents`
-- `POST /tenants/{tenant_id}/objects/{object_id}/agents/{agent_id}/sources`
-- `GET /tenants/{tenant_id}/objects/{object_id}/agents/{agent_id}/sources`
-- `POST /tenants/{tenant_id}/objects/{object_id}/agents/{agent_id}/sources/{source_id}/points`
-- `GET /tenants/{tenant_id}/objects/{object_id}/agents/{agent_id}/sources/{source_id}/points`
-- `POST /tenants/{tenant_id}/objects/{object_id}/agents/{agent_id}/render-config`
-- `GET /tenants/{tenant_id}/objects/{object_id}/agents/{agent_id}/config-revisions`
+- `POST /tenants/{tenant_id}/assets`
+- `GET /tenants/{tenant_id}/assets`
+- `POST /tenants/{tenant_id}/assets/{asset_id}/agents`
+- `GET /tenants/{tenant_id}/assets/{asset_id}/agents`
+- `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources`
+- `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources`
+- `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`
+- `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`
+- `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/render-config`
+- `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/config-revisions`
 
 Материализация Kafka config delivery records в MQTT retained topics остается
 отдельным runtime-инкрементом Redpanda Connect pipeline. Первый backend-срез
@@ -755,7 +755,7 @@ projection: факт применения конфигурации edge-agent-о
 | --- | --- |
 | Один `Config Registry` на FastAPI | Принят. Дает один понятный backend-срез для хранения настроек без смешения с alarm/auth/frontend. |
 | Сразу полный `Platform API` для auth, alarm, telemetry и config | Отклонено. Слишком большой scope, сложно ревьюить и реализовывать последовательно. |
-| Микросервисы для tenants/objects/agents/sources/points | Отклонено. Доменная модель еще формируется; раннее дробление усложнит транзакции и миграции. |
+| Микросервисы для tenants/assets/agents/sources/points | Отклонено. Доменная модель еще формируется; раннее дробление усложнит транзакции и миграции. |
 | JSONB-only модель настроек | Отклонено. Удобно для быстрого старта, но ломает uniqueness, поиск, миграции и связи с contracts. |
 | Полностью нормализованная модель без JSONB | Отклонено для первого инкремента. Protocol-specific connection/policy settings будут быстро меняться. |
 
@@ -786,7 +786,7 @@ projection: факт применения конфигурации edge-agent-о
    `asyncpg`, `alembic`.
 3. Создать clean architecture layout: `api`, `application`, `domain`,
    `infrastructure`.
-4. Описать domain entities/value objects для tenant/object/agent/source/point.
+4. Описать domain entities/value objects для tenant/asset/agent/source/point.
 5. Описать repository protocols и Unit of Work protocol.
 6. Реализовать SQLAlchemy async adapters.
 7. Добавить Alembic и первую PostgreSQL migration.

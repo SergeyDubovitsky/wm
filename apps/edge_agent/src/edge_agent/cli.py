@@ -117,7 +117,7 @@ def _handle_check_config(args: argparse.Namespace) -> int:
     print(
         "Configuration OK: "
         f"tenant_id={summary['tenant_id']} "
-        f"object_id={summary['object_id']} "
+        f"asset_id={summary['asset_id']} "
         f"agent_id={summary['agent_id']} "
         f"sources={summary['source_count']} "
         f"points={summary['point_count']} "
@@ -213,7 +213,7 @@ def _runtime_summary(
     return {
         "bootstrap_config": str(bootstrap_config.resolve()),
         "tenant_id": runtime.tenant_id,
-        "object_id": runtime.object_id,
+        "asset_id": runtime.asset_id,
         "agent_id": runtime.agent_id,
         "config_revision": runtime.config_revision,
         "transport": runtime.delivery.transport,
@@ -249,7 +249,7 @@ def _render_text_summary(summary: dict[str, Any]) -> str:
     lines = [
         f"Bootstrap config: {summary['bootstrap_config']}",
         f"Tenant ID: {summary['tenant_id']}",
-        f"Object ID: {summary['object_id']}",
+        f"Object ID: {summary['asset_id']}",
         f"Agent ID: {summary['agent_id']}",
         f"Config revision: {summary['config_revision']}",
         f"Transport: {summary['transport']}",

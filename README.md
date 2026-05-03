@@ -74,6 +74,7 @@ uv run --group lint ruff check apps libs tests infra
 ```bash
 uv sync --all-packages --group integration
 uv run --group integration pytest \
+  tests/integration/test_config_registry_postgres.py \
   tests/integration/test_edge_agent_mqtt_publisher.py \
   tests/integration/test_edge_agent_knx_to_mqtt.py \
   tests/integration/test_kafka_to_clickhouse_storage.py
@@ -81,6 +82,8 @@ uv run --group integration pytest \
 
 Текущее покрытие integration-набора:
 
+- `tests/integration/test_config_registry_postgres.py` — `Config Registry -> PostgreSQL`
+  через Alembic migration и FastAPI tenant endpoints
 - `tests/integration/test_edge_agent_mqtt_publisher.py` — raw `paho` publisher smoke и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
 - `tests/integration/test_edge_agent_knx_to_mqtt.py` — `KNX-shaped retained config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
 - `tests/integration/test_kafka_to_clickhouse_storage.py` —
@@ -97,6 +100,7 @@ uv run --group integration pytest \
 - `uv run --package edge-agent edge-agent check-config`
 - `uv run --package knx-demo knx-demo --help`
 - `uv run --package config-registry config-registry`
+- `uv run --env-file .env --package config-registry alembic -c apps/config_registry/alembic.ini upgrade head`
 - `uv run --package knx-parser knx-parser --help`
 - `uv run --env-file .env --package wm-demo-stack publish-edge-demo --help`
 - `uv run wm-clickhouse migrate status`

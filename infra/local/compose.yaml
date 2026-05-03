@@ -117,6 +117,28 @@ services:
       retries: 10
       start_period: 30s
 
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wm_config_registry}
+      POSTGRES_USER: ${POSTGRES_USER:-wm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -p 5432 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
   grafana:
     build:
       context: ./grafana
@@ -223,3 +245,4 @@ volumes:
   clickhouse-data:
   clickhouse-log:
   grafana-data:
+  postgres-data:

@@ -30,7 +30,7 @@ def run_telemetry_read_model_load_poc(
     run_id = config.run_id or datetime.now(tz=UTC).strftime("%Y%m%d%H%M%S")
     start_ts = config.start_ts or datetime(2026, 5, 3, tzinfo=UTC)
     tenant_id = f"poc-tenant-{run_id}"
-    object_id = f"poc-object-{run_id}"
+    asset_id = f"poc-asset-{run_id}"
     source_id = "poc-source"
 
     insert_started = time.perf_counter()
@@ -43,7 +43,7 @@ def run_telemetry_read_model_load_poc(
             _telemetry_row_tsv(
                 run_id=run_id,
                 tenant_id=tenant_id,
-                object_id=object_id,
+                asset_id=asset_id,
                 source_id=source_id,
                 row_index=row_index,
                 point_index=row_index % config.points,
@@ -59,7 +59,7 @@ def run_telemetry_read_model_load_poc(
                 _telemetry_row_tsv(
                     run_id=run_id,
                     tenant_id=tenant_id,
-                    object_id=object_id,
+                    asset_id=asset_id,
                     source_id=source_id,
                     row_index=row_index,
                     point_index=row_index % config.points,
@@ -82,14 +82,14 @@ def run_telemetry_read_model_load_poc(
     queries = _measure_read_model_queries(
         client,
         tenant_id=tenant_id,
-        object_id=object_id,
+        asset_id=asset_id,
         source_id=source_id,
     )
 
     return {
         "run_id": run_id,
         "tenant_id": tenant_id,
-        "object_id": object_id,
+        "asset_id": asset_id,
         "source_id": source_id,
         "logical_rows": config.rows,
         "duplicate_rows": duplicate_rows,
@@ -135,7 +135,7 @@ def _telemetry_row_tsv(
     *,
     run_id: str,
     tenant_id: str,
-    object_id: str,
+    asset_id: str,
     source_id: str,
     row_index: int,
     point_index: int,
@@ -152,12 +152,12 @@ def _telemetry_row_tsv(
     values = [
         tenant_id,
         event_id,
-        f"{tenant_id}|{object_id}|poc-agent|{event_id}",
-        object_id,
+        f"{tenant_id}|{asset_id}|poc-agent|{event_id}",
+        asset_id,
         "poc-agent",
         source_id,
         "poc",
-        f"{tenant_id}|{object_id}|{source_id}|{point_key}",
+        f"{tenant_id}|{asset_id}|{source_id}|{point_key}",
         point_key,
         point_key,
         "poc-source-config-revision",
@@ -180,7 +180,7 @@ def _measure_read_model_queries(
     client: ClickHouseClient,
     *,
     tenant_id: str,
-    object_id: str,
+    asset_id: str,
     source_id: str,
 ) -> dict[str, object]:
     return {
@@ -190,7 +190,7 @@ def _measure_read_model_queries(
             SELECT count()
             FROM telemetry_events_dedup_v1
             WHERE tenant_id = {_sql_string(tenant_id)}
-              AND object_id = {_sql_string(object_id)}
+              AND asset_id = {_sql_string(asset_id)}
             FORMAT TabSeparatedRaw
             """.strip(),
             parser=int,
@@ -201,7 +201,7 @@ def _measure_read_model_queries(
             SELECT count()
             FROM telemetry_latest_v1
             WHERE tenant_id = {_sql_string(tenant_id)}
-              AND object_id = {_sql_string(object_id)}
+              AND asset_id = {_sql_string(asset_id)}
             FORMAT TabSeparatedRaw
             """.strip(),
             parser=int,
@@ -213,7 +213,7 @@ def _measure_read_model_queries(
             SELECT count(), sum(event_count)
             FROM telemetry_1m_v1
             WHERE tenant_id = {_sql_string(tenant_id)}
-              AND object_id = {_sql_string(object_id)}
+              AND asset_id = {_sql_string(asset_id)}
             FORMAT TabSeparatedRaw
             """.strip(),
         ),
@@ -224,7 +224,7 @@ def _measure_read_model_queries(
             SELECT count(), sum(event_count)
             FROM telemetry_1h_v1
             WHERE tenant_id = {_sql_string(tenant_id)}
-              AND object_id = {_sql_string(object_id)}
+              AND asset_id = {_sql_string(asset_id)}
             FORMAT TabSeparatedRaw
             """.strip(),
         ),
@@ -235,7 +235,7 @@ def _measure_read_model_queries(
             SELECT count(), avg(value_float)
             FROM telemetry_events_dedup_v1
             WHERE tenant_id = {_sql_string(tenant_id)}
-              AND object_id = {_sql_string(object_id)}
+              AND asset_id = {_sql_string(asset_id)}
               AND source_id = {_sql_string(source_id)}
               AND point_key = 'point-00000'
             FORMAT TabSeparatedRaw

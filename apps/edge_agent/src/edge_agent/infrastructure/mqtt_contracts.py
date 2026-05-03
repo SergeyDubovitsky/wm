@@ -8,13 +8,13 @@ from edge_agent.domain.events import TelemetryEvent, point_key_from_ref
 def telemetry_topic(
     *,
     topic_root: str,
-    object_id: str,
+    asset_id: str,
     agent_id: str,
     source_id: str,
     point_ref: str,
 ) -> str:
     return (
-        f"{topic_root}/objects/{object_id}/agents/{agent_id}"
+        f"{topic_root}/assets/{asset_id}/agents/{agent_id}"
         f"/sources/{source_id}/points/{point_key_from_ref(point_ref)}/event"
     )
 

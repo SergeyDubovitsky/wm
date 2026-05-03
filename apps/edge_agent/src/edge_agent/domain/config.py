@@ -99,7 +99,7 @@ class RuntimePoint(FrozenEdgeModel):
 
 class AgentRuntimeConfig(FrozenEdgeModel):
     tenant_id: str
-    object_id: str
+    asset_id: str
     agent_id: str
     config_revision: str
     delivery: DeliverySettings
@@ -118,7 +118,7 @@ class ConfigStatusMessage(FrozenEdgeModel):
     status: Literal["pending", "applied", "rejected"]
     ts: str
     tenant_id: str | None = None
-    object_id: str | None = None
+    asset_id: str | None = None
     config_revision: str | None = None
     reason: str | None = None
 

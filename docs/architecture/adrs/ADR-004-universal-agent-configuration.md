@@ -7,7 +7,7 @@
 
 Edge agent должен устанавливаться рядом с объектами автоматизации. Таких
 объектов и агентов может быть много, поэтому данные должны иметь стабильную
-идентичность на уровне tenant, object, agent, source и point.
+идентичность на уровне tenant, asset, agent, source и point.
 
 Конфигурационная модель runtime определяется `ADR-008`. Этот ADR фиксирует
 только правила идентичности, которые остаются обязательными для edge-agent,
@@ -19,7 +19,7 @@ MQTT, Kafka и ClickHouse contracts.
 
 - `tenant_id` — клиент/tenant платформы, приходит в edge-agent из
   server-issued runtime config
-- `object_id` — бизнес-идентификатор объекта автоматизации в системе мониторинга
+- `asset_id` — бизнес-идентификатор объекта автоматизации в системе мониторинга
 - `agent_id` — технический идентификатор экземпляра edge-agent
 - `source_id` — идентификатор конкретного protocol source внутри agent
 - `point_key` — MQTT-safe ключ точки внутри source
@@ -37,7 +37,7 @@ ClickHouse storage как идентификатор конкретного по
 
 - `tenant_id` должен присутствовать в server-issued runtime/source config и
   telemetry payload.
-- `object_id`, `agent_id` и `source_id` должны соответствовать MQTT path-id
+- `asset_id`, `agent_id` и `source_id` должны соответствовать MQTT path-id
   contract.
 - `point_key` должен быть одним MQTT topic segment и строиться обратимо из
   `point_ref`.
@@ -45,13 +45,13 @@ ClickHouse storage как идентификатор конкретного по
 - Целевой `point_id` на стороне платформы строится и хранится в Platform
   Registry / Platform Store. До появления Platform Registry ingestion pipeline
   может использовать provisional deterministic fallback
-  `{tenant_id}|{object_id}|{source_id}|{point_key}`.
+  `{tenant_id}|{asset_id}|{source_id}|{point_key}`.
 - `event_id` является непрозрачной непустой строкой для дедупликации и не
   требует UUID-only формата.
 
 ## Обоснование
 
-- Разделение `object_id`, `agent_id`, `source_id` и `point_key` защищает от
+- Разделение `asset_id`, `agent_id`, `source_id` и `point_key` защищает от
   конфликтов при масштабировании объектов, агентов и protocol sources.
 - `source_id + point_ref` дает универсальную ключевую модель для KNX, Modbus,
   OPC UA, DB и будущих источников.

@@ -70,7 +70,7 @@ class ObservationProcessor:
             event_type=_event_type_for(point),
             agent_id=self._agent_id,
             tenant_id=self._runtime_config.tenant_id,
-            object_id=self._runtime_config.object_id,
+            asset_id=self._runtime_config.asset_id,
             source_id=point.source_id,
             source_type=point.source_type,
             source_config_revision=point.source_config_revision,

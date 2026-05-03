@@ -131,6 +131,7 @@ jobs:
             - name: Run integration tests
               run: |
                   uv run --frozen --group integration pytest \
+                    tests/integration/test_config_registry_postgres.py \
                     tests/integration/test_edge_agent_mqtt_publisher.py \
                     tests/integration/test_edge_agent_knx_to_mqtt.py \
                     tests/integration/test_kafka_to_clickhouse_storage.py \

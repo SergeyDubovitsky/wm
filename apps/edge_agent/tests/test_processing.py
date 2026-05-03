@@ -48,7 +48,7 @@ def _runtime_config():
         runtime_data={
             "message_type": "wm.edge.runtime-config.v1",
             "tenant_id": "tenant-001",
-            "object_id": "demo-stand-01",
+            "asset_id": "demo-stand-01",
             "agent_id": "edge-agent-001",
             "config_revision": "rev-2026-05-02-001",
             "issued_at": "2026-05-02T00:00:00Z",
@@ -64,7 +64,7 @@ def _runtime_config():
             {
                 "message_type": "wm.edge.source-config.v1",
                 "tenant_id": "tenant-001",
-                "object_id": "demo-stand-01",
+                "asset_id": "demo-stand-01",
                 "agent_id": "edge-agent-001",
                 "config_revision": "rev-2026-05-02-001",
                 "source_id": "knx_main",
@@ -190,12 +190,12 @@ def test_processing_emits_boolean_event_and_suppresses_duplicate() -> None:
     assert (
         telemetry_topic(
             topic_root="wm/v1",
-            object_id=first.event.object_id,
+            asset_id=first.event.asset_id,
             agent_id=first.event.agent_id,
             source_id=first.event.source_id,
             point_ref=first.event.point_ref,
         )
-        == "wm/v1/objects/demo-stand-01/agents/edge-agent-001/sources/knx_main/points/0%2F0%2F7/event"
+        == "wm/v1/assets/demo-stand-01/agents/edge-agent-001/sources/knx_main/points/0%2F0%2F7/event"
     )
     assert second.event is None
     assert second.suppressed_reason == "not_significant"

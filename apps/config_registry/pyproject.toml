@@ -1,7 +1,7 @@
 [project]
 name = "config-registry"
 version = "0.1.0"
-description = "Configuration registry API for web-monitoring"
+description = "Configuration registry service for web-monitoring"
 readme = "README.md"
 authors = [
     { name = "srgi0", email = "dss181@gmail.com" }
@@ -11,6 +11,7 @@ dependencies = [
     "alembic>=1.18.4",
     "asyncpg>=0.31.0",
     "fastapi>=0.136.1",
+    "greenlet>=3.5.0",
     "pydantic>=2.12.5",
     "sqlalchemy>=2.0.49",
     "uvicorn>=0.46.0",

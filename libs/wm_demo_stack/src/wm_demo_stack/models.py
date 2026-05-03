@@ -13,7 +13,7 @@ class BrokerConfig:
 @dataclass(frozen=True)
 class TopicScope:
     topic_root: str
-    object_id: str
+    asset_id: str
     agent_id: str
 
     def runtime_config_topic(self) -> str:
@@ -24,19 +24,19 @@ class TopicScope:
 
     def point_topic(self, source_id: str, point_key: str, suffix: str) -> str:
         return (
-            f"{self.topic_root}/objects/{self.object_id}/agents/{self.agent_id}"
+            f"{self.topic_root}/assets/{self.asset_id}/agents/{self.agent_id}"
             f"/sources/{source_id}/points/{point_key}/{suffix}"
         )
 
     def source_status_topic(self, source_id: str) -> str:
         return (
-            f"{self.topic_root}/objects/{self.object_id}/agents/{self.agent_id}"
+            f"{self.topic_root}/assets/{self.asset_id}/agents/{self.agent_id}"
             f"/sources/{source_id}/status/connection"
         )
 
     def agent_lwt_topic(self) -> str:
         return (
-            f"{self.topic_root}/objects/{self.object_id}/agents/{self.agent_id}"
+            f"{self.topic_root}/assets/{self.asset_id}/agents/{self.agent_id}"
             f"/status/lwt"
         )
 
@@ -86,7 +86,7 @@ class BundleSource:
 @dataclass(frozen=True)
 class ConfigBundle:
     tenant_id: str
-    object_id: str
+    asset_id: str
     agent_id: str
     config_revision: str
     issued_at: str

@@ -148,7 +148,7 @@ def settings_from_args(args: argparse.Namespace) -> DemoSettings:
         client_id=args.client_id,
         scope=TopicScope(
             topic_root=args.topic_root,
-            object_id=bundle.object_id,
+            asset_id=bundle.asset_id,
             agent_id=bundle.agent_id,
         ),
         bundle=bundle,
@@ -177,7 +177,7 @@ def main() -> int:
     print(
         "CONNECTED "
         f"broker={settings.broker.host}:{settings.broker.port} "
-        f"object_id={settings.bundle.object_id} "
+        f"asset_id={settings.bundle.asset_id} "
         f"agent_id={settings.bundle.agent_id} "
         f"source_id={settings.telemetry_source_id}"
     )

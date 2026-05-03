@@ -43,7 +43,7 @@
                 "null"
             ]
         },
-        "object_id": {
+        "asset_id": {
             "type": [
                 "string",
                 "null"

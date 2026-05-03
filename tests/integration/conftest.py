@@ -539,6 +539,72 @@ class LocalGrafanaClickHouseStack(LocalComposeStack):
         return json.loads(response_text) if response_text else {}
 
 
+@dataclass(frozen=True)
+class LocalConfigRegistryPostgresStack(LocalComposeStack):
+    postgres_port: int
+    database_url: str
+
+    def wait_for_postgres(self, timeout: float = 90.0) -> None:
+        deadline = time.monotonic() + timeout
+        last_error = "PostgreSQL has not accepted connections yet."
+
+        while time.monotonic() < deadline:
+            result = self.compose(
+                "exec",
+                "-T",
+                "postgres",
+                "pg_isready",
+                "-h",
+                "127.0.0.1",
+                "-p",
+                "5432",
+                "-U",
+                "wm",
+                "-d",
+                "wm_config_registry",
+                check=False,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                return
+            last_error = "\n".join(
+                part for part in (result.stdout, result.stderr) if part
+            ).strip()
+            time.sleep(1)
+
+        raise AssertionError(
+            f"PostgreSQL did not become healthy within {timeout:.0f}s. "
+            f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
+        )
+
+    def apply_config_registry_migrations(self) -> None:
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--env-file",
+                str(self.env_file),
+                "--package",
+                "config-registry",
+                "alembic",
+                "-c",
+                "apps/config_registry/alembic.ini",
+                "upgrade",
+                "head",
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            raise AssertionError(
+                "Config Registry migrations failed.\n\n"
+                f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
+            )
+
+
 def publish_json_message(
     *,
     host: str,
@@ -808,6 +874,53 @@ def local_grafana_clickhouse_stack(
     except subprocess.CalledProcessError as exc:
         raise AssertionError(
             "Failed to start the local Grafana + ClickHouse stack.\n\n"
+            f"stdout:\n{exc.stdout}\n\nstderr:\n{exc.stderr}"
+        ) from exc
+    finally:
+        stack.compose("down", "-v", "--remove-orphans", check=False, timeout=300)
+
+
+@pytest.fixture()
+def local_config_registry_postgres_stack(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> LocalConfigRegistryPostgresStack:
+    if not _docker_is_available():
+        pytest.skip("Docker Compose is required for Config Registry integration tests.")
+
+    env_values = _read_env_file(BASE_ENV_FILE)
+    postgres_port = _reserve_free_port()
+    database_url = (
+        "postgresql+asyncpg://wm:change-me-local-postgres"
+        f"@127.0.0.1:{postgres_port}/wm_config_registry"
+    )
+
+    env_values.update(
+        {
+            "POSTGRES_HOST": "127.0.0.1",
+            "POSTGRES_PORT": str(postgres_port),
+            "CONFIG_REGISTRY_DATABASE_URL": database_url,
+        }
+    )
+
+    env_dir = tmp_path_factory.mktemp("config-registry-postgres-stack")
+    env_file = env_dir / ".env.integration"
+    _write_env_file(env_file, env_values)
+
+    stack = LocalConfigRegistryPostgresStack(
+        project_name=f"wm-it-{uuid.uuid4().hex[:10]}",
+        env_file=env_file,
+        postgres_port=postgres_port,
+        database_url=database_url,
+    )
+
+    try:
+        stack.compose("up", "-d", "postgres", timeout=300)
+        stack.wait_for_postgres()
+        stack.apply_config_registry_migrations()
+        yield stack
+    except subprocess.CalledProcessError as exc:
+        raise AssertionError(
+            "Failed to start the local Config Registry PostgreSQL stack.\n\n"
             f"stdout:\n{exc.stdout}\n\nstderr:\n{exc.stderr}"
         ) from exc
     finally:

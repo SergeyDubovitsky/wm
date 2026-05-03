@@ -13,7 +13,7 @@ def _event() -> TelemetryEvent:
         event_type="telemetry.changed",
         agent_id="edge-agent-001",
         tenant_id="tenant-001",
-        object_id="demo-stand-01",
+        asset_id="demo-stand-01",
         source_id="knx_main",
         source_type="knx",
         source_config_revision="rev-2026-05-02-001-knx-main",

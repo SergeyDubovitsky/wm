@@ -108,7 +108,7 @@ def test_paho_mqtt_publisher_publishes_json_with_mqtt5_properties() -> None:
 
     publisher.publish(
         MqttPublication(
-            topic="wm/v1/objects/demo/agents/agent-1/sources/knx/points/2%2F0%2F0/event",
+            topic="wm/v1/assets/demo/agents/agent-1/sources/knx/points/2%2F0%2F0/event",
             payload={"message_type": "wm.telemetry.event.v1", "value": 24.2},
             qos=1,
             retain=False,
@@ -118,7 +118,7 @@ def test_paho_mqtt_publisher_publishes_json_with_mqtt5_properties() -> None:
 
     publication = client.published[0]
     assert publication["topic"] == (
-        "wm/v1/objects/demo/agents/agent-1/sources/knx/points/2%2F0%2F0/event"
+        "wm/v1/assets/demo/agents/agent-1/sources/knx/points/2%2F0%2F0/event"
     )
     assert json.loads(str(publication["payload"])) == {
         "message_type": "wm.telemetry.event.v1",

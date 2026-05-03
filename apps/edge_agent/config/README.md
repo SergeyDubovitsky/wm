@@ -30,7 +30,7 @@ Fail-fast проверки нового потока:
 
 - `bootstrap.agent_id` должен совпадать с `runtime_config.agent_id`
 - для каждого `source_id` из retained runtime config должен существовать retained source config
-- `tenant_id`, `object_id`, `agent_id` и `config_revision` в source config должны совпадать с root runtime config
+- `tenant_id`, `asset_id`, `agent_id` и `config_revision` в source config должны совпадать с root runtime config
 - `source_config_revision` и `enabled` в source config должны совпадать с root runtime config
 - `point_key` должен быть percent-encoded представлением `point_ref`
 - `change_threshold` допускается только для числовых значений

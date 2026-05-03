@@ -35,7 +35,7 @@ Edge-agent локально хранит только `edge.bootstrap-config.v1`
 - `wm/v1/agents/{agent_id}/sources/{source_id}/config`
 - `wm/v1/agents/{agent_id}/status/config`
 
-Root runtime config содержит `tenant_id`, `object_id`, `agent_id`,
+Root runtime config содержит `tenant_id`, `asset_id`, `agent_id`,
 `config_revision` и список активных `source_id`. Source config содержит
 `source_config_revision`, protocol connection settings, points,
 acquisition/publish policies и metadata точек.
@@ -55,7 +55,7 @@ PostgreSQL как runtime source of truth.
 Telemetry topic не содержит `tenant_id`:
 
 ```text
-wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event
+wm/v1/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event
 ```
 
 `tenant_id` публикуется в `wm.telemetry.event.v1` payload. Edge получает его из

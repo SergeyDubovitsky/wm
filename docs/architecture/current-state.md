@@ -43,7 +43,7 @@
 - `Edge Telemetry Agent` с bootstrap config, загрузкой retained runtime/source
   config из MQTT, fail-fast validation и CLI:
   `check-config`, `show-config`, `enqueue-demo-event`, `deliver-once`.
-- Runtime-модель `tenant_id`, `object_id`, `agent_id`, `source_id`,
+- Runtime-модель `tenant_id`, `asset_id`, `agent_id`, `source_id`,
   `point_ref`, `point_key`, `config_revision` и `source_config_revision`.
 - Processing pipeline для observation -> normalized telemetry event:
   подавление непубликуемых `command`-точек, threshold/change filtering,
@@ -69,7 +69,7 @@
   как `Platform Store`.
 - Backend foundation для настроек платформы: `Config Registry` как FastAPI
   async service на clean architecture, SQLAlchemy и PostgreSQL. Scope первого
-  backend-среза ограничен tenants/objects/agents/sources/points и
+  backend-среза ограничен tenants/assets/agents/sources/points и
   runtime/source config revisions.
 - Server UI для редактирования runtime/source config. До внедрения
   `Config Registry` authoring path остается versioned YAML config bundle;

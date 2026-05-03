@@ -88,7 +88,7 @@ def _runtime_config():
         runtime_data={
             "message_type": "wm.edge.runtime-config.v1",
             "tenant_id": "tenant-001",
-            "object_id": "demo-stand-01",
+            "asset_id": "demo-stand-01",
             "agent_id": "edge-agent-001",
             "config_revision": "rev-2026-05-02-001",
             "issued_at": "2026-05-02T00:00:00Z",
@@ -104,7 +104,7 @@ def _runtime_config():
             {
                 "message_type": "wm.edge.source-config.v1",
                 "tenant_id": "tenant-001",
-                "object_id": "demo-stand-01",
+                "asset_id": "demo-stand-01",
                 "agent_id": "edge-agent-001",
                 "config_revision": "rev-2026-05-02-001",
                 "source_id": "knx_main",
@@ -151,7 +151,7 @@ def _event_payload_json() -> str:
         event_type="telemetry.changed",
         agent_id="edge-agent-001",
         tenant_id="tenant-001",
-        object_id="demo-stand-01",
+        asset_id="demo-stand-01",
         source_id="knx_main",
         source_type="knx",
         source_config_revision="rev-2026-05-02-001-knx-main",
@@ -193,7 +193,7 @@ def test_delivery_worker_publishes_outbox_telemetry_and_marks_sent() -> None:
     assert publisher.publications[0].retain is False
     assert publisher.publications[0].message_expiry_seconds == 86400
     assert publisher.publications[0].topic == (
-        "wm/v1/objects/demo-stand-01/agents/edge-agent-001/sources/knx_main/points/0%2F0%2F7/event"
+        "wm/v1/assets/demo-stand-01/agents/edge-agent-001/sources/knx_main/points/0%2F0%2F7/event"
     )
     assert publisher.publications[0].payload["message_type"] == "wm.telemetry.event.v1"
     assert publisher.publications[0].payload["tenant_id"] == "tenant-001"

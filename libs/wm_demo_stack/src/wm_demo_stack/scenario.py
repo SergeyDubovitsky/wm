@@ -20,7 +20,7 @@ def runtime_config_payload(settings: DemoSettings) -> dict[str, Any]:
     return {
         "message_type": "wm.edge.runtime-config.v1",
         "tenant_id": settings.bundle.tenant_id,
-        "object_id": settings.bundle.object_id,
+        "asset_id": settings.bundle.asset_id,
         "agent_id": settings.bundle.agent_id,
         "config_revision": settings.bundle.config_revision,
         "issued_at": settings.bundle.issued_at,
@@ -43,7 +43,7 @@ def source_config_payload(
     return {
         "message_type": "wm.edge.source-config.v1",
         "tenant_id": settings.bundle.tenant_id,
-        "object_id": settings.bundle.object_id,
+        "asset_id": settings.bundle.asset_id,
         "agent_id": settings.bundle.agent_id,
         "config_revision": settings.bundle.config_revision,
         "source_id": source.source_id,

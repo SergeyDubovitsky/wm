@@ -24,7 +24,7 @@ topics `wm.edge.runtime-config.v1` и `wm.edge.source-config.v1`.
 
 ```yaml
 tenant_id: tenant-001
-object_id: demo-stand-01
+asset_id: demo-stand-01
 agent_id: edge-agent-001
 config_revision: rev-2026-05-02-001
 issued_at: "2026-05-02T00:00:00Z"
@@ -80,7 +80,7 @@ Tool/pipeline должен печатать publish summary:
 
 - `agent_id`
 - `tenant_id`
-- `object_id`
+- `asset_id`
 - `config_revision`
 - список опубликованных `source_id`
 - Kafka delivery status

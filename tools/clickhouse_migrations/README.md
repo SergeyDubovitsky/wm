@@ -35,6 +35,6 @@ uv run --env-file .env wm-clickhouse load-poc telemetry-read-models \
 ```
 
 The command inserts batched synthetic telemetry rows into `telemetry_events_v1`
-under an isolated `tenant_id`/`object_id`, adds replay duplicates, then measures
+under an isolated `tenant_id`/`asset_id`, adds replay duplicates, then measures
 `telemetry_events_dedup_v1`, `telemetry_latest_v1`, `telemetry_1m_v1` and
 `telemetry_1h_v1`. Output is JSON so runs can be compared over time.

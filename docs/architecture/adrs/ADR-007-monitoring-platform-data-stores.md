@@ -93,7 +93,7 @@
 
 - одна строка в `telemetry_events` соответствует одному наблюдению одной точки
   в один момент времени
-- тег/датчик идентифицируется колонками `tenant_id`, `object_id`, `source_id`,
+- тег/датчик идентифицируется колонками `tenant_id`, `asset_id`, `source_id`,
   `point_id` и/или `point_key`
 - значение хранится в типизированных value-колонках, например `value_float`,
   `value_bool`, `value_string`, `value_type`, `value_raw`

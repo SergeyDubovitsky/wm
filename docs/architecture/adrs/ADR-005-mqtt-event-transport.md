@@ -61,7 +61,7 @@
 
 Telemetry topic:
 
-- `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event`
+- `wm/v1/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event`
 
 Config topics:
 
@@ -71,12 +71,12 @@ Config topics:
 Status topics:
 
 - `wm/v1/agents/{agent_id}/status/config`
-- `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/status/connection`
-- `wm/v1/objects/{object_id}/agents/{agent_id}/status/lwt`
+- `wm/v1/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/status/connection`
+- `wm/v1/assets/{asset_id}/agents/{agent_id}/status/lwt`
 
 Правила:
 
-- `object_id`, `agent_id`, `source_id` должны соответствовать MQTT-safe path-id contract
+- `asset_id`, `agent_id`, `source_id` должны соответствовать MQTT-safe path-id contract
 - `point_key` не должен использовать raw protocol reference напрямую, если он содержит `/` или другие неудобные символы
 - для `point_key` используется обратимо-кодируемое safe representation, например percent-encoding от `point_ref`
 
@@ -86,7 +86,7 @@ Payload contract зависит от типа topic.
 
 Telemetry payload principles:
 
-- не повторяет `object_id`
+- не повторяет `asset_id`
 - не повторяет `agent_id`
 - не повторяет `source_id`
 - не повторяет `point_key`
@@ -153,7 +153,7 @@ Source config payload:
 Положительные:
 
 - MQTT становится primary transport уже в MVP
-- subscriber может избирательно подписываться по `object/source/point`
+- subscriber может избирательно подписываться по `asset/source/point`
 - event stream остается компактным и без дублирования topic identity и стабильной point metadata в payload
 - один source config на source уменьшает число retained records и metadata subscriptions
 - monitoring backend строит текущее состояние в одном месте, в БД

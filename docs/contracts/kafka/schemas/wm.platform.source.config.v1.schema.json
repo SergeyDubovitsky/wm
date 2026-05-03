@@ -8,7 +8,7 @@
     "required": [
         "message_type",
         "tenant_id",
-        "object_id",
+        "asset_id",
         "agent_id",
         "source_id",
         "source_type",
@@ -25,7 +25,7 @@
             "type": "string",
             "minLength": 1
         },
-        "object_id": {
+        "asset_id": {
             "type": "string",
             "minLength": 1
         },
@@ -70,7 +70,7 @@
                 "properties": {
                     "point_id": {
                         "type": "string",
-                        "description": "Stable Platform Registry id when available. MVP fallback: {tenant_id}|{object_id}|{source_id}|{point_key}.",
+                        "description": "Stable Platform Registry id when available. MVP fallback: {tenant_id}|{asset_id}|{source_id}|{point_key}.",
                         "minLength": 1
                     },
                     "point_key": {

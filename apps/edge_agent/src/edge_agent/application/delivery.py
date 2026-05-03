@@ -141,10 +141,10 @@ def _publication_from_outbox_payload(
         raise PublishError("Outbox payload must be a JSON object")
     source_id = _required_string(payload, "source_id")
     point_ref = _required_string(payload, "point_ref")
-    object_id = _required_string(payload, "object_id")
+    asset_id = _required_string(payload, "asset_id")
     topic = telemetry_topic(
         topic_root=mqtt.topic_root,
-        object_id=object_id,
+        asset_id=asset_id,
         agent_id=agent_id,
         source_id=source_id,
         point_ref=point_ref,

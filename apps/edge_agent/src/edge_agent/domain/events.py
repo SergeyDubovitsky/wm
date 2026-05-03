@@ -46,7 +46,7 @@ class TelemetryEvent(FrozenEdgeModel):
     ts: datetime
     agent_id: str
     tenant_id: str
-    object_id: str
+    asset_id: str
     source_id: str
     source_type: str
     source_config_revision: str
@@ -75,7 +75,7 @@ class TelemetryEvent(FrozenEdgeModel):
         event_type: EventType,
         agent_id: str,
         tenant_id: str,
-        object_id: str,
+        asset_id: str,
         source_id: str,
         source_type: str,
         source_config_revision: str,
@@ -100,7 +100,7 @@ class TelemetryEvent(FrozenEdgeModel):
             ts=ts or utc_now(),
             agent_id=agent_id,
             tenant_id=tenant_id,
-            object_id=object_id,
+            asset_id=asset_id,
             source_id=source_id,
             source_type=source_type,
             source_config_revision=source_config_revision,
@@ -126,7 +126,7 @@ class TelemetryEvent(FrozenEdgeModel):
             "ts": isoformat_utc(self.ts),
             "agent_id": self.agent_id,
             "tenant_id": self.tenant_id,
-            "object_id": self.object_id,
+            "asset_id": self.asset_id,
             "source_id": self.source_id,
             "source_type": self.source_type,
             "source_config_revision": self.source_config_revision,

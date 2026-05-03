@@ -4,7 +4,7 @@ AS SELECT
     JSONExtractString(payload_json, 'tenant_id') AS tenant_id,
     JSONExtractString(payload_json, 'event_id') AS event_id,
     JSONExtractString(payload_json, 'idempotency_key') AS idempotency_key,
-    JSONExtractString(payload_json, 'object_id') AS object_id,
+    JSONExtractString(payload_json, 'asset_id') AS asset_id,
     JSONExtractString(payload_json, 'agent_id') AS agent_id,
     JSONExtractString(payload_json, 'source_id') AS source_id,
     JSONExtractString(payload_json, 'source_type') AS source_type,
@@ -29,7 +29,7 @@ WHERE throwIf(
     OR NOT JSONHas(payload_json, 'tenant_id')
     OR NOT JSONHas(payload_json, 'event_id')
     OR NOT JSONHas(payload_json, 'idempotency_key')
-    OR NOT JSONHas(payload_json, 'object_id')
+    OR NOT JSONHas(payload_json, 'asset_id')
     OR NOT JSONHas(payload_json, 'agent_id')
     OR NOT JSONHas(payload_json, 'source_id')
     OR NOT JSONHas(payload_json, 'source_type')
@@ -48,7 +48,7 @@ WHERE throwIf(
     OR JSONExtractString(payload_json, 'tenant_id') = ''
     OR JSONExtractString(payload_json, 'event_id') = ''
     OR JSONExtractString(payload_json, 'idempotency_key') = ''
-    OR JSONExtractString(payload_json, 'object_id') = ''
+    OR JSONExtractString(payload_json, 'asset_id') = ''
     OR JSONExtractString(payload_json, 'agent_id') = ''
     OR JSONExtractString(payload_json, 'source_id') = ''
     OR JSONExtractString(payload_json, 'source_type') = ''
@@ -84,7 +84,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS source_config_snapshots_from_raw_mv_v1
 TO source_config_snapshots_v1
 AS SELECT
     JSONExtractString(payload_json, 'tenant_id') AS tenant_id,
-    JSONExtractString(payload_json, 'object_id') AS object_id,
+    JSONExtractString(payload_json, 'asset_id') AS asset_id,
     JSONExtractString(payload_json, 'agent_id') AS agent_id,
     JSONExtractString(payload_json, 'source_id') AS source_id,
     JSONExtractString(payload_json, 'source_type') AS source_type,
@@ -96,7 +96,7 @@ FROM kafka_source_configs_raw_v1
 WHERE throwIf(
     JSONExtractString(payload_json, 'message_type') != 'wm.platform.source.config.v1'
     OR NOT JSONHas(payload_json, 'tenant_id')
-    OR NOT JSONHas(payload_json, 'object_id')
+    OR NOT JSONHas(payload_json, 'asset_id')
     OR NOT JSONHas(payload_json, 'agent_id')
     OR NOT JSONHas(payload_json, 'source_id')
     OR NOT JSONHas(payload_json, 'source_type')
@@ -105,7 +105,7 @@ WHERE throwIf(
     OR NOT JSONHas(payload_json, 'ts')
     OR NOT JSONHas(payload_json, 'ingested_at')
     OR JSONExtractString(payload_json, 'tenant_id') = ''
-    OR JSONExtractString(payload_json, 'object_id') = ''
+    OR JSONExtractString(payload_json, 'asset_id') = ''
     OR JSONExtractString(payload_json, 'agent_id') = ''
     OR JSONExtractString(payload_json, 'source_id') = ''
     OR JSONExtractString(payload_json, 'source_type') = ''
@@ -118,7 +118,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS source_connection_events_from_raw_mv_v1
 TO source_connection_events_v1
 AS SELECT
     JSONExtractString(payload_json, 'tenant_id') AS tenant_id,
-    JSONExtractString(payload_json, 'object_id') AS object_id,
+    JSONExtractString(payload_json, 'asset_id') AS asset_id,
     JSONExtractString(payload_json, 'agent_id') AS agent_id,
     JSONExtractString(payload_json, 'source_id') AS source_id,
     JSONExtractString(payload_json, 'state') AS state,
@@ -129,14 +129,14 @@ FROM kafka_source_connections_raw_v1
 WHERE throwIf(
     JSONExtractString(payload_json, 'message_type') != 'wm.platform.source.connection.v1'
     OR NOT JSONHas(payload_json, 'tenant_id')
-    OR NOT JSONHas(payload_json, 'object_id')
+    OR NOT JSONHas(payload_json, 'asset_id')
     OR NOT JSONHas(payload_json, 'agent_id')
     OR NOT JSONHas(payload_json, 'source_id')
     OR NOT JSONHas(payload_json, 'state')
     OR NOT JSONHas(payload_json, 'ts')
     OR NOT JSONHas(payload_json, 'ingested_at')
     OR JSONExtractString(payload_json, 'tenant_id') = ''
-    OR JSONExtractString(payload_json, 'object_id') = ''
+    OR JSONExtractString(payload_json, 'asset_id') = ''
     OR JSONExtractString(payload_json, 'agent_id') = ''
     OR JSONExtractString(payload_json, 'source_id') = ''
     OR JSONExtractString(payload_json, 'state') NOT IN ('connected', 'disconnected', 'reconnecting'),
@@ -147,7 +147,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS agent_status_events_from_raw_mv_v1
 TO agent_status_events_v1
 AS SELECT
     JSONExtractString(payload_json, 'tenant_id') AS tenant_id,
-    JSONExtractString(payload_json, 'object_id') AS object_id,
+    JSONExtractString(payload_json, 'asset_id') AS asset_id,
     JSONExtractString(payload_json, 'agent_id') AS agent_id,
     JSONExtractString(payload_json, 'status') AS status,
     parseDateTime64BestEffort(JSONExtractString(payload_json, 'ts'), 3, 'UTC') AS ts,
@@ -156,13 +156,13 @@ FROM kafka_agent_status_raw_v1
 WHERE throwIf(
     JSONExtractString(payload_json, 'message_type') != 'wm.platform.agent.status.v1'
     OR NOT JSONHas(payload_json, 'tenant_id')
-    OR NOT JSONHas(payload_json, 'object_id')
+    OR NOT JSONHas(payload_json, 'asset_id')
     OR NOT JSONHas(payload_json, 'agent_id')
     OR NOT JSONHas(payload_json, 'status')
     OR NOT JSONHas(payload_json, 'ts')
     OR NOT JSONHas(payload_json, 'ingested_at')
     OR JSONExtractString(payload_json, 'tenant_id') = ''
-    OR JSONExtractString(payload_json, 'object_id') = ''
+    OR JSONExtractString(payload_json, 'asset_id') = ''
     OR JSONExtractString(payload_json, 'agent_id') = ''
     OR JSONExtractString(payload_json, 'status') NOT IN ('online', 'offline'),
     'agent status raw payload violates wm.platform.agent.status.v1 required fields'
@@ -174,7 +174,7 @@ AS SELECT
     JSONExtractString(payload_json, 'tenant_id') AS tenant_id,
     JSONExtractString(payload_json, 'derived_event_id') AS derived_event_id,
     JSONExtractString(payload_json, 'idempotency_key') AS idempotency_key,
-    JSONExtractString(payload_json, 'object_id') AS object_id,
+    JSONExtractString(payload_json, 'asset_id') AS asset_id,
     if(JSONHas(payload_json, 'rule_or_metric_id'), JSONExtract(payload_json, 'rule_or_metric_id', 'Nullable(String)'), CAST(NULL, 'Nullable(String)')) AS rule_or_metric_id,
     JSONExtractString(payload_json, 'event_type') AS event_type,
     parseDateTime64BestEffort(JSONExtractString(payload_json, 'ts'), 3, 'UTC') AS ts,
@@ -191,7 +191,7 @@ WHERE throwIf(
     OR NOT JSONHas(payload_json, 'tenant_id')
     OR NOT JSONHas(payload_json, 'derived_event_id')
     OR NOT JSONHas(payload_json, 'idempotency_key')
-    OR NOT JSONHas(payload_json, 'object_id')
+    OR NOT JSONHas(payload_json, 'asset_id')
     OR NOT JSONHas(payload_json, 'event_type')
     OR NOT JSONHas(payload_json, 'ts')
     OR NOT JSONHas(payload_json, 'produced_at')
@@ -200,7 +200,7 @@ WHERE throwIf(
     OR JSONExtractString(payload_json, 'tenant_id') = ''
     OR JSONExtractString(payload_json, 'derived_event_id') = ''
     OR JSONExtractString(payload_json, 'idempotency_key') = ''
-    OR JSONExtractString(payload_json, 'object_id') = ''
+    OR JSONExtractString(payload_json, 'asset_id') = ''
     OR JSONExtractString(payload_json, 'event_type') = ''
     OR JSONExtractString(payload_json, 'value_type') NOT IN ('boolean', 'number', 'string')
     OR (

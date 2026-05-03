@@ -23,7 +23,7 @@ ADR остаются журналом архитектурных решений.
 | `ADR-001-runtime-topology.md` | accepted | Фиксирует KNX-first MVP: прямое подключение через `xknx` и `KNXnet/IP Tunneling` без `knxd` как runtime-компонента. |
 | `ADR-002-acquisition-mode.md` | accepted | Фиксирует гибридный сбор `listen + selective read`: passive events как основной поток, `read_on_start` и `periodic_read` только для whitelist endpoints. |
 | `ADR-003-buffering-and-delivery.md` | partially superseded | Исторически фиксирует SQLite outbox/state. Детали delivery/MQTT и storage contracts уточнены в `ADR-005` и `docs/contracts/edge-agent/`. |
-| `ADR-004-universal-agent-configuration.md` | accepted | Сейчас отвечает за identity model: `tenant_id`, `object_id`, `agent_id`, `source_id`, `point_ref`, `point_key`. Runtime config path заменен `ADR-008`. |
+| `ADR-004-universal-agent-configuration.md` | accepted | Сейчас отвечает за identity model: `tenant_id`, `asset_id`, `agent_id`, `source_id`, `point_ref`, `point_key`. Runtime config path заменен `ADR-008`. |
 | `ADR-005-mqtt-event-transport.md` | accepted | Фиксирует MQTT 5 как edge transport, telemetry/status/config topics, QoS/retain policy и topic-derived routing. Детальные schemas в `docs/contracts/edge-agent/`. |
 | `ADR-006-mvp-monorepo-structure.md` | accepted | Фиксирует monorepo для текущего этапа: apps, libs, architecture docs, contracts и infra меняются согласованно. |
 | `ADR-007-monitoring-platform-data-stores.md` | принято | Фиксирует целевые хранилища платформы: `ClickHouse` для telemetry/analytics и `PostgreSQL` для mutable platform state/IAM. |

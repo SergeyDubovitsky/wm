@@ -14,9 +14,9 @@ class ConfigRegistrySettings:
     @classmethod
     def from_env(cls) -> ConfigRegistrySettings:
         return cls(
-            host=os.getenv("PLATFORM_API_HOST", "127.0.0.1"),
-            port=int(os.getenv("PLATFORM_API_PORT", "8000")),
-            internal_mode=os.getenv("PLATFORM_API_INTERNAL_MODE", "true").lower()
+            host=os.getenv("CONFIG_REGISTRY_HOST", "127.0.0.1"),
+            port=int(os.getenv("CONFIG_REGISTRY_PORT", "8000")),
+            internal_mode=os.getenv("CONFIG_REGISTRY_INTERNAL_MODE", "true").lower()
             in {"1", "true", "yes"},
-            database_url=os.getenv("PLATFORM_DATABASE_URL"),
+            database_url=os.getenv("CONFIG_REGISTRY_DATABASE_URL"),
         )

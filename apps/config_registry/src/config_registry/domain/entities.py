@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -381,3 +381,84 @@ class ConfigOutboxRecord:
             "config_scope",
             require_non_empty(self.config_scope, field_name="config_scope"),
         )
+
+    def reserve(self, *, now: datetime, lease_duration: timedelta) -> ConfigOutboxRecord:
+        return self._replace(
+            status=ConfigOutboxStatus.INFLIGHT,
+            lease_expires_at=now + lease_duration,
+            updated_at=now,
+        )
+
+    def mark_published(self, *, now: datetime) -> ConfigOutboxRecord:
+        return self._replace(
+            status=ConfigOutboxStatus.PUBLISHED,
+            lease_expires_at=None,
+            published_at=now,
+            updated_at=now,
+        )
+
+    def mark_retry(
+        self,
+        *,
+        now: datetime,
+        error: str,
+        next_attempt_at: datetime,
+    ) -> ConfigOutboxRecord:
+        return self._replace(
+            status=ConfigOutboxStatus.RETRY,
+            lease_expires_at=None,
+            attempt_count=self.attempt_count + 1,
+            next_attempt_at=next_attempt_at,
+            last_error=error,
+            updated_at=now,
+        )
+
+    def mark_dead_letter(
+        self,
+        *,
+        now: datetime,
+        error: str,
+    ) -> ConfigOutboxRecord:
+        return self._replace(
+            status=ConfigOutboxStatus.DEAD_LETTER,
+            lease_expires_at=None,
+            attempt_count=self.attempt_count + 1,
+            last_error=error,
+            updated_at=now,
+        )
+
+    def release_expired_lease(self, *, now: datetime) -> ConfigOutboxRecord:
+        return self._replace(
+            status=ConfigOutboxStatus.RETRY,
+            lease_expires_at=None,
+            next_attempt_at=now,
+            updated_at=now,
+        )
+
+    def _replace(self, **changes: object) -> ConfigOutboxRecord:
+        values = {
+            "tenant_id": self.tenant_id,
+            "outbox_id": self.outbox_id,
+            "idempotency_key": self.idempotency_key,
+            "asset_id": self.asset_id,
+            "agent_id": self.agent_id,
+            "config_revision": self.config_revision,
+            "config_scope": self.config_scope,
+            "source_id": self.source_id,
+            "source_config_revision": self.source_config_revision,
+            "message_type": self.message_type,
+            "kafka_topic": self.kafka_topic,
+            "kafka_key": self.kafka_key,
+            "payload_json": self.payload_json,
+            "status": self.status,
+            "available_at": self.available_at,
+            "lease_expires_at": self.lease_expires_at,
+            "published_at": self.published_at,
+            "attempt_count": self.attempt_count,
+            "next_attempt_at": self.next_attempt_at,
+            "last_error": self.last_error,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+        values.update(changes)
+        return ConfigOutboxRecord(**values)

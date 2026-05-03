@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from types import TracebackType
+from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from config_registry.domain.entities import (
@@ -587,6 +589,118 @@ class PostgresConfigOutboxRepository:
             .order_by(ConfigOutboxModel.config_scope)
         )
         return [_config_outbox_from_model(model) for model in result]
+
+    async def reserve_available(
+        self,
+        *,
+        limit: int,
+        now: datetime,
+        lease_duration: timedelta,
+    ) -> list[ConfigOutboxRecord]:
+        candidates_result = await self.session.scalars(
+            select(ConfigOutboxModel)
+            .where(
+                ConfigOutboxModel.status.in_(
+                    [
+                        ConfigOutboxStatus.PENDING.value,
+                        ConfigOutboxStatus.RETRY.value,
+                    ]
+                ),
+                ConfigOutboxModel.available_at <= now,
+                (
+                    ConfigOutboxModel.next_attempt_at.is_(None)
+                    | (ConfigOutboxModel.next_attempt_at <= now)
+                ),
+            )
+            .order_by(ConfigOutboxModel.available_at, ConfigOutboxModel.created_at)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        candidates = list(candidates_result)
+        reserved: list[ConfigOutboxRecord] = []
+        for model in candidates:
+            model.status = ConfigOutboxStatus.INFLIGHT.value
+            model.lease_expires_at = now + lease_duration
+            model.updated_at = now
+            reserved.append(_config_outbox_from_model(model))
+        await self.session.flush()
+        return reserved
+
+    async def mark_published(
+        self,
+        outbox_id: UUID,
+        *,
+        now: datetime,
+    ) -> ConfigOutboxRecord | None:
+        model = await self.session.get(ConfigOutboxModel, outbox_id)
+        if model is None:
+            return None
+        model.status = ConfigOutboxStatus.PUBLISHED.value
+        model.lease_expires_at = None
+        model.published_at = now
+        model.updated_at = now
+        await self.session.flush()
+        return _config_outbox_from_model(model)
+
+    async def mark_retry(
+        self,
+        outbox_id: UUID,
+        *,
+        now: datetime,
+        error: str,
+        next_attempt_at: datetime,
+    ) -> ConfigOutboxRecord | None:
+        model = await self.session.get(ConfigOutboxModel, outbox_id)
+        if model is None:
+            return None
+        model.status = ConfigOutboxStatus.RETRY.value
+        model.lease_expires_at = None
+        model.attempt_count += 1
+        model.next_attempt_at = next_attempt_at
+        model.last_error = error
+        model.updated_at = now
+        await self.session.flush()
+        return _config_outbox_from_model(model)
+
+    async def mark_dead_letter(
+        self,
+        outbox_id: UUID,
+        *,
+        now: datetime,
+        error: str,
+    ) -> ConfigOutboxRecord | None:
+        model = await self.session.get(ConfigOutboxModel, outbox_id)
+        if model is None:
+            return None
+        model.status = ConfigOutboxStatus.DEAD_LETTER.value
+        model.lease_expires_at = None
+        model.attempt_count += 1
+        model.last_error = error
+        model.updated_at = now
+        await self.session.flush()
+        return _config_outbox_from_model(model)
+
+    async def release_expired_leases(
+        self,
+        *,
+        now: datetime,
+    ) -> int:
+        result = await self.session.execute(
+            update(ConfigOutboxModel)
+            .where(
+                ConfigOutboxModel.status == ConfigOutboxStatus.INFLIGHT.value,
+                ConfigOutboxModel.lease_expires_at.is_not(None),
+                ConfigOutboxModel.lease_expires_at <= now,
+            )
+            .values(
+                status=ConfigOutboxStatus.RETRY.value,
+                lease_expires_at=None,
+                next_attempt_at=now,
+                updated_at=now,
+            )
+        )
+        await self.session.flush()
+        return result.rowcount or 0
 
 
 @dataclass

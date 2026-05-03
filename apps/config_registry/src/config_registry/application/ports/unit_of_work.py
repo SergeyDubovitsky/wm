@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Protocol, Self
+from uuid import UUID
 
 from config_registry.domain.entities import (
     Agent,
@@ -138,6 +140,44 @@ class ConfigOutboxRepository(Protocol):
         agent_id: str,
         config_revision: str,
     ) -> list[ConfigOutboxRecord]: ...
+
+    async def reserve_available(
+        self,
+        *,
+        limit: int,
+        now: datetime,
+        lease_duration: timedelta,
+    ) -> list[ConfigOutboxRecord]: ...
+
+    async def mark_published(
+        self,
+        outbox_id: UUID,
+        *,
+        now: datetime,
+    ) -> ConfigOutboxRecord | None: ...
+
+    async def mark_retry(
+        self,
+        outbox_id: UUID,
+        *,
+        now: datetime,
+        error: str,
+        next_attempt_at: datetime,
+    ) -> ConfigOutboxRecord | None: ...
+
+    async def mark_dead_letter(
+        self,
+        outbox_id: UUID,
+        *,
+        now: datetime,
+        error: str,
+    ) -> ConfigOutboxRecord | None: ...
+
+    async def release_expired_leases(
+        self,
+        *,
+        now: datetime,
+    ) -> int: ...
 
 
 class UnitOfWork(Protocol):

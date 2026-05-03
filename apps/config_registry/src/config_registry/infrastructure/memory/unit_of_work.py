@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from types import TracebackType
+from uuid import UUID
 
 from config_registry.domain.entities import (
     Agent,
@@ -13,6 +15,7 @@ from config_registry.domain.entities import (
     SourceConfigRevision,
     Tenant,
 )
+from config_registry.domain.value_objects import ConfigOutboxStatus
 
 
 @dataclass
@@ -291,6 +294,103 @@ class InMemoryConfigOutboxRepository:
             ),
             key=lambda record: record.config_scope,
         )
+
+    async def reserve_available(
+        self,
+        *,
+        limit: int,
+        now: datetime,
+        lease_duration: timedelta,
+    ) -> list[ConfigOutboxRecord]:
+        candidates = sorted(
+            (
+                record
+                for record in self._items.values()
+                if record.status in (
+                    ConfigOutboxStatus.PENDING,
+                    ConfigOutboxStatus.RETRY,
+                )
+                and record.available_at <= now
+                and (
+                    record.next_attempt_at is None
+                    or record.next_attempt_at <= now
+                )
+            ),
+            key=lambda record: (record.available_at, record.created_at),
+        )[:limit]
+        reserved = [record.reserve(now=now, lease_duration=lease_duration) for record in candidates]
+        for record in reserved:
+            self._items[record.idempotency_key] = record
+        return reserved
+
+    async def mark_published(
+        self,
+        outbox_id: UUID,
+        *,
+        now: datetime,
+    ) -> ConfigOutboxRecord | None:
+        record = self._record_by_id(outbox_id)
+        if record is None:
+            return None
+        updated = record.mark_published(now=now)
+        self._items[updated.idempotency_key] = updated
+        return updated
+
+    async def mark_retry(
+        self,
+        outbox_id: UUID,
+        *,
+        now: datetime,
+        error: str,
+        next_attempt_at: datetime,
+    ) -> ConfigOutboxRecord | None:
+        record = self._record_by_id(outbox_id)
+        if record is None:
+            return None
+        updated = record.mark_retry(
+            now=now,
+            error=error,
+            next_attempt_at=next_attempt_at,
+        )
+        self._items[updated.idempotency_key] = updated
+        return updated
+
+    async def mark_dead_letter(
+        self,
+        outbox_id: UUID,
+        *,
+        now: datetime,
+        error: str,
+    ) -> ConfigOutboxRecord | None:
+        record = self._record_by_id(outbox_id)
+        if record is None:
+            return None
+        updated = record.mark_dead_letter(now=now, error=error)
+        self._items[updated.idempotency_key] = updated
+        return updated
+
+    async def release_expired_leases(
+        self,
+        *,
+        now: datetime,
+    ) -> int:
+        released = 0
+        for record in tuple(self._items.values()):
+            if (
+                record.status == ConfigOutboxStatus.INFLIGHT
+                and record.lease_expires_at is not None
+                and record.lease_expires_at <= now
+            ):
+                updated = record.release_expired_lease(now=now)
+                self._items[updated.idempotency_key] = updated
+                released += 1
+        return released
+
+    def _record_by_id(self, outbox_id: UUID) -> ConfigOutboxRecord | None:
+        for record in self._items.values():
+            if record.outbox_id == outbox_id:
+                return record
+        return None
 
 
 @dataclass

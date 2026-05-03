@@ -1,9 +1,33 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 
+from config_registry.application.use_cases.config_outbox import (
+    MarkConfigOutboxPublished,
+    ReleaseExpiredConfigOutboxLeases,
+    ReserveConfigOutboxCommand,
+    ReserveConfigOutboxRecords,
+)
+from config_registry.application.use_cases.render_config import (
+    RenderAgentConfig,
+    RenderAgentConfigCommand,
+    StoreRenderedAgentConfig,
+)
+from config_registry.domain.value_objects import ConfigOutboxStatus
+from config_registry.infrastructure.json_schema_validator import (
+    JsonSchemaConfigPayloadValidator,
+)
+from config_registry.infrastructure.postgres.unit_of_work import (
+    PostgresUnitOfWorkFactory,
+)
 from config_registry.main import create_app
 from config_registry.settings import ConfigRegistrySettings
+
+CONTRACT_DIR = Path("docs/contracts/edge-agent/schemas")
 
 
 def test_config_registry_persists_tenants_in_postgres(
@@ -218,3 +242,108 @@ def test_config_registry_persists_points_in_postgres(
     assert duplicate_response.status_code == 409
     assert list_response.status_code == 200
     assert [point["point_key"] for point in list_response.json()] == ["lights.main"]
+
+
+@pytest.mark.asyncio
+async def test_config_registry_persists_and_reserves_outbox_records_in_postgres(
+    local_config_registry_postgres_stack,
+) -> None:
+    settings = ConfigRegistrySettings(
+        database_url=local_config_registry_postgres_stack.database_url
+    )
+    with TestClient(create_app(settings=settings)) as client:
+        _create_renderable_agent_graph(client)
+
+    unit_of_work_factory = PostgresUnitOfWorkFactory.from_url(settings.database_url)
+    validator = JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR)
+    try:
+        rendered = await RenderAgentConfig(
+            unit_of_work_factory(),
+            validator,
+        ).execute(
+            RenderAgentConfigCommand(
+                tenant_id="tenant-outbox",
+                asset_id="asset-a",
+                agent_id="agent-a",
+                config_revision="rev-outbox-001",
+                issued_at=datetime(2026, 5, 3, 10, 0, tzinfo=UTC),
+                source_config_revisions={"knx-main": "rev-outbox-001-knx-main"},
+            )
+        )
+        await StoreRenderedAgentConfig(unit_of_work_factory(), validator).execute(
+            rendered
+        )
+
+        now = datetime.now(tz=UTC) + timedelta(seconds=1)
+        reserved = await ReserveConfigOutboxRecords(unit_of_work_factory()).execute(
+            ReserveConfigOutboxCommand(
+                limit=10,
+                now=now,
+                lease_duration=timedelta(seconds=30),
+            )
+        )
+        published = await MarkConfigOutboxPublished(
+            unit_of_work_factory()
+        ).execute(reserved[0].outbox_id, now=now + timedelta(seconds=5))
+        released = await ReleaseExpiredConfigOutboxLeases(
+            unit_of_work_factory()
+        ).execute(now=now + timedelta(seconds=31))
+    finally:
+        await unit_of_work_factory.dispose()
+
+    assert [record.config_scope for record in reserved] == [
+        "runtime",
+        "source:knx-main",
+    ]
+    assert all(record.status == ConfigOutboxStatus.INFLIGHT for record in reserved)
+    assert published is not None
+    assert published.status == ConfigOutboxStatus.PUBLISHED
+    assert released == 1
+
+
+def _create_renderable_agent_graph(client: TestClient) -> None:
+    client.post(
+        "/tenants",
+        json={"tenant_id": "tenant-outbox", "name": "Tenant Outbox"},
+    )
+    client.post(
+        "/tenants/tenant-outbox/assets",
+        json={"asset_id": "asset-a", "name": "Asset A"},
+    )
+    client.post(
+        "/tenants/tenant-outbox/assets/asset-a/agents",
+        json={"agent_id": "agent-a"},
+    )
+    client.post(
+        "/tenants/tenant-outbox/assets/asset-a/agents/agent-a/sources",
+        json={
+            "source_id": "knx-main",
+            "source_type": "knx",
+            "connection_json": {"gateway_ip": "127.0.0.1"},
+            "acquisition_defaults_json": {
+                "listen": True,
+                "read_on_start": False,
+                "periodic_interval_seconds": None,
+            },
+            "publish_defaults_json": {
+                "enabled": True,
+                "change_threshold": None,
+            },
+        },
+    )
+    client.post(
+        "/tenants/tenant-outbox/assets/asset-a/agents/agent-a"
+        "/sources/knx-main/points",
+        json={
+            "point_id": "tenant-outbox|asset-a|knx-main|temperature",
+            "point_key": "temperature",
+            "point_ref": "2/0/0",
+            "name": "Temperature",
+            "value_type": "number",
+            "value_model": "knx.dpt.9.001",
+            "signal_type": "sensor",
+            "acquisition_json": {"read_on_start": True},
+            "publish_json": {"change_threshold": 1.0},
+            "tags_json": {"room": "demo"},
+        },
+    )

@@ -5,6 +5,10 @@ from sqladmin import Admin, ModelView
 from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.requests import Request
 
+from config_registry.application.use_cases.assets import (
+    CreateAsset,
+    CreateAssetCommand,
+)
 from config_registry.application.use_cases.tenants import (
     CreateTenant,
     CreateTenantCommand,
@@ -84,10 +88,16 @@ class TenantBackofficeView(CreateOnlyModelView, model=TenantModel):
         )
 
 
-class AssetBackofficeView(ReadOnlyModelView, model=AssetModel):
+class AssetBackofficeView(CreateOnlyModelView, model=AssetModel):
     name = "Asset"
     name_plural = "Assets"
     category = "Registry"
+    form_columns = [
+        AssetModel.tenant_id,
+        AssetModel.asset_id,
+        AssetModel.name,
+        AssetModel.description,
+    ]
     column_list = [
         AssetModel.tenant_id,
         AssetModel.asset_id,
@@ -95,6 +105,25 @@ class AssetBackofficeView(ReadOnlyModelView, model=AssetModel):
         AssetModel.status,
         AssetModel.updated_at,
     ]
+
+    async def insert_model(self, request: Request, data: dict[str, object]) -> object:
+        asset = await CreateAsset(request.app.state.unit_of_work_factory()).execute(
+            CreateAssetCommand(
+                tenant_id=str(data["tenant_id"]),
+                asset_id=str(data["asset_id"]),
+                name=str(data["name"]),
+                description=_optional_string(data.get("description")),
+            )
+        )
+        return AssetModel(
+            tenant_id=asset.tenant_id,
+            asset_id=asset.asset_id,
+            name=asset.name,
+            description=asset.description,
+            status=asset.status.value,
+            created_at=asset.created_at,
+            updated_at=asset.updated_at,
+        )
 
 
 class AgentBackofficeView(ReadOnlyModelView, model=AgentModel):
@@ -217,3 +246,9 @@ def mount_backoffice(app: FastAPI, *, engine: AsyncEngine) -> Admin:
     for view in BACKOFFICE_VIEWS:
         admin.add_view(view)
     return admin
+
+
+def _optional_string(value: object) -> str | None:
+    if value is None or value == "":
+        return None
+    return str(value)

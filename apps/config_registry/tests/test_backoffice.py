@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from config_registry.infrastructure.backoffice import (
     BACKOFFICE_VIEWS,
+    AgentBackofficeView,
     AssetBackofficeView,
     TenantBackofficeView,
 )
@@ -69,18 +70,47 @@ async def test_backoffice_create_tenant_uses_application_use_case() -> None:
     assert tenants[0]["updated_at"].endswith("Z")
 
 
+@pytest.mark.asyncio
+async def test_backoffice_create_asset_uses_application_use_case() -> None:
+    app = create_app()
+    request = SimpleNamespace(app=app)
+    await TenantBackofficeView().insert_model(
+        request,
+        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
+    )
+
+    created = await AssetBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "name": "Asset Backoffice",
+            "description": "Created through backoffice use case",
+        },
+    )
+
+    with TestClient(app) as client:
+        assets = client.get("/tenants/tenant-backoffice/assets").json()
+
+    assert created.tenant_id == "tenant-backoffice"
+    assert created.asset_id == "asset-backoffice"
+    assert created.status == "active"
+    assert assets[0]["asset_id"] == "asset-backoffice"
+    assert assets[0]["description"] == "Created through backoffice use case"
+
+
 def test_only_tenant_backoffice_view_is_create_enabled_for_now() -> None:
     for view in BACKOFFICE_VIEWS:
-        assert view.can_create is (view is TenantBackofficeView)
+        assert view.can_create is (view in {TenantBackofficeView, AssetBackofficeView})
 
 
 @pytest.mark.asyncio
 async def test_backoffice_views_reject_unsupported_programmatic_writes() -> None:
     tenant_view = TenantBackofficeView()
-    asset_view = AssetBackofficeView()
+    agent_view = AgentBackofficeView()
 
     with pytest.raises(PermissionError, match="read-only"):
-        await asset_view.insert_model(object(), {})
+        await agent_view.insert_model(object(), {})
     with pytest.raises(PermissionError, match="read-only"):
         await tenant_view.update_model(object(), "tenant-a", {})
     with pytest.raises(PermissionError, match="read-only"):

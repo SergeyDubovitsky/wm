@@ -125,8 +125,6 @@ Backoffice views первого инкремента:
 - `RuntimeConfigRevision`
 - `SourceConfigRevision`
 - `ConfigOutboxRecord`
-- `ConfigPublishJob`
-- `ConfigPublishResult`
 
 Режимы:
 

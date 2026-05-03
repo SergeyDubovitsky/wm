@@ -110,6 +110,8 @@ jobs:
               run: uv sync --frozen --all-packages --group integration
 
             - name: Check compose config
+              env:
+                  LOCAL_STACK_ENV_FILE: ../../.env.example
               run: docker compose -f infra/local/compose.yaml config --quiet
 
             - name: Lint Redpanda Connect pipeline

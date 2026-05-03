@@ -743,10 +743,11 @@ Kafka wm.platform.edge.configs.v1
 - `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/render-config`
 - `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/config-revisions`
 
-Материализация Kafka config delivery records в MQTT retained topics остается
-отдельным runtime-инкрементом Redpanda Connect pipeline. Первый backend-срез
-фиксирует Kafka delivery contract и outbox, но не хранит timestamp MQTT
-projection: факт применения конфигурации edge-agent-ом будет приходить отдельно через
+Материализация Kafka config delivery records в MQTT retained topics выполняется
+локальным Redpanda Connect pipeline `redpanda-connect-config-projection`.
+Первый backend-срез фиксирует Kafka delivery contract, outbox и local
+projection, но не хранит timestamp MQTT projection: факт применения
+конфигурации edge-agent-ом будет приходить отдельно через
 `wm.edge.config.status.v1`.
 
 ## Рассмотренные варианты
@@ -776,8 +777,7 @@ projection: факт применения конфигурации edge-agent-о
 - API нельзя открывать наружу до отдельного security/auth ADR
 - часть protocol-specific данных остается в JSONB и потребует discipline по
   schema validation
-- нужен отдельный runtime-инкремент для Redpanda Connect Kafka -> MQTT retained
-  projection и статусов применения config
+- lifecycle/status loop применения config остается отдельным runtime-инкрементом
 
 ## План реализации
 
@@ -800,6 +800,9 @@ projection: факт применения конфигурации edge-agent-о
 13. Добавить integration test для PostgreSQL migrations и basic API.
 14. Добавить outbox failure-mode tests: rollback transaction, retry after
     Kafka error, expired lease recovery, duplicate publish idempotency.
+15. Добавить local Redpanda Connect projection
+    `wm.platform.edge.configs.v1 -> MQTT retained runtime/source config topics`
+    и integration smoke через MQTT retained readback.
 
 ## Проверки принятия
 
@@ -827,6 +830,5 @@ projection: факт применения конфигурации edge-agent-о
 - Notification Service.
 - Streaming Analytics.
 - Telemetry read API поверх ClickHouse.
-- Config Event Publisher runtime и Redpanda Connect Kafka -> MQTT retained
-  projection lifecycle.
+- Config Event Publisher runtime hardening и config projection lifecycle/status.
 - API Gateway / reverse proxy / ingress policy.

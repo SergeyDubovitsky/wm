@@ -25,6 +25,9 @@
 - Для целевой configuration-модели принят `ADR-008`: edge-agent получает
   retained runtime/source configs из MQTT; delivery path уточнен в `ADR-010`
   как PostgreSQL config outbox -> Kafka -> MQTT retained projection.
+- Для локального config delivery baseline уже реализованы `Config Registry`
+  outbox publisher и Redpanda Connect projection
+  `wm.platform.edge.configs.v1 -> retained MQTT runtime/source topics`.
 - Текущий проект уже достиг `MVP baseline`: `KNX/edge_agent -> MQTT -> Kafka`
   ingestion slice работает в репозитории и покрыт integration-тестами.
 - Полная `Monitoring & Alarm Platform` как `MQTT Ingestion Gateway`,

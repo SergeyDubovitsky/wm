@@ -8,6 +8,8 @@
 - поднять локальный `MQTT broker`
 - поднять локальный `Apache Kafka` как Kafka-compatible event log
 - поднять `Redpanda Connect` как ingestion pipeline `MQTT -> Kafka`
+- поднять `Redpanda Connect` как config projection pipeline
+  `Kafka -> MQTT retained`
 - поднять `ClickHouse` как локальный `Telemetry Store` foundation
 - поднять `PostgreSQL` как локальный `Platform Store` foundation для
   `Config Registry`
@@ -25,6 +27,9 @@
   internal topics будущего Kafka Connect runtime
 - `redpanda-connect` — connector pipeline, который читает `wm/v1/#`,
   обогащает telemetry retained source config и пишет platform records в Kafka
+- `redpanda-connect-config-projection` — connector pipeline, который читает
+  `wm.platform.edge.configs.v1` и материализует retained runtime/source config
+  topics для edge-agent
 - `clickhouse` — локальный `ClickHouse` для пути
   `Kafka -> Kafka Connect -> ClickHouse` и read models для Grafana
 - `postgres` — локальный `PostgreSQL` для `Config Registry`
@@ -48,7 +53,8 @@ docker compose --env-file ../../.env up -d mqtt-broker
 ```bash
 cd infra/local
 docker compose --env-file ../../.env up -d \
-  mqtt-broker kafka kafka-init redpanda-connect clickhouse postgres kafka-connect kafka-ui mqttx-web grafana
+  mqtt-broker kafka kafka-init redpanda-connect redpanda-connect-config-projection \
+  clickhouse postgres kafka-connect kafka-ui mqttx-web grafana
 ```
 
 После старта:
@@ -56,7 +62,9 @@ docker compose --env-file ../../.env up -d \
 - `MQTT broker` доступен на `localhost:1883`
 - `MQTT websocket` доступен на `localhost:9001`
 - `Kafka` host listener доступен на `localhost:19092`
-- `Redpanda Connect` HTTP endpoint доступен на `localhost:4195`
+- `Redpanda Connect MQTT -> Kafka` HTTP endpoint доступен на `localhost:4195`
+- `Redpanda Connect Kafka -> MQTT config projection` HTTP endpoint доступен на
+  `localhost:4196`
 - `Kafka Connect REST` доступен на `localhost:8083`
 - `Kafka Connect JMX` подготовлен на `localhost:9102`
 - `ClickHouse HTTP` доступен на `localhost:8123`
@@ -224,6 +232,12 @@ CLI:
 - agent LWT -> `wm.platform.agent.status.v1`
 - ingestion errors -> `wm.platform.ingestion.errors.v1`
 
+При запущенном `redpanda-connect-config-projection` records из
+`wm.platform.edge.configs.v1` материализуются в retained MQTT topics:
+
+- runtime config -> `wm/v1/agents/{agent_id}/config/runtime`
+- source config -> `wm/v1/agents/{agent_id}/sources/{source_id}/config`
+
 Shim через `infra/local/scripts` тоже доступен:
 
 ```bash
@@ -258,7 +272,7 @@ uv run --group integration pytest \
   минимальный datasource query через Grafana API
 - `local_stack` fixture поднимает только `mqtt-broker`
 - `local_platform_stack` fixture поднимает `mqtt-broker`, `kafka`, `kafka-init`
-  и `redpanda-connect`
+  `redpanda-connect` и `redpanda-connect-config-projection`
 - `local_storage_stack` fixture поднимает `kafka`, `kafka-init`, `clickhouse`
   и `kafka-connect`, применяет миграции и bootstrap connector config
 - `local_grafana_clickhouse_stack` fixture поднимает только `clickhouse` и

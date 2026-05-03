@@ -1,8 +1,7 @@
 # config-registry
 
 Первый backend-срез `Monitoring & Alarm Platform`: internal `Config Registry`
-для tenants/assets/agents/sources/points и будущего Kafka-first config delivery
-flow.
+для tenants/assets/agents/sources/points и Kafka-first config delivery flow.
 
 Текущий инкремент реализует минимальный clean architecture baseline:
 
@@ -19,6 +18,8 @@ flow.
   `reserve -> publish -> mark_published/mark_retry/mark_dead_letter`
 - `confluent-kafka` adapter для записи config delivery records в
   `wm.platform.edge.configs.v1`
+- local Redpanda Connect projection
+  `wm.platform.edge.configs.v1 -> MQTT retained runtime/source config topics`
 - временный in-memory adapter для unit/API smoke-тестов
 - PostgreSQL adapter для `tenants`, `assets`, `agents`, `sources` и `points`
 - Alembic migrations для registry tables:
@@ -34,8 +35,9 @@ flow.
   `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`,
   `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`
 
-CLI/runtime упаковка publisher-а и Redpanda Connect Kafka -> MQTT retained
-projection будут добавляться следующими инкрементами по `ADR-010`.
+CLI/runtime упаковка publisher-а и local Redpanda Connect
+`Kafka -> MQTT retained` projection реализованы как первый delivery baseline
+по `ADR-010`.
 
 ```bash
 uv run --package config-registry pytest apps/config_registry/tests

@@ -218,6 +218,22 @@ services:
     volumes:
       - ./redpanda-connect/mqtt-to-kafka.yaml:/etc/redpanda-connect/mqtt-to-kafka.yaml:ro
 
+  redpanda-connect-config-projection:
+    image: ${REDPANDA_CONNECT_IMAGE:-docker.redpanda.com/redpandadata/connect}
+    restart: unless-stopped
+    depends_on:
+      mqtt-broker:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    env_file:
+      - ${LOCAL_STACK_ENV_FILE:-../../.env}
+    command: ["run", "/etc/redpanda-connect/kafka-to-mqtt-config.yaml"]
+    ports:
+      - "${REDPANDA_CONNECT_CONFIG_PORT:-4196}:4195"
+    volumes:
+      - ./redpanda-connect/kafka-to-mqtt-config.yaml:/etc/redpanda-connect/kafka-to-mqtt-config.yaml:ro
+
   kafka-ui:
     image: ${KAFKA_UI_IMAGE:-provectuslabs/kafka-ui}
     restart: unless-stopped

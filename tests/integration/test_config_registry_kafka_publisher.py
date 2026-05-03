@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from datetime import UTC, datetime
@@ -166,6 +167,115 @@ async def test_config_registry_cli_publishes_outbox_batch_to_kafka(
 
     assert runtime_key == "tenant-cli|asset-a|agent-a|runtime"
     assert runtime_payload["config_scope"] == "runtime"
+
+
+def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
+    local_platform_stack,
+) -> None:
+    runtime_record = {
+        "message_type": "wm.platform.edge.config.delivery.v1",
+        "tenant_id": "tenant-projection",
+        "asset_id": "asset-a",
+        "agent_id": "agent-a",
+        "config_revision": "rev-projection-001",
+        "config_scope": "runtime",
+        "source_id": None,
+        "source_config_revision": None,
+        "target_mqtt_topic": "wm/v1/agents/agent-a/config/runtime",
+        "mqtt_retain": True,
+        "mqtt_qos": 1,
+        "operation": "upsert",
+        "payload_message_type": "wm.edge.runtime-config.v1",
+        "payload": {
+            "message_type": "wm.edge.runtime-config.v1",
+            "tenant_id": "tenant-projection",
+            "asset_id": "asset-a",
+            "agent_id": "agent-a",
+            "config_revision": "rev-projection-001",
+            "issued_at": "2026-05-03T10:00:00Z",
+            "sources": [
+                {
+                    "source_id": "knx-main",
+                    "source_config_revision": "rev-projection-001-knx-main",
+                    "enabled": True,
+                }
+            ],
+        },
+        "idempotency_key": "tenant-projection|asset-a|agent-a|rev-projection-001|runtime",
+        "issued_at": "2026-05-03T10:00:00Z",
+    }
+    source_record = {
+        "message_type": "wm.platform.edge.config.delivery.v1",
+        "tenant_id": "tenant-projection",
+        "asset_id": "asset-a",
+        "agent_id": "agent-a",
+        "config_revision": "rev-projection-001",
+        "config_scope": "source:knx-main",
+        "source_id": "knx-main",
+        "source_config_revision": "rev-projection-001-knx-main",
+        "target_mqtt_topic": "wm/v1/agents/agent-a/sources/knx-main/config",
+        "mqtt_retain": True,
+        "mqtt_qos": 1,
+        "operation": "upsert",
+        "payload_message_type": "wm.edge.source-config.v1",
+        "payload": {
+            "message_type": "wm.edge.source-config.v1",
+            "tenant_id": "tenant-projection",
+            "asset_id": "asset-a",
+            "agent_id": "agent-a",
+            "source_id": "knx-main",
+            "source_type": "knx",
+            "config_revision": "rev-projection-001",
+            "source_config_revision": "rev-projection-001-knx-main",
+            "issued_at": "2026-05-03T10:00:00Z",
+            "enabled": True,
+            "connection": {"gateway_ip": "127.0.0.1"},
+            "points": [
+                {
+                    "point_key": "temperature",
+                    "point_ref": "2/0/0",
+                    "name": "Temperature",
+                    "value_type": "number",
+                    "value_model": "knx.dpt.9.001",
+                    "signal_type": "sensor",
+                }
+            ],
+        },
+        "idempotency_key": "tenant-projection|asset-a|agent-a|rev-projection-001|source:knx-main",
+        "issued_at": "2026-05-03T10:00:00Z",
+    }
+
+    local_platform_stack.produce_kafka_text(
+        "wm.platform.edge.configs.v1",
+        json.dumps(runtime_record),
+        key="tenant-projection|asset-a|agent-a|runtime",
+    )
+    local_platform_stack.produce_kafka_text(
+        "wm.platform.edge.configs.v1",
+        json.dumps(source_record),
+        key="tenant-projection|asset-a|agent-a|source:knx-main",
+    )
+
+    runtime_message = local_platform_stack.wait_for_mqtt_json(
+        "wm/v1/agents/agent-a/config/runtime",
+        timeout=45,
+    )
+    source_message = local_platform_stack.wait_for_mqtt_json(
+        "wm/v1/agents/agent-a/sources/knx-main/config",
+        timeout=45,
+    )
+
+    assert runtime_message.retained is True
+    assert runtime_message.payload["message_type"] == "wm.edge.runtime-config.v1"
+    assert runtime_message.payload["tenant_id"] == "tenant-projection"
+    assert runtime_message.payload["config_revision"] == "rev-projection-001"
+    assert source_message.retained is True
+    assert source_message.payload["message_type"] == "wm.edge.source-config.v1"
+    assert source_message.payload["source_id"] == "knx-main"
+    assert (
+        source_message.payload["source_config_revision"]
+        == "rev-projection-001-knx-main"
+    )
 
 
 def _create_renderable_agent_graph(client: TestClient) -> None:

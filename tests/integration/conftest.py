@@ -8,6 +8,7 @@ import secrets
 import shutil
 import socket
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -132,11 +133,83 @@ class LocalMqttStack(LocalComposeStack):
             f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
         )
 
+    def wait_for_mqtt_json(
+        self,
+        topic: str,
+        *,
+        timeout: float = 30.0,
+    ) -> MqttJsonMessage:
+        received = threading.Event()
+        result: dict[str, MqttJsonMessage] = {}
+        last_error = "MQTT message has not arrived yet."
+
+        def on_connect(
+            client: mqtt.Client,
+            _userdata: object,
+            _flags: mqtt.ConnectFlags,
+            reason_code: mqtt.ReasonCode,
+            _properties: mqtt.Properties | None,
+        ) -> None:
+            nonlocal last_error
+            if reason_code.is_failure:
+                last_error = f"connect reason_code={reason_code}"
+                received.set()
+                return
+            client.subscribe(topic, qos=1)
+
+        def on_message(
+            _client: mqtt.Client,
+            _userdata: object,
+            message: mqtt.MQTTMessage,
+        ) -> None:
+            nonlocal last_error
+            try:
+                payload = json.loads(message.payload.decode())
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                return
+            if isinstance(payload, dict):
+                result["message"] = MqttJsonMessage(
+                    topic=message.topic,
+                    payload=payload,
+                    retained=message.retain,
+                )
+                received.set()
+
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        client.username_pw_set(self.mqtt_username, self.mqtt_password)
+        client.on_connect = on_connect
+        client.on_message = on_message
+        try:
+            client.connect("127.0.0.1", self.mqtt_port, keepalive=20)
+            client.loop_start()
+            if received.wait(timeout):
+                message = result.get("message")
+                if message is not None:
+                    return message
+            raise AssertionError(
+                f"MQTT topic {topic!r} did not receive a JSON object within "
+                f"{timeout:.0f}s. Last error: {last_error}\n\n"
+                f"Compose logs:\n{self.logs()}"
+            )
+        finally:
+            with contextlib.suppress(Exception):
+                client.disconnect()
+            client.loop_stop()
+
+
+@dataclass(frozen=True)
+class MqttJsonMessage:
+    topic: str
+    payload: dict[str, object]
+    retained: bool
+
 
 @dataclass(frozen=True)
 class LocalPlatformStack(LocalMqttStack):
     kafka_port: int
     redpanda_connect_port: int
+    redpanda_connect_config_port: int
 
     def wait_for_kafka(self, timeout: float = 120.0) -> None:
         deadline = time.monotonic() + timeout
@@ -167,21 +240,44 @@ class LocalPlatformStack(LocalMqttStack):
         )
 
     def wait_for_redpanda_connect(self, timeout: float = 90.0) -> None:
+        self._wait_for_tcp_port(
+            self.redpanda_connect_port,
+            service_label="Redpanda Connect MQTT -> Kafka",
+            timeout=timeout,
+        )
+
+    def wait_for_redpanda_connect_config_projection(
+        self,
+        timeout: float = 90.0,
+    ) -> None:
+        self._wait_for_tcp_port(
+            self.redpanda_connect_config_port,
+            service_label="Redpanda Connect Kafka -> MQTT config projection",
+            timeout=timeout,
+        )
+
+    def _wait_for_tcp_port(
+        self,
+        port: int,
+        *,
+        service_label: str,
+        timeout: float,
+    ) -> None:
         deadline = time.monotonic() + timeout
-        last_error = "Redpanda Connect HTTP port is not open yet."
+        last_error = f"{service_label} HTTP port is not open yet."
 
         while time.monotonic() < deadline:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 sock.settimeout(2)
                 try:
-                    sock.connect(("127.0.0.1", self.redpanda_connect_port))
+                    sock.connect(("127.0.0.1", port))
                     return
                 except OSError as exc:
                     last_error = f"{type(exc).__name__}: {exc}"
             time.sleep(1)
 
         raise AssertionError(
-            f"Redpanda Connect did not become reachable within {timeout:.0f}s. "
+            f"{service_label} did not become reachable within {timeout:.0f}s. "
             f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
         )
 
@@ -688,6 +784,7 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
     mqtt_ws_port = _reserve_free_port()
     kafka_port = _reserve_free_port()
     redpanda_connect_port = _reserve_free_port()
+    redpanda_connect_config_port = _reserve_free_port()
     mqtt_username = f"wm_test_{uuid.uuid4().hex[:8]}"
     mqtt_password = secrets.token_urlsafe(18)
 
@@ -701,6 +798,7 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
             "KAFKA_PORT": str(kafka_port),
             "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{kafka_port}",
             "REDPANDA_CONNECT_PORT": str(redpanda_connect_port),
+            "REDPANDA_CONNECT_CONFIG_PORT": str(redpanda_connect_config_port),
         }
     )
 
@@ -716,6 +814,7 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
         mqtt_password=mqtt_password,
         kafka_port=kafka_port,
         redpanda_connect_port=redpanda_connect_port,
+        redpanda_connect_config_port=redpanda_connect_config_port,
     )
 
     try:
@@ -726,11 +825,13 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
             "kafka",
             "kafka-init",
             "redpanda-connect",
+            "redpanda-connect-config-projection",
             timeout=900,
         )
         stack.wait_for_mqtt()
         stack.wait_for_kafka()
         stack.wait_for_redpanda_connect()
+        stack.wait_for_redpanda_connect_config_projection()
         yield stack
     except subprocess.CalledProcessError as exc:
         raise AssertionError(
@@ -751,6 +852,7 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
     mqtt_ws_port = _reserve_free_port()
     kafka_port = _reserve_free_port()
     redpanda_connect_port = _reserve_free_port()
+    redpanda_connect_config_port = _reserve_free_port()
     clickhouse_http_port = _reserve_free_port()
     clickhouse_native_port = _reserve_free_port()
     kafka_connect_rest_port = _reserve_free_port()
@@ -768,6 +870,7 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
             "KAFKA_PORT": str(kafka_port),
             "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{kafka_port}",
             "REDPANDA_CONNECT_PORT": str(redpanda_connect_port),
+            "REDPANDA_CONNECT_CONFIG_PORT": str(redpanda_connect_config_port),
             "CLICKHOUSE_HOST": "127.0.0.1",
             "CLICKHOUSE_HTTP_PORT": str(clickhouse_http_port),
             "CLICKHOUSE_NATIVE_PORT": str(clickhouse_native_port),
@@ -789,6 +892,7 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
         mqtt_password=mqtt_password,
         kafka_port=kafka_port,
         redpanda_connect_port=redpanda_connect_port,
+        redpanda_connect_config_port=redpanda_connect_config_port,
         clickhouse_http_port=clickhouse_http_port,
         clickhouse_native_port=clickhouse_native_port,
         kafka_connect_rest_port=kafka_connect_rest_port,

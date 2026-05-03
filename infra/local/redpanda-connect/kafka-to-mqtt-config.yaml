@@ -1,0 +1,42 @@
+http:
+  address: 0.0.0.0:4195
+  enabled: true
+
+input:
+  redpanda:
+    seed_brokers:
+      - kafka:19092
+    topics:
+      - wm.platform.edge.configs.v1
+    consumer_group: edge-config-mqtt-projector.v1
+    client_id: wm-local-edge-config-mqtt-projector
+    start_offset: earliest
+
+pipeline:
+  threads: 1
+  processors:
+    - mapping: |
+        let _message_type = if this.message_type == "wm.platform.edge.config.delivery.v1" { this.message_type } else { throw("unsupported_message_type") }
+        let _target_mqtt_topic = if this.target_mqtt_topic != null && this.target_mqtt_topic != "" { this.target_mqtt_topic } else { throw("target_mqtt_topic_missing") }
+        let _mqtt_retain = if this.mqtt_retain == true { this.mqtt_retain } else { throw("mqtt_retain_must_be_true") }
+        let _mqtt_qos = if this.mqtt_qos == 1 { this.mqtt_qos } else { throw("mqtt_qos_must_be_1") }
+        let _operation = if this.operation == "upsert" || this.operation == "delete" { this.operation } else { throw("unsupported_operation") }
+        let _upsert_payload = if this.operation != "upsert" || this.payload != null { this.payload } else { throw("payload_missing") }
+        let _delete_payload = if this.operation != "delete" || this.payload == null { this.payload } else { throw("delete_payload_must_be_null") }
+
+        meta mqtt_topic = this.target_mqtt_topic
+        root = if this.operation == "delete" { "" } else { this.payload }
+
+output:
+  mqtt:
+    urls:
+      - tcp://mqtt-broker:1883
+    client_id: wm-local-edge-config-mqtt-projector
+    user: ${MQTT_USERNAME}
+    password: ${MQTT_PASSWORD}
+    topic: '${! meta("mqtt_topic") }'
+    qos: 1
+    retained: true
+
+logger:
+  level: INFO

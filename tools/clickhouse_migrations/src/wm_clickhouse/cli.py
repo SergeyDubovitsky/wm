@@ -58,12 +58,21 @@ def _resolve_migrations_dir(path: Path | None) -> Path:
     if path is not None:
         return path
 
+    package_root = Path(__file__).resolve().parents[2]
+    package_migrations = package_root / "migrations"
+    if package_migrations.exists():
+        return package_migrations
+
     cwd = Path.cwd()
     for candidate_root in (cwd, *cwd.parents):
-        candidate = candidate_root / "infra" / "clickhouse" / "migrations"
-        if candidate.exists():
-            return candidate
-    return cwd / "infra" / "clickhouse" / "migrations"
+        candidates = (
+            candidate_root / "tools" / "clickhouse_migrations" / "migrations",
+            candidate_root / "migrations",
+        )
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+    return package_migrations
 
 
 def _print_statuses(statuses: object) -> None:

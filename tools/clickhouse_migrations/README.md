@@ -17,6 +17,6 @@ Configuration is read from environment variables:
 - `CLICKHOUSE_PASSWORD`
 - `CLICKHOUSE_SECURE`
 
-By default migrations are read from `infra/clickhouse/migrations`.
+By default migrations are read from `tools/clickhouse_migrations/migrations`.
 Migrations are forward-only SQL files applied in filename order. Applied
 checksums are tracked in `schema_migrations`; checksum drift is fatal.

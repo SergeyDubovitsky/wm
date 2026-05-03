@@ -100,8 +100,8 @@ materialized views, которые преобразуют raw JSON в contract t
 
 ## ClickHouse migrations
 
-Миграции ClickHouse хранятся в `infra/clickhouse/migrations` и применяются
-forward-only CLI:
+Миграции ClickHouse хранятся рядом с CLI в
+`tools/clickhouse_migrations/migrations` и применяются forward-only CLI:
 
 ```bash
 uv run wm-clickhouse migrate status

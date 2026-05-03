@@ -25,8 +25,10 @@
 - Done: end-to-end smoke for
   `edge_agent -> MQTT -> Kafka -> Kafka Connect -> ClickHouse contract table`.
 - Done: read/dedup conventions and replay/duplicate storage smoke with `FINAL`.
-- Next: decide whether to add query views/latest-state tables or defer them to
-  the next storage sprint.
+- Done: correctness-first read models via `telemetry_events_dedup_v1`,
+  `telemetry_latest_v1`, `telemetry_1m_v1` and `telemetry_1h_v1` query views.
+- Next: decide whether materialized latest/rollup tables are needed after a
+  load/performance PoC.
 
 ## Overview
 
@@ -100,7 +102,7 @@ Operational DLQ для этого path фиксируется отдельно �
 ### Task 1.2: Validate Kafka Connect raw JSON landing PoC
 
 - **Location**: `infra/local/kafka-connect/`,
-  `infra/clickhouse/poc/` or temporary PoC migration/script,
+  `tools/clickhouse_migrations/migrations/` or temporary PoC migration/script,
   `docs/architecture/adrs/ADR-009-kafka-to-clickhouse-ingestion.md` if the PoC
   changes assumptions
 - **Description**: Проверить до финального DDL, что ClickHouse Kafka Connect
@@ -143,8 +145,7 @@ Operational DLQ для этого path фиксируется отдельно �
 
 ### Task 1.4: Добавить migration workflow
 
-- **Location**: `tools/clickhouse_migrations/`,
-  `infra/clickhouse/migrations/`, `pyproject.toml`
+- **Location**: `tools/clickhouse_migrations/`, `pyproject.toml`
 - **Description**: Сделать repo-native ClickHouse migration CLI with versioned
   SQL files, checksum tracking and forward-only migration policy.
 - **Dependencies**: Task 1.1
@@ -165,7 +166,7 @@ Operational DLQ для этого path фиксируется отдельно �
 
 ### Task 1.5: Создать первую миграцию core + landing tables
 
-- **Location**: `infra/clickhouse/migrations/0001_telemetry_store_core_v1.sql`
+- **Location**: `tools/clickhouse_migrations/migrations/0001_telemetry_store_core_v1.sql`
 - **Description**: Создать core contract tables и raw landing tables.
 - **Dependencies**: Task 1.2, Task 1.4
 - **Acceptance Criteria**:

@@ -99,6 +99,55 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
     assert duplicate_raw_count == "2"
     assert deduplicated_count == "1"
 
+    deduplicated_view_count = local_storage_stack.clickhouse_query(
+        """
+        SELECT count()
+        FROM telemetry_events_dedup_v1
+        WHERE event_id = 'storage-raw-001'
+        FORMAT TabSeparatedRaw
+        """.strip()
+    ).stdout.strip()
+    latest_row = local_storage_stack.clickhouse_query(
+        """
+        SELECT event_id, value_type, value_float
+        FROM telemetry_latest_v1
+        WHERE tenant_id = 'tenant-storage-it'
+          AND object_id = 'object-storage-it'
+          AND source_id = 'source-storage-it'
+          AND point_key = 'temperature'
+        FORMAT TabSeparatedRaw
+        """.strip()
+    ).stdout.strip()
+    minute_rollup_row = local_storage_stack.clickhouse_query(
+        """
+        SELECT event_count, good_count, number_count, value_min, value_max, value_avg, value_last
+        FROM telemetry_1m_v1
+        WHERE tenant_id = 'tenant-storage-it'
+          AND object_id = 'object-storage-it'
+          AND source_id = 'source-storage-it'
+          AND point_key = 'temperature'
+          AND bucket_start = toDateTime('2026-05-03 05:50:00', 'UTC')
+        FORMAT TabSeparatedRaw
+        """.strip()
+    ).stdout.strip()
+    hourly_rollup_row = local_storage_stack.clickhouse_query(
+        """
+        SELECT event_count, good_count, number_count, value_min, value_max, value_avg, value_last
+        FROM telemetry_1h_v1
+        WHERE tenant_id = 'tenant-storage-it'
+          AND object_id = 'object-storage-it'
+          AND source_id = 'source-storage-it'
+          AND point_key = 'temperature'
+          AND bucket_start = toDateTime('2026-05-03 05:00:00', 'UTC')
+        FORMAT TabSeparatedRaw
+        """.strip()
+    ).stdout.strip()
+
+    assert deduplicated_view_count == "1"
+    assert latest_row == "storage-raw-001\tnumber\t42.5"
+    assert minute_rollup_row == "1\t1\t1\t42.5\t42.5\t42.5\t42.5"
+    assert hourly_rollup_row == "1\t1\t1\t42.5\t42.5\t42.5\t42.5"
+
     source_config_payload = {
         "message_type": "wm.platform.source.config.v1",
         "tenant_id": "tenant-storage-it",

@@ -169,53 +169,69 @@ npm run build
 ## Local Infrastructure
 
 Локальный dev-стек описан в [`infra/local/`](infra/local/).
-Минимальный MQTT-срез:
+Быстрый старт:
 
 ```bash
-cd infra/local
-docker compose --env-file ../../.env up -d mqtt-broker
-```
-
-Полный MQTT/Kafka-срез:
-
-```bash
+cp .env.example .env
 ./infra/local/up-platform.sh
 ```
 
-`up-platform.sh` сам пересобирает локальные image, выполняет Alembic migrations
-для `Config Registry` и только потом поднимает полный stack.
+`up-platform.sh` запускается из корня репозитория, сам использует root `.env`,
+пересобирает локальные image для `wm-config-registry`, `grafana` и
+`kafka-connect`, выполняет Alembic migrations для `Config Registry` и только
+потом поднимает полный local platform slice.
 
-После старта:
+Если нужен только минимальный `MQTT`-срез:
 
-- `MQTT broker` доступен на `localhost:1883`
-- `MQTT websocket` доступен на `localhost:9001`
-- `Kafka` host listener доступен на `localhost:19092`
-- `Redpanda Connect MQTT -> Kafka` HTTP endpoint доступен на `localhost:4195`
-- `Redpanda Connect Kafka -> MQTT config projection` HTTP endpoint доступен на
-  `localhost:4196`
-- `Redpanda Connect source config snapshot projector` HTTP endpoint доступен на
-  `localhost:4197`
-- `Kafka Connect REST` доступен на `localhost:8083`
-- `Kafka Connect JMX` подготовлен на `localhost:9102`
-- `ClickHouse HTTP` доступен на `localhost:8123`
-- `ClickHouse native` доступен на `localhost:9000`
-- `Config Registry API` доступен на [http://localhost:8000](http://localhost:8000)
-- internal CRUD `Config Registry Backoffice` доступен на
-  [http://localhost:8000/backoffice](http://localhost:8000/backoffice), когда
-  `CONFIG_REGISTRY_INTERNAL_MODE=true`
-- `Kafka UI` доступен на [http://localhost:8080](http://localhost:8080)
-- `MQTTX Web` доступен на [http://localhost:8081](http://localhost:8081)
-- `Grafana` доступна на [http://localhost:3000](http://localhost:3000)
-- доступ к `MQTT broker` требует `MQTT_USERNAME` / `MQTT_PASSWORD`
-- доступ к `ClickHouse` использует `CLICKHOUSE_DATABASE`, `CLICKHOUSE_USER` и
-  `CLICKHOUSE_PASSWORD` из `.env`
-- доступ к `Grafana` использует `GRAFANA_ADMIN_USER` и
-  `GRAFANA_ADMIN_PASSWORD` из `.env`
-- для seed demo config через `Config Registry API -> outbox worker -> Kafka`
-  используйте
-  `uv run --env-file .env --package wm-demo-stack publish-edge-demo --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml`
-- для автоматизированной проверки используйте интеграционные тесты
-  `uv run --group integration pytest tests/integration/test_config_registry_kafka_publisher.py tests/integration/test_config_registry_postgres.py tests/integration/test_edge_agent_mqtt_publisher.py tests/integration/test_edge_agent_knx_to_mqtt.py tests/integration/test_kafka_to_clickhouse_storage.py tests/integration/test_grafana_clickhouse.py`
+```bash
+docker compose -f infra/local/compose.yaml --env-file .env up -d mqtt-broker
+```
+
+Рекомендуемый локальный flow после старта стека:
+
+1. Запаблишить demo config:
+
+```bash
+uv run --env-file .env --package wm-demo-stack publish-edge-demo \
+  --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml
+```
+
+2. Проверить bootstrap + retained config path агента:
+
+```bash
+uv run --env-file .env --package wm-edge-agent wm-edge-agent check-config \
+  --bootstrap-config environments/demo-stand/wm_edge_agent/bootstrap.yaml
+```
+
+3. Открыть UI и диагностические поверхности:
+
+- `Config Registry API`: [http://localhost:8000](http://localhost:8000)
+- `Config Registry Backoffice`: [http://localhost:8000/backoffice](http://localhost:8000/backoffice)
+  доступен только когда `CONFIG_REGISTRY_INTERNAL_MODE=true`
+- `Kafka UI`: [http://localhost:8080](http://localhost:8080)
+- `MQTTX Web`: [http://localhost:8081](http://localhost:8081)
+- `Grafana`: [http://localhost:3000](http://localhost:3000)
+
+Сервисные endpoint и порты:
+
+- `MQTT broker`: `mqtt://localhost:1883`
+- `MQTT over WebSocket`: `ws://localhost:9001`
+- `Kafka host listener`: `localhost:19092`
+- `Redpanda Connect MQTT -> Kafka`: [http://localhost:4195](http://localhost:4195)
+- `Redpanda Connect Kafka -> MQTT config projection`: [http://localhost:4196](http://localhost:4196)
+- `Redpanda Connect source config snapshot projector`: [http://localhost:4197](http://localhost:4197)
+- `Kafka Connect REST`: [http://localhost:8083](http://localhost:8083)
+- `Kafka Connect JMX`: `localhost:9102`
+- `ClickHouse HTTP`: [http://localhost:8123](http://localhost:8123)
+- `ClickHouse native`: `localhost:9000`
+- `PostgreSQL`: `localhost:5432`
+
+Credentials и переменные окружения:
+
+- `MQTT broker` использует `MQTT_USERNAME` и `MQTT_PASSWORD`
+- `ClickHouse` использует `CLICKHOUSE_DATABASE`, `CLICKHOUSE_USER` и `CLICKHOUSE_PASSWORD`
+- `Grafana` использует `GRAFANA_ADMIN_USER` и `GRAFANA_ADMIN_PASSWORD`
+- `PostgreSQL` использует `POSTGRES_DB`, `POSTGRES_USER` и `POSTGRES_PASSWORD`
 
 Для `wm_edge_agent` уже подготовлен bootstrap + config bundle профиль под этот стек:
 
@@ -237,6 +253,20 @@ uv run --env-file .env --package wm-edge-agent wm-edge-agent check-config \
 uv run --env-file .env --package wm-demo-stack publish-edge-demo \
   --bundle-config environments/demo-stand-remote/wm_edge_agent/config.bundle.yaml
 ```
+
+Для автоматизированной проверки используйте integration-набор:
+
+```bash
+uv run --group integration pytest \
+  tests/integration/test_config_registry_kafka_publisher.py \
+  tests/integration/test_config_registry_postgres.py \
+  tests/integration/test_edge_agent_mqtt_publisher.py \
+  tests/integration/test_edge_agent_knx_to_mqtt.py \
+  tests/integration/test_kafka_to_clickhouse_storage.py \
+  tests/integration/test_grafana_clickhouse.py
+```
+
+Отдельные операционные команды:
 
 ClickHouse migrations выполняются из корня репозитория:
 

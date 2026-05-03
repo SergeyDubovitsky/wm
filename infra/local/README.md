@@ -52,11 +52,13 @@
 
 ## Быстрый старт
 
+Команды ниже предполагают запуск из корня репозитория и наличие `.env`
+рядом с `.env.example`.
+
 Только MQTT-срез:
 
 ```bash
-cd infra/local
-docker compose --env-file ../../.env up -d mqtt-broker
+docker compose -f infra/local/compose.yaml --env-file .env up -d mqtt-broker
 ```
 
 Полный local platform slice:
@@ -71,34 +73,35 @@ docker compose --env-file ../../.env up -d mqtt-broker
 - выполняет one-shot Alembic migrations для `Config Registry`
 - поднимает полный platform slice через `docker compose up -d`
 
-После старта:
+После старта сначала удобно открыть browser/UI поверхности:
 
-- `MQTT broker` доступен на `localhost:1883`
-- `MQTT websocket` доступен на `localhost:9001`
-- `Kafka` host listener доступен на `localhost:19092`
-- `Redpanda Connect MQTT -> Kafka` HTTP endpoint доступен на `localhost:4195`
-- `Redpanda Connect Kafka -> MQTT config projection` HTTP endpoint доступен на
-  `localhost:4196`
-- `Redpanda Connect source config snapshot projector` HTTP endpoint доступен на
-  `localhost:4197`
-- `Kafka Connect REST` доступен на `localhost:8083`
-- `Kafka Connect JMX` подготовлен на `localhost:9102`
-- `ClickHouse HTTP` доступен на `localhost:8123`
-- `ClickHouse native` доступен на `localhost:9000`
-- `PostgreSQL` доступен на `localhost:5432`
-- `Config Registry API` доступен на `http://localhost:8000`
-- internal CRUD `Config Registry Backoffice` доступен на
-  `http://localhost:8000/backoffice`, когда
-  `CONFIG_REGISTRY_INTERNAL_MODE=true`
-- `Kafka UI` доступен на `http://localhost:8080`
-- `MQTTX Web` доступен на `http://localhost:8081`
-- `Grafana` доступна на `http://localhost:3000`
-- для доступа нужны `MQTT_USERNAME` и `MQTT_PASSWORD`
-- для ClickHouse используются `CLICKHOUSE_DATABASE`, `CLICKHOUSE_USER` и
-  `CLICKHOUSE_PASSWORD`
-- для Grafana используются `GRAFANA_ADMIN_USER` и `GRAFANA_ADMIN_PASSWORD`
-- для PostgreSQL используются `POSTGRES_DB`, `POSTGRES_USER` и
-  `POSTGRES_PASSWORD`
+- `Config Registry API`: [http://localhost:8000](http://localhost:8000)
+- `Config Registry Backoffice`: [http://localhost:8000/backoffice](http://localhost:8000/backoffice)
+  доступен только когда `CONFIG_REGISTRY_INTERNAL_MODE=true`
+- `Kafka UI`: [http://localhost:8080](http://localhost:8080)
+- `MQTTX Web`: [http://localhost:8081](http://localhost:8081)
+- `Grafana`: [http://localhost:3000](http://localhost:3000)
+
+Сервисные endpoint и порты:
+
+- `MQTT broker`: `mqtt://localhost:1883`
+- `MQTT over WebSocket`: `ws://localhost:9001`
+- `Kafka host listener`: `localhost:19092`
+- `Redpanda Connect MQTT -> Kafka`: [http://localhost:4195](http://localhost:4195)
+- `Redpanda Connect Kafka -> MQTT config projection`: [http://localhost:4196](http://localhost:4196)
+- `Redpanda Connect source config snapshot projector`: [http://localhost:4197](http://localhost:4197)
+- `Kafka Connect REST`: [http://localhost:8083](http://localhost:8083)
+- `Kafka Connect JMX`: `localhost:9102`
+- `ClickHouse HTTP`: [http://localhost:8123](http://localhost:8123)
+- `ClickHouse native`: `localhost:9000`
+- `PostgreSQL`: `localhost:5432`
+
+Credentials и переменные окружения:
+
+- `MQTT broker` использует `MQTT_USERNAME` и `MQTT_PASSWORD`
+- `ClickHouse` использует `CLICKHOUSE_DATABASE`, `CLICKHOUSE_USER` и `CLICKHOUSE_PASSWORD`
+- `Grafana` использует `GRAFANA_ADMIN_USER` и `GRAFANA_ADMIN_PASSWORD`
+- `PostgreSQL` использует `POSTGRES_DB`, `POSTGRES_USER` и `POSTGRES_PASSWORD`
 
 Для ручной проверки в `MQTTX Web` создайте connection:
 
@@ -129,7 +132,7 @@ runtime:
 Быстрая проверка ClickHouse:
 
 ```bash
-docker compose --env-file ../../.env exec clickhouse \
+docker compose -f infra/local/compose.yaml --env-file .env exec clickhouse \
   sh -lc 'clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --query "SELECT 1"'
 ```
 

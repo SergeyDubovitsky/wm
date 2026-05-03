@@ -1,6 +1,6 @@
 # Открытые вопросы и развилки
 
-Дата: 2026-05-02  
+Дата: 2026-05-03
 Статус: open
 
 Документ актуализирован после сверки:
@@ -25,12 +25,13 @@
 - Для целевой configuration-модели принят `ADR-008`: edge-agent получает
   retained runtime/source configs из MQTT; на первом этапе эти configs
   публикуются из versioned YAML bundle config publisher tool-ом, без server UI/API.
+- Текущий проект уже достиг `MVP baseline`: `KNX/edge_agent -> MQTT -> Kafka`
+  ingestion slice работает в репозитории и покрыт integration-тестами.
 - Полная `Monitoring & Alarm Platform` как `MQTT Ingestion Gateway`,
   `Redpanda Connect`, `Redpanda`, `Kafka Event Log`, `Telemetry Consumers`, `Streaming Analytics`,
   `Telemetry Store`, `Platform Store`, `Alarm Rule Engine`, `Platform API`, `Platform Frontend`,
-  `Keycloak`, `Grafana` и `Notification Service` пока существует как архитектурная цель;
-  в коде сейчас реализован локальный `KNX/edge_agent -> MQTT -> Kafka`
-  ingestion slice без consumers/storage/UI.
+  `Keycloak`, `Grafana` и `Notification Service` остается следующей фазой
+  развития поверх текущего `MVP`.
 
 ## Что принято в рабочих материалах по пилоту `KNX -> OPC`
 
@@ -62,11 +63,11 @@
 | Достаточно ли на первом production-срезе `docker compose`, или нужен еще `systemd`-wrapper/OS service management? | Влияет на автозапуск, restart policy, log collection и операционную документацию edge-узла | Средняя |
 | Какой допустимый простой edge runtime при рестарте, обновлении и reconnect? | Это влияет на backoff policy, drain outbox, health semantics и требования к rolling update | Средняя |
 
-## Граница MVP для Monitoring & Alarm Platform
+## Следующий срез Monitoring & Alarm Platform
 
 | Вопрос | Почему это важно | Степень блокировки |
 | --- | --- | --- |
-| Что считается минимальным production-ready срезом платформы: поток `MQTT -> Redpanda Connect -> Redpanda -> Kafka Event Log -> Telemetry Store`, `Grafana` поверх `Telemetry Store`, или уже обязательны `Platform Frontend`, `Platform API` и `Keycloak`? | В репозитории уже есть MQTT integration-slice и целевая архитектура со streaming слоем. Нужно зафиксировать, где заканчивается MVP, чтобы не смешивать dev harness с обязательным production scope | Критично |
+| Какой следующий production-ready срез платформы нужен поверх уже достигнутого `MVP`: поток `MQTT -> Redpanda Connect -> Redpanda -> Kafka Event Log -> Telemetry Store`, `Grafana` поверх `Telemetry Store`, или уже обязательны `Platform Frontend`, `Platform API` и `Keycloak`? | В репозитории уже есть `MVP baseline` с MQTT/Kafka ingestion. Нужно зафиксировать ближайшее расширение платформы, чтобы не смешивать текущий baseline и post-MVP scope | Критично |
 | Где фиксируется `Redpanda Connect` pipeline config: в platform repository, IaC, Redpanda Cloud-managed pipeline или отдельном operations bundle? | MQTT input, mapping/transform и redpanda output становятся частью production data path, поэтому конфигурация pipeline должна быть версионирована и управляться так же строго, как edge source config | Высокая |
 | Нужно ли менять draft Kafka topics, retention и consumer groups после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/kafka/topics.v1.md`, но реальные partition counts и retention могут потребовать корректировки после измерений | Средняя |
 | Нужно ли менять draft ClickHouse DDL, rollups и TTL после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/clickhouse/telemetry-store.v1.md`, но production performance schema должна быть подтверждена на данных целевого масштаба | Средняя |
@@ -106,5 +107,5 @@
 - подтвердить, что текущий `demo-stand` конфиг и ETS-derived артефакты являются каноническим source of truth для первого `KNX`-среза
 - зафиксировать production MQTT broker, требования по `TLS`/`ACL` и способ хранения секретов
 - зафиксировать contract и limits для config publisher tool: bundle layout, revision generation, retained publish order и rollback semantics
-- определить, где заканчивается MVP платформы: streaming pipeline до `Telemetry Store`, `Grafana` поверх `Telemetry Store` или уже `Platform Frontend + API + Keycloak`
+- определить следующий production-ready срез платформы поверх текущего `MVP`: `Telemetry Store`, `Grafana` поверх `Telemetry Store` или уже `Platform Frontend + API + Keycloak`
 - зафиксировать Kafka topic contract, retention/rollup/deduplication contract для ClickHouse и минимальный lifecycle `alarm`

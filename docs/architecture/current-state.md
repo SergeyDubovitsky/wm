@@ -1,11 +1,24 @@
 # Текущее состояние системы
 
-Дата: 2026-05-02
+Дата: 2026-05-03
 Статус: working snapshot
 
 Этот документ является коротким operational snapshot для людей и AI-agent.
 Он описывает текущее состояние системы без истории решений. История и trade-off
 остаются в `docs/architecture/adrs/`.
+
+## Статус MVP
+
+Проект уже достиг `MVP baseline`.
+
+Под `MVP` в текущем репозитории понимается не “полная платформа во всех
+компонентах”, а уже реализованный рабочий baseline:
+
+- `Edge Telemetry Agent`
+- server-issued runtime config через retained `MQTT`
+- reliable telemetry delivery через `MQTT`
+- локальный ingestion slice `MQTT -> Redpanda Connect -> Kafka`
+- versioned config bundle и integration-тесты для этого контура
 
 ## Назначение
 
@@ -20,6 +33,8 @@
   события наружу.
 - `Monitoring & Alarm Platform` принимает поток, валидирует и обогащает его,
   пишет события в Kafka-compatible event log и хранилища, строит alarm/UI/API.
+- `Monitoring & Alarm Platform` должна поддерживать два deployment modes:
+  `self-hosted` и `cloud`, без расхождения по основным contracts и data path.
 
 ## Что реализовано сейчас
 
@@ -41,13 +56,14 @@
 - `docs/contracts/` как канонический каталог схем, topic names, Kafka topics и
   ClickHouse DDL draft.
 
-## Что является целевой архитектурой, но еще не полноценной реализацией
+## Что остается post-MVP развитием
 
-- Полная `Monitoring & Alarm Platform`: production `MQTT Ingestion Gateway`,
+- Расширение `Monitoring & Alarm Platform` от текущего `MVP baseline` до полной
+  production-инсталляции: production `MQTT Ingestion Gateway`,
   production Kafka-compatible broker, `Telemetry Consumers`,
   `Streaming Analytics`, `Telemetry Store`, `Platform Store`,
   `Alarm Rule Engine`, `Platform API`, `Platform Frontend`, `Keycloak`,
-  `Grafana` и `Notification Service`. Локально уже есть первый ingestion
+  `Grafana` и `Notification Service`. Локально уже есть `MVP` ingestion
   slice через `Redpanda Connect`, но без consumers/storage/UI.
 - Production persistence: `ClickHouse` как `Telemetry Store` и `PostgreSQL`
   как `Platform Store`.
@@ -71,6 +87,15 @@
 - edge SQLite не является историческим архивом телеметрии;
 - локальный `MQTT/Kafka` stack является dev/integration slice, а не полной
   production platform.
+
+Для центральной платформы действуют дополнительные границы deployment-модели:
+
+- `self-hosted` и `cloud` считаются двумя вариантами поставки одной и той же
+  `Monitoring & Alarm Platform`, а не двумя разными архитектурами;
+- baseline contracts, основной ingestion/data path и acceptance criteria должны
+  совпадать между deployment modes;
+- cloud-managed optimization допустима только если она не создает отдельный
+  cloud-only contract path и не ломает parity с `self-hosted`.
 
 Отдельный пилот `KNX -> OPC` может иметь write-path из внешнего OPC-клиента,
 но это отдельный сервисный контур, не основной web-monitoring data path.
@@ -99,7 +124,8 @@
 4. Для identity model: `ADR-004`.
 5. Для storage/platform design: `ADR-007`, затем `docs/contracts/clickhouse/`
    и `docs/contracts/kafka/`.
-6. Для KNX-first MVP behavior: `ADR-001`, `ADR-002`, `ADR-003`.
+6. Для deployment parity `self-hosted`/`cloud`: `ADR-009`.
+7. Для KNX-first MVP behavior: `ADR-001`, `ADR-002`, `ADR-003`.
 
 Если ADR и `docs/contracts/` расходятся по полям сообщения, topic/table names
 или schema details, приоритет у `docs/contracts/`. ADR объясняет решение, но не
@@ -111,7 +137,7 @@
 темы сейчас:
 
 - production MQTT broker, TLS, ACL и secrets handling;
-- граница первого production-ready среза `Monitoring & Alarm Platform`;
+- следующий production-срез `Monitoring & Alarm Platform` поверх текущего `MVP`;
 - limits и lifecycle для retained runtime/source config;
 - миграция YAML config bundle в будущий `Platform Store/API`;
 - production host/deployment model для edge runtime.

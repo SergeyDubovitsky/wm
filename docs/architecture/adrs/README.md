@@ -28,6 +28,7 @@ ADR остаются журналом архитектурных решений.
 | `ADR-006-mvp-monorepo-structure.md` | accepted | Фиксирует monorepo для текущего этапа: apps, libs, architecture docs, contracts и infra меняются согласованно. |
 | `ADR-007-monitoring-platform-data-stores.md` | принято | Фиксирует целевые хранилища платформы: `ClickHouse` для telemetry/analytics и `PostgreSQL` для mutable platform state/IAM. |
 | `ADR-008-server-issued-edge-runtime-configuration.md` | accepted | Фиксирует текущий production runtime config path: локальный bootstrap + retained MQTT runtime/source configs; YAML bundle временно остается authoring source. |
+| `ADR-009-kafka-to-clickhouse-ingestion.md` | accepted | Фиксирует `ClickHouse Kafka Connect Sink` как baseline путь сохранения Kafka records в `ClickHouse` через raw landing tables и materialized views. |
 
 ## Быстрый выбор ADR
 
@@ -39,6 +40,7 @@ ADR остаются журналом архитектурных решений.
 | Как работает KNX MVP? | `ADR-001`, `ADR-002` |
 | Зачем SQLite на edge? | `ADR-003`, затем `docs/contracts/edge-agent/sqlite-storage.v1.md` |
 | Какие БД у платформы? | `ADR-007`, затем `docs/contracts/clickhouse/telemetry-store.v1.md` |
+| Как Kafka records сохраняются в ClickHouse? | `ADR-009`, затем `docs/contracts/kafka/` и `docs/contracts/clickhouse/` |
 | Почему monorepo? | `ADR-006` |
 
 ## Поддержка

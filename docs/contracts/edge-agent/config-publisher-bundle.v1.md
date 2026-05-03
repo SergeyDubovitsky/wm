@@ -1,6 +1,6 @@
 # `wm.edge.config-publisher-bundle.v1`
 
-Дата: 2026-05-02  
+Дата: 2026-05-03
 Статус: working draft
 
 Этот контракт фиксирует временный authoring path для edge runtime config до
@@ -82,5 +82,9 @@ Tool должен печатать publish summary:
 - AI-agent не публикует произвольные MQTT payloads вручную.
 - Любое изменение должно проходить schema validation и давать deterministic
   `config_revision`.
+- AI-agent должен учитывать, что `Monitoring & Alarm Platform` поддерживает
+  `self-hosted` и `cloud` deployment modes, и не должен вводить bundle,
+  contracts или workflow, которые форкают baseline между ними без отдельного
+  ADR.
 - Когда появится Platform API, AI-agent должен перейти на API calls без
   изменения retained MQTT contracts.

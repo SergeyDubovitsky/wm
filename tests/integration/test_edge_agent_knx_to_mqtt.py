@@ -126,44 +126,43 @@ def test_demo_knx_edge_delivery_flow_publishes_to_mqtt(
     )
     try:
         delivery_result = worker.deliver_once(now=observed_at)
+        assert delivery_result.reserved_count == 1
+        assert delivery_result.published_count == 1
+        assert delivery_result.retry_count == 0
+        assert delivery_result.dead_letter_count == 0
+        assert _outbox_row(runtime.storage.sqlite_path, record_id) == ("sent", 1)
+        assert received.wait(timeout=10), "MQTT subscriber did not receive outbox event"
+        assert received_payloads[0]["message_type"] == "wm.telemetry.event.v1"
+        assert received_payloads[0]["tenant_id"] == bundle.tenant_id
+        assert received_payloads[0]["event_type"] == "telemetry.sample"
+        assert received_payloads[0]["source_config_revision"] == "rev-demo-stand-knx-main-001"
+        assert received_payloads[0]["value"] == 24.8
+
+        kafka_key, kafka_payload = local_platform_stack.consume_kafka_json(
+            "wm.platform.telemetry.events.v1"
+        )
+        _assert_schema_subset(
+            kafka_payload,
+            KAFKA_SCHEMAS_ROOT / "wm.platform.telemetry.event.v1.schema.json",
+        )
+        assert kafka_key == f"{bundle.tenant_id}|{bundle.object_id}|knx_main|{point.point_key}"
+        assert kafka_payload["message_type"] == "wm.platform.telemetry.event.v1"
+        assert kafka_payload["tenant_id"] == bundle.tenant_id
+        assert kafka_payload["object_id"] == bundle.object_id
+        assert kafka_payload["agent_id"] == bundle.agent_id
+        assert kafka_payload["source_id"] == "knx_main"
+        assert kafka_payload["source_type"] == "knx"
+        assert kafka_payload["source_config_revision"] == "rev-demo-stand-knx-main-001"
+        assert kafka_payload["point_id"] == (
+            f"{bundle.tenant_id}|{bundle.object_id}|knx_main|{point.point_key}"
+        )
+        assert kafka_payload["point_ref"] == point.point_ref
+        assert kafka_payload["value"] == 24.8
+        assert kafka_payload["quality"] == "good"
     finally:
         publisher.close()
         subscriber.disconnect()
         subscriber.loop_stop()
-
-    assert delivery_result.reserved_count == 1
-    assert delivery_result.published_count == 1
-    assert delivery_result.retry_count == 0
-    assert delivery_result.dead_letter_count == 0
-    assert _outbox_row(runtime.storage.sqlite_path, record_id) == ("sent", 1)
-    assert received.wait(timeout=10), "MQTT subscriber did not receive outbox event"
-    assert received_payloads[0]["message_type"] == "wm.telemetry.event.v1"
-    assert received_payloads[0]["tenant_id"] == bundle.tenant_id
-    assert received_payloads[0]["event_type"] == "telemetry.sample"
-    assert received_payloads[0]["source_config_revision"] == "rev-demo-stand-knx-main-001"
-    assert received_payloads[0]["value"] == 24.8
-
-    kafka_key, kafka_payload = local_platform_stack.consume_kafka_json(
-        "wm.platform.telemetry.events.v1"
-    )
-    _assert_schema_subset(
-        kafka_payload,
-        KAFKA_SCHEMAS_ROOT / "wm.platform.telemetry.event.v1.schema.json",
-    )
-    assert kafka_key == f"{bundle.tenant_id}|{bundle.object_id}|knx_main|{point.point_key}"
-    assert kafka_payload["message_type"] == "wm.platform.telemetry.event.v1"
-    assert kafka_payload["tenant_id"] == bundle.tenant_id
-    assert kafka_payload["object_id"] == bundle.object_id
-    assert kafka_payload["agent_id"] == bundle.agent_id
-    assert kafka_payload["source_id"] == "knx_main"
-    assert kafka_payload["source_type"] == "knx"
-    assert kafka_payload["source_config_revision"] == "rev-demo-stand-knx-main-001"
-    assert kafka_payload["point_id"] == (
-        f"{bundle.tenant_id}|{bundle.object_id}|knx_main|{point.point_key}"
-    )
-    assert kafka_payload["point_ref"] == point.point_ref
-    assert kafka_payload["value"] == 24.8
-    assert kafka_payload["quality"] == "good"
 
 
 def test_mqtt_to_kafka_ingestion_routes_unresolved_telemetry_to_error_topic(

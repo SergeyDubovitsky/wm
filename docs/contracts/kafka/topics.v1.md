@@ -40,7 +40,7 @@
 - `wm.platform.source.configs.v1` строится только из `wm.platform.edge.configs.v1`; retained MQTT source configs не являются authoritative Kafka ingress для source config snapshots.
 - `event_id` является непрозрачной непустой строкой; Kafka consumers не должны требовать UUID-only формат.
 - `idempotency_key` обязателен для records, которые пишутся в ClickHouse.
-- `wm.edge.runtime-config.v1` не зеркалится из retained MQTT обратно в Kafka; runtime/source configs попадают в Kafka только как `wm.platform.edge.config.delivery.v1` records из Platform Config API/YAML delivery path.
+- `wm.edge.runtime-config.v1` не зеркалится из retained MQTT обратно в Kafka; runtime/source configs попадают в Kafka только как `wm.platform.edge.config.delivery.v1` records из Config Registry API/YAML delivery path.
 - `wm.edge.config.status.v1` не зеркалится в Kafka topics этого контракта `v1`; он остается retained MQTT/status contract для bootstrap/operations до отдельного runtime-инкремента.
 - Topic names и key templates являются breaking contract surface; изменение требует новой версии topic.
 - Compacted status/config topics хранят latest state по key, но не заменяют ClickHouse snapshots и history.

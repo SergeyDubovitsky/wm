@@ -78,4 +78,4 @@ Observation
 - `SQLite Delivery Outbox` нужен для надежной retry-доставки telemetry events.
 - Runtime/source config приходит в retained MQTT topics как platform projection из Kafka config delivery records.
 - В текущей реализации edge-agent публикует telemetry; config status и operational status остаются следующей фазой runtime.
-- YAML config bundle является временным authoring/import path до внедрения `Platform Config API`; после `ADR-010` source of truth переезжает в `Platform Store` без изменения wire contracts.
+- YAML config bundle является временным authoring/import path до внедрения `Config Registry API`; после `ADR-010` source of truth переезжает в `Platform Store` без изменения wire contracts.

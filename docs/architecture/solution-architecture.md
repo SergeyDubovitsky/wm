@@ -108,7 +108,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 
 Целевой production-поток следующего этапа поверх текущего `MVP`:
 
-1. `Platform Config API` хранит rendered runtime/source config revisions в PostgreSQL и создает `config_outbox` record.
+1. `Config Registry API` хранит rendered runtime/source config revisions в PostgreSQL и создает `config_outbox` record.
 2. `Config Event Publisher` публикует `wm.platform.edge.config.delivery.v1` records в Kafka topic `wm.platform.edge.configs.v1`.
 3. `Redpanda Connect` материализует config delivery records в retained MQTT runtime/source topics; edge-agent получает `tenant_id`, `object_id`, `sources` и `points` из этих retained configs.
 4. `Source Config Snapshot Projector` строит `wm.platform.source.configs.v1` из `wm.platform.edge.configs.v1`; retained MQTT source configs не являются authoritative Kafka ingress для source config snapshots.

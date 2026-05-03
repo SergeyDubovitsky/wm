@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from types import TracebackType
 
-from platform_config_api.domain.entities import Tenant
+from config_registry_api.domain.entities import Tenant
 
 
 @dataclass

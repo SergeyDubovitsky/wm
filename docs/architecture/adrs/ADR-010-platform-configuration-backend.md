@@ -42,7 +42,7 @@
 
 Для первого backend-инкремента принимается один сервис:
 
-- `Platform Config API`
+- `Config Registry API`
 
 Это HTTP API для хранения и выдачи настроек платформы. В LikeC4 он остается
 частью контейнера `Platform API`, но scope реализации ограничен только
@@ -89,8 +89,8 @@ FastAPI routers
 Рекомендуемая структура будущего приложения:
 
 ```text
-apps/platform_config_api/
-├── src/platform_config_api/
+apps/config_registry_api/
+├── src/config_registry_api/
 │   ├── api/
 │   │   ├── routers/
 │   │   └── schemas/
@@ -639,7 +639,7 @@ pattern: изменение configuration state и создание `config_outb
 Доставка конфигурации edge-agent выполняется по Kafka-first схеме:
 
 ```text
-Platform Config API
+Config Registry API
   -> PostgreSQL Platform Store
   -> render wm.edge.runtime-config.v1 / wm.edge.source-config.v1
   -> PostgreSQL config_outbox
@@ -663,10 +663,10 @@ Kafka wm.platform.edge.configs.v1
 
 Правила:
 
-- `Platform Config API` пишет настройки и rendered config revisions в
+- `Config Registry API` пишет настройки и rendered config revisions в
   PostgreSQL.
-- `Platform Config API` не пишет в Kafka напрямую внутри HTTP request.
-- `Platform Config API` создает transactional `config_outbox` record в той же
+- `Config Registry API` не пишет в Kafka напрямую внутри HTTP request.
+- `Config Registry API` создает transactional `config_outbox` record в той же
   PostgreSQL transaction, где сохраняет rendered config revision.
 - `Config Event Publisher` читает `config_outbox`, пишет config delivery record
   `wm.platform.edge.config.delivery.v1` в Kafka topic
@@ -699,7 +699,7 @@ Kafka wm.platform.edge.configs.v1
 
 Минимальные требования:
 
-- `Platform Config API` никогда не пишет в Kafka напрямую из HTTP request.
+- `Config Registry API` никогда не пишет в Kafka напрямую из HTTP request.
 - Use case, который создает новую `config_revision`, в той же транзакции
   создает `config_outbox` record.
 - `config_outbox` record содержит deterministic `event_id` или
@@ -753,7 +753,7 @@ projection: факт применения конфигурации edge-agent-о
 
 | Вариант | Решение |
 | --- | --- |
-| Один `Platform Config API` на FastAPI | Принят. Дает один понятный backend-срез для хранения настроек без смешения с alarm/auth/frontend. |
+| Один `Config Registry API` на FastAPI | Принят. Дает один понятный backend-срез для хранения настроек без смешения с alarm/auth/frontend. |
 | Сразу полный `Platform API` для auth, alarm, telemetry и config | Отклонено. Слишком большой scope, сложно ревьюить и реализовывать последовательно. |
 | Микросервисы для tenants/objects/agents/sources/points | Отклонено. Доменная модель еще формируется; раннее дробление усложнит транзакции и миграции. |
 | JSONB-only модель настроек | Отклонено. Удобно для быстрого старта, но ломает uniqueness, поиск, миграции и связи с contracts. |
@@ -781,7 +781,7 @@ projection: факт применения конфигурации edge-agent-о
 
 ## План реализации
 
-1. Создать `apps/platform_config_api`.
+1. Создать `apps/config_registry_api`.
 2. Добавить зависимости: `fastapi`, `uvicorn`, `pydantic`, `sqlalchemy`,
    `asyncpg`, `alembic`.
 3. Создать clean architecture layout: `api`, `application`, `domain`,
@@ -803,8 +803,8 @@ projection: факт применения конфигурации edge-agent-о
 
 ## Проверки принятия
 
-- `Platform Config API` не содержит auth/login/JWT/Keycloak кода.
-- `Platform Config API` не содержит alarm, notification или telemetry read
+- `Config Registry API` не содержит auth/login/JWT/Keycloak кода.
+- `Config Registry API` не содержит alarm, notification или telemetry read
   endpoints.
 - Все write operations проходят через application use cases.
 - Domain/application слои не импортируют FastAPI, SQLAlchemy или asyncpg.
@@ -822,7 +822,7 @@ projection: факт применения конфигурации edge-agent-о
 
 - Auth/IAM: Keycloak, JWT, users, roles, tenant claims.
 - Platform Frontend и frontend/backend boundary.
-- Internal Backoffice Admin UI для Platform Config API.
+- Internal Backoffice Admin UI для Config Registry API.
 - Alarm Rule Engine и alarm lifecycle.
 - Notification Service.
 - Streaming Analytics.

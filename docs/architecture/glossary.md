@@ -33,7 +33,7 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `Streaming Analytics` — потоковая обработка telemetry stream для агрегатов, rollups, производных признаков и derived events для `Alarm Rule Engine`; результаты пишет в `Telemetry Store`.
 - `Grafana` — слой визуализации внутри `Monitoring & Alarm Platform`; в production-контуре читает подготовленные данные из `Telemetry Store`.
 - `Platform API` — общий контейнер backend API платформы в LikeC4.
-- `Platform Config API` — первый backend-срез внутри `Platform API`: хранит tenants, objects, agents, sources, points и config revisions в PostgreSQL.
+- `Config Registry API` — первый backend-срез внутри `Platform API`: хранит tenants, objects, agents, sources, points и config revisions в PostgreSQL.
 - `Backoffice Admin UI` — внутренний operational UI на базе `SQLAdmin` для команды платформы; не доступен tenant/client users, а write operations обязаны идти через application use cases и transactional outbox.
 - `Platform Frontend` — отдельное browser-приложение, которое аутентифицируется через Keycloak и работает с платформой через `Platform API`.
 - `Keycloak` — IAM-компонент платформы: пользователи, группы, роли, OIDC clients, sessions и JWT issuance.
@@ -55,7 +55,7 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `edge config MQTT projector` — Redpanda Connect pipeline, который читает `wm.platform.edge.configs.v1` и материализует retained MQTT topics для edge-agent.
 - `config delivery projection` — materialized MQTT retained topics, которые Redpanda Connect строит из Kafka config delivery records для edge-agent.
 - `transactional outbox` — паттерн надежной интеграции PostgreSQL и Kafka: domain change и outbox record записываются атомарно в PostgreSQL, а отдельный publisher доставляет запись во внешний broker с retry и idempotency.
-- `YAML config bundle` — временный authoring/import path до внедрения `Platform Config API`; после `ADR-010` не конкурирует с `Platform Store` как source of truth.
+- `YAML config bundle` — временный authoring/import path до внедрения `Config Registry API`; после `ADR-010` не конкурирует с `Platform Store` как source of truth.
 - `source` — логическое подключение агента к конкретному источнику данных, идентифицируемое `source_id`.
 - `point` — точка мониторинга внутри `source`, идентифицируемая `point_ref`.
 - `point_ref` — технический идентификатор точки внутри источника, например group address, node id или register reference.

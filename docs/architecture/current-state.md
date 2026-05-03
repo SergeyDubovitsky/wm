@@ -67,12 +67,12 @@
   slice через `Redpanda Connect`, но без consumers/storage/UI.
 - Production persistence: `ClickHouse` как `Telemetry Store` и `PostgreSQL`
   как `Platform Store`.
-- Backend foundation для настроек платформы: `Platform Config API` как FastAPI
+- Backend foundation для настроек платформы: `Config Registry API` как FastAPI
   async service на clean architecture, SQLAlchemy и PostgreSQL. Scope первого
   backend-среза ограничен tenants/objects/agents/sources/points и
   runtime/source config revisions.
 - Server UI для редактирования runtime/source config. До внедрения
-  `Platform Config API` authoring path остается versioned YAML config bundle;
+  `Config Registry API` authoring path остается versioned YAML config bundle;
   после `ADR-010` source of truth переезжает в PostgreSQL, а delivery path
   остается Kafka config delivery log -> MQTT retained projection.
 - Полные southbound-адаптеры для `Modbus`, `OPC UA`, `DB` и других источников.
@@ -143,7 +143,7 @@
 темы сейчас:
 
 - production MQTT broker, TLS, ACL и secrets handling;
-- первый implementation scope `Platform Config API` поверх `ADR-010`;
+- первый implementation scope `Config Registry API` поверх `ADR-010`;
 - limits и lifecycle для retained runtime/source config;
 - миграция YAML config bundle в будущий `Platform Store/API`;
 - production host/deployment model для edge runtime.

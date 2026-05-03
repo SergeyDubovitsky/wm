@@ -4,14 +4,14 @@ import asyncio
 
 import pytest
 
-from platform_config_api.application.errors import DuplicateTenantError
-from platform_config_api.application.use_cases.tenants import (
+from config_registry_api.application.errors import DuplicateTenantError
+from config_registry_api.application.use_cases.tenants import (
     CreateTenant,
     CreateTenantCommand,
     ListTenants,
 )
-from platform_config_api.domain.value_objects import DomainValidationError
-from platform_config_api.infrastructure.memory.unit_of_work import (
+from config_registry_api.domain.value_objects import DomainValidationError
+from config_registry_api.infrastructure.memory.unit_of_work import (
     InMemoryUnitOfWorkFactory,
 )
 

@@ -29,8 +29,8 @@ ADR остаются журналом архитектурных решений.
 | `ADR-007-monitoring-platform-data-stores.md` | принято | Фиксирует целевые хранилища платформы: `ClickHouse` для telemetry/analytics и `PostgreSQL` для mutable platform state/IAM. |
 | `ADR-008-server-issued-edge-runtime-configuration.md` | accepted | Фиксирует production runtime config path: локальный bootstrap + retained MQTT runtime/source configs; YAML bundle остается временным authoring/import path до `ADR-010`. |
 | `ADR-009-kafka-to-clickhouse-ingestion.md` | accepted | Фиксирует `ClickHouse Kafka Connect Sink` как baseline путь сохранения Kafka records в `ClickHouse` через raw landing tables и materialized views. |
-| `ADR-010-platform-configuration-backend.md` | accepted | Фиксирует первый backend-срез настроек: `Platform Config API` на FastAPI async + SQLAlchemy + PostgreSQL, clean architecture и модель данных по edge config contracts. |
-| `ADR-011-internal-backoffice-admin-ui.md` | accepted | Фиксирует внутреннюю backoffice-админку на SQLAdmin для Platform Config API; write operations обязаны идти через application use cases и transactional outbox. |
+| `ADR-010-platform-configuration-backend.md` | accepted | Фиксирует первый backend-срез настроек: `Config Registry API` на FastAPI async + SQLAlchemy + PostgreSQL, clean architecture и модель данных по edge config contracts. |
+| `ADR-011-internal-backoffice-admin-ui.md` | accepted | Фиксирует внутреннюю backoffice-админку на SQLAdmin для Config Registry API; write operations обязаны идти через application use cases и transactional outbox. |
 
 ## Быстрый выбор ADR
 

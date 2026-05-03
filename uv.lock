@@ -7,7 +7,7 @@ members = [
     "edge-agent",
     "knx-demo",
     "knx-parser",
-    "platform-config-api",
+    "config-registry-api",
     "web-monitoring",
     "wm-clickhouse",
     "wm-demo-stack",
@@ -514,9 +514,9 @@ wheels = [
 ]
 
 [[package]]
-name = "platform-config-api"
+name = "config-registry-api"
 version = "0.1.0"
-source = { editable = "apps/platform_config_api" }
+source = { editable = "apps/config_registry_api" }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
@@ -847,7 +847,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "edge-agent" },
-    { name = "platform-config-api" },
+    { name = "config-registry-api" },
     { name = "wm-clickhouse" },
     { name = "wm-demo-stack" },
 ]
@@ -865,7 +865,7 @@ lint = [
 [package.metadata]
 requires-dist = [
     { name = "edge-agent", editable = "apps/edge_agent" },
-    { name = "platform-config-api", editable = "apps/platform_config_api" },
+    { name = "config-registry-api", editable = "apps/config_registry_api" },
     { name = "wm-clickhouse", editable = "tools/clickhouse_migrations" },
     { name = "wm-demo-stack", editable = "libs/wm_demo_stack" },
 ]

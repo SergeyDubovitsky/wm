@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from platform_config_api.main import create_app
+from config_registry_api.main import create_app
 
 
 def test_health_and_ready_endpoints() -> None:

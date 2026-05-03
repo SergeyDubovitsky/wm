@@ -1,7 +1,7 @@
 [project]
-name = "platform-config-api"
+name = "config-registry-api"
 version = "0.1.0"
-description = "Platform configuration API for web-monitoring"
+description = "Configuration registry API for web-monitoring"
 readme = "README.md"
 authors = [
     { name = "srgi0", email = "dss181@gmail.com" }
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-platform-config-api = "platform_config_api.__main__:main"
+config-registry-api = "config_registry_api.__main__:main"
 
 
 [tool.pytest.ini_options]

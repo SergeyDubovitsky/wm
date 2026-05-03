@@ -117,6 +117,33 @@ services:
       retries: 10
       start_period: 30s
 
+  grafana:
+    build:
+      context: ./grafana
+      args:
+        GRAFANA_BASE_IMAGE: ${GRAFANA_BASE_IMAGE:-grafana/grafana:12.2.0}
+        GRAFANA_CLICKHOUSE_DATASOURCE_VERSION: ${GRAFANA_CLICKHOUSE_DATASOURCE_VERSION:-4.15.0}
+    image: ${GRAFANA_IMAGE:-web-monitoring/grafana-clickhouse:local}
+    restart: unless-stopped
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me-local-grafana}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PATHS_PLUGINS: /var/lib/grafana-plugins
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE:-wm}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-wm}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-change-me-local-clickhouse}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
   kafka-connect:
     build:
       context: ./kafka-connect
@@ -195,3 +222,4 @@ volumes:
   mosquitto-log:
   clickhouse-data:
   clickhouse-log:
+  grafana-data:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import html
+import json
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -8,7 +10,7 @@ from fastapi import FastAPI
 from sqladmin import Admin, BaseView, ModelView, expose
 from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from config_registry.application.errors import (
     AgentNotFoundError,
@@ -373,19 +375,23 @@ BACKOFFICE_VIEWS: tuple[type[ModelView], ...] = (
 
 
 class RenderConfigBackofficeView(BaseView):
-    name = "Render Config"
+    name = "Обновить config state"
     icon = "fa-solid fa-gears"
 
-    @expose("/render-config", methods=["POST"])
-    async def render_config(self, request: Request) -> JSONResponse:
-        payload = await request.json()
-        if not isinstance(payload, dict):
-            return JSONResponse(
-                {"detail": "Request body must be a JSON object"},
-                status_code=422,
-            )
+    @expose("/render-config", methods=["GET"])
+    async def render_config_form(self, _request: Request) -> HTMLResponse:
+        return HTMLResponse(_render_config_form_html())
 
+    @expose("/render-config", methods=["POST"])
+    async def render_config(self, request: Request) -> Response:
+        is_form = _is_form_request(request)
         try:
+            payload = await _render_config_payload(request)
+            if not isinstance(payload, dict):
+                return _render_config_error_response(
+                    "Request body must be a JSON object",
+                    is_form=is_form,
+                )
             command = _render_command(payload)
             rendered = await RenderAgentConfig(
                 request.app.state.unit_of_work_factory(),
@@ -396,23 +402,33 @@ class RenderConfigBackofficeView(BaseView):
                 request.app.state.config_payload_validator,
             ).execute(rendered)
         except AgentNotFoundError as exc:
-            return JSONResponse({"detail": str(exc)}, status_code=404)
+            return _render_config_error_response(str(exc), is_form=is_form, status=404)
         except (DuplicateConfigRevisionError, DuplicateConfigOutboxRecordError) as exc:
-            return JSONResponse({"detail": str(exc)}, status_code=409)
+            return _render_config_error_response(str(exc), is_form=is_form, status=409)
         except (ConfigRenderError, KeyError, TypeError, ValueError) as exc:
-            return JSONResponse({"detail": str(exc)}, status_code=422)
+            return _render_config_error_response(str(exc), is_form=is_form)
 
         runtime_payload = rendered.runtime_payload
-        return JSONResponse(
-            {
-                "tenant_id": runtime_payload["tenant_id"],
-                "asset_id": runtime_payload["asset_id"],
-                "agent_id": runtime_payload["agent_id"],
-                "config_revision": runtime_payload["config_revision"],
-                "outbox_record_count": 1 + len(rendered.source_payloads),
-            },
-            status_code=201,
-        )
+        response_payload = {
+            "tenant_id": runtime_payload["tenant_id"],
+            "asset_id": runtime_payload["asset_id"],
+            "agent_id": runtime_payload["agent_id"],
+            "config_revision": runtime_payload["config_revision"],
+            "outbox_record_count": 1 + len(rendered.source_payloads),
+        }
+        if is_form:
+            return HTMLResponse(
+                _render_config_form_html(
+                    message=(
+                        "Config state обновлен: "
+                        f"revision={response_payload['config_revision']}, "
+                        f"outbox_records={response_payload['outbox_record_count']}"
+                    ),
+                    message_kind="success",
+                ),
+                status_code=201,
+            )
+        return JSONResponse(response_payload, status_code=201)
 
 
 class ConfigOutboxActionsBackofficeView(BaseView):
@@ -505,6 +521,188 @@ def _render_command(payload: dict[str, Any]) -> RenderAgentConfigCommand:
             payload.get("source_config_revisions")
         ),
     )
+
+
+async def _render_config_payload(request: Request) -> dict[str, Any] | object:
+    if not _is_form_request(request):
+        return await request.json()
+
+    form = await request.form()
+    revisions_raw = str(form.get("source_config_revisions") or "").strip()
+    source_config_revisions = None
+    if revisions_raw:
+        parsed = json.loads(revisions_raw)
+        if not isinstance(parsed, dict):
+            raise ValueError("source_config_revisions must be a JSON object")
+        source_config_revisions = parsed
+
+    return {
+        "tenant_id": str(form.get("tenant_id") or ""),
+        "asset_id": str(form.get("asset_id") or ""),
+        "agent_id": str(form.get("agent_id") or ""),
+        "config_revision": str(form.get("config_revision") or ""),
+        "issued_at": str(form.get("issued_at") or ""),
+        "source_config_revisions": source_config_revisions,
+    }
+
+
+def _is_form_request(request: Request) -> bool:
+    headers = getattr(request, "headers", {})
+    content_type = headers.get("content-type", "")
+    return (
+        "application/x-www-form-urlencoded" in content_type
+        or "multipart/form-data" in content_type
+    )
+
+
+def _render_config_error_response(
+    detail: str,
+    *,
+    is_form: bool,
+    status: int = 422,
+) -> Response:
+    if is_form:
+        return HTMLResponse(
+            _render_config_form_html(message=detail, message_kind="error"),
+            status_code=status,
+        )
+    return JSONResponse({"detail": detail}, status_code=status)
+
+
+def _render_config_form_html(
+    *,
+    message: str | None = None,
+    message_kind: str = "info",
+) -> str:
+    escaped_message = html.escape(message) if message else ""
+    message_class = {
+        "success": "message success",
+        "error": "message error",
+    }.get(message_kind, "message")
+    message_html = (
+        f'<div class="{message_class}">{escaped_message}</div>'
+        if escaped_message
+        else ""
+    )
+    return f"""
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Обновить config state</title>
+  <style>
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 2rem;
+      color: #18202f;
+      background: #f6f8fb;
+    }}
+    main {{
+      max-width: 860px;
+      background: #ffffff;
+      border: 1px solid #d9e0ea;
+      border-radius: 14px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 24px rgba(24, 32, 47, 0.08);
+    }}
+    label {{
+      display: block;
+      margin-top: 1rem;
+      font-weight: 650;
+    }}
+    input,
+    textarea {{
+      box-sizing: border-box;
+      width: 100%;
+      margin-top: 0.35rem;
+      padding: 0.65rem;
+      border: 1px solid #bfcad8;
+      border-radius: 10px;
+      font: inherit;
+    }}
+    textarea {{
+      min-height: 7rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }}
+    button {{
+      margin-top: 1.25rem;
+      border: 0;
+      border-radius: 999px;
+      padding: 0.75rem 1.15rem;
+      color: #ffffff;
+      background: #1557c0;
+      font-weight: 750;
+      cursor: pointer;
+    }}
+    .hint {{
+      padding: 1rem;
+      border-radius: 12px;
+      background: #eef5ff;
+      border: 1px solid #c9defc;
+      line-height: 1.5;
+    }}
+    .message {{
+      margin: 1rem 0;
+      padding: 0.85rem;
+      border-radius: 10px;
+      background: #eef2f7;
+      border: 1px solid #cbd5e1;
+    }}
+    .message.success {{
+      background: #ecfdf3;
+      border-color: #a7f3c5;
+    }}
+    .message.error {{
+      background: #fff1f2;
+      border-color: #fecdd3;
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Обновить config state</h1>
+    <p class="hint">
+      Используйте эту кнопку после CRUD-правок в админке, чтобы собрать новую
+      runtime/source config revision и создать записи в <code>config_outbox</code>.
+      Без этого retained MQTT config для edge-agent не изменится.
+    </p>
+    {message_html}
+    <form method="post" action="/backoffice/render-config">
+      <label>
+        Tenant ID
+        <input name="tenant_id" required placeholder="tenant-demo">
+      </label>
+      <label>
+        Asset ID
+        <input name="asset_id" required placeholder="demo-stand-01">
+      </label>
+      <label>
+        Agent ID
+        <input name="agent_id" required placeholder="demo-stand-local">
+      </label>
+      <label>
+        Config revision
+        <input name="config_revision" required placeholder="rev-2026-05-03-001">
+      </label>
+      <label>
+        Issued at
+        <input name="issued_at" placeholder="2026-05-03T12:00:00Z">
+      </label>
+      <label>
+        Source config revisions JSON
+        <textarea name="source_config_revisions"
+          placeholder="{{&quot;knx_main&quot;:&quot;rev-2026-05-03-001-knx&quot;}}"></textarea>
+      </label>
+      <button
+        type="submit"
+        title="Собирает runtime/source config из текущего registry state и создает config_outbox records">
+        Обновить config state
+      </button>
+    </form>
+  </main>
+</body>
+</html>
+"""
 
 
 def _parse_issued_at(value: object) -> datetime:

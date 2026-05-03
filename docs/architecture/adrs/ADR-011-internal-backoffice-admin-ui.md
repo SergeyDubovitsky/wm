@@ -142,7 +142,9 @@ Backoffice views первого инкремента:
 
 Custom actions:
 
-- `Render config revision`
+- `Render config revision` через операторскую страницу
+  `/backoffice/render-config` с кнопкой `Обновить config state` и подсказкой о
+  необходимости render после direct CRUD-правок
 - `Publish config revision`
 - `Retry outbox record`
 - `Mark dead letter` только для internal operations и только с audit reason

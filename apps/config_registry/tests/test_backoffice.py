@@ -64,6 +64,17 @@ def test_backoffice_registers_render_config_custom_view() -> None:
     assert ConfigOutboxActionsBackofficeView in BACKOFFICE_CUSTOM_VIEWS
 
 
+@pytest.mark.asyncio
+async def test_backoffice_render_config_form_shows_operator_button_and_hint() -> None:
+    response = await RenderConfigBackofficeView().render_config_form(object())
+    html = response.body.decode()
+
+    assert response.status_code == 200
+    assert "Обновить config state" in html
+    assert "Без этого retained MQTT config для edge-agent не изменится" in html
+    assert "создает config_outbox records" in html
+
+
 def test_sqladmin_dependency_stays_out_of_domain_and_application_layers() -> None:
     guarded_roots = [
         CONFIG_REGISTRY_SRC / "domain",
@@ -362,12 +373,31 @@ async def test_backoffice_render_config_action_uses_application_use_cases() -> N
             },
         )
     )
+    form_response = await RenderConfigBackofficeView().render_config(
+        FakeFormRequest(
+            app,
+            {
+                "tenant_id": "tenant-backoffice",
+                "asset_id": "asset-backoffice",
+                "agent_id": "agent-backoffice",
+                "config_revision": "rev-backoffice-form-001",
+                "issued_at": "2026-05-03T12:01:00Z",
+                "source_config_revisions": (
+                    '{"source-backoffice":"rev-backoffice-form-001-source"}'
+                ),
+            },
+        )
+    )
 
     body = json.loads(response.body)
+    form_html = form_response.body.decode()
     assert response.status_code == 201
     assert body["config_revision"] == "rev-backoffice-001"
     assert body["outbox_record_count"] == 2
     assert duplicate_response.status_code == 409
+    assert form_response.status_code == 201
+    assert "Config state обновлен" in form_html
+    assert "rev-backoffice-form-001" in form_html
 
 
 @pytest.mark.asyncio
@@ -433,6 +463,17 @@ class FakeJsonRequest:
         self._payload = payload
 
     async def json(self) -> dict[str, Any]:
+        return self._payload
+
+
+class FakeFormRequest:
+    headers = {"content-type": "application/x-www-form-urlencoded"}
+
+    def __init__(self, app: object, payload: dict[str, Any]) -> None:
+        self.app = app
+        self._payload = payload
+
+    async def form(self) -> dict[str, Any]:
         return self._payload
 
 

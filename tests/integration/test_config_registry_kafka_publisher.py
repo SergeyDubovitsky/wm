@@ -226,6 +226,10 @@ def test_config_registry_api_container_uses_local_postgres(
         f"http://127.0.0.1:{local_config_delivery_stack.config_registry_port}"
         "/backoffice/"
     )
+    render_config_url = (
+        f"http://127.0.0.1:{local_config_delivery_stack.config_registry_port}"
+        "/backoffice/render-config"
+    )
     created = local_config_delivery_stack.config_registry_json(
         "POST",
         "/tenants",
@@ -235,10 +239,16 @@ def test_config_registry_api_container_uses_local_postgres(
     with urllib.request.urlopen(backoffice_url, timeout=10) as response:
         backoffice_status = response.status
         backoffice_html = response.read().decode()
+    with urllib.request.urlopen(render_config_url, timeout=10) as response:
+        render_config_status = response.status
+        render_config_html = response.read().decode()
 
     assert health == {"status": "ok"}
     assert backoffice_status == 200
     assert "Web Monitoring Backoffice" in backoffice_html
+    assert render_config_status == 200
+    assert "Обновить config state" in render_config_html
+    assert "Без этого retained MQTT config" in render_config_html
     assert created["tenant_id"] == "tenant-api-container"
     assert any(
         tenant["tenant_id"] == "tenant-api-container"

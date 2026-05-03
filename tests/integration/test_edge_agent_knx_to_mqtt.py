@@ -10,20 +10,20 @@ import paho.mqtt.client as mqtt
 import pytest
 import yaml
 
-from edge_agent.application.configuration import load_runtime_config
-from edge_agent.application.delivery import DeliveryWorker
-from edge_agent.application.processing import ObservationProcessor
-from edge_agent.domain.events import Observation
-from edge_agent.infrastructure.mqtt_publisher import connect_mqtt_publisher
-from edge_agent.infrastructure.sqlite_outbox import SQLiteOutbox
 from wm_demo_stack.bundle import load_bundle
 from wm_demo_stack.models import TopicScope
 from wm_demo_stack.scenario import runtime_config_payload, source_config_payload
+from wm_edge_agent.application.configuration import load_runtime_config
+from wm_edge_agent.application.delivery import DeliveryWorker
+from wm_edge_agent.application.processing import ObservationProcessor
+from wm_edge_agent.domain.events import Observation
+from wm_edge_agent.infrastructure.mqtt_publisher import connect_mqtt_publisher
+from wm_edge_agent.infrastructure.sqlite_outbox import SQLiteOutbox
 
 pytestmark = pytest.mark.integration
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEMO_BUNDLE_PATH = REPO_ROOT / "environments" / "demo-stand" / "edge_agent" / "config.bundle.yaml"
+DEMO_BUNDLE_PATH = REPO_ROOT / "environments" / "demo-stand" / "wm_edge_agent" / "config.bundle.yaml"
 KAFKA_SCHEMAS_ROOT = REPO_ROOT / "docs" / "contracts" / "kafka" / "schemas"
 
 
@@ -506,7 +506,7 @@ def _write_bootstrap_config(
                 "version": "5.0",
                 "broker": broker,
                 "topic_root": "wm/v1",
-                "client_id_prefix": "edge-agent-it",
+                "client_id_prefix": "wm-edge-agent-it",
                 "username_env": "MQTT_USERNAME",
                 "password_env": "MQTT_PASSWORD",
                 "qos": 1,

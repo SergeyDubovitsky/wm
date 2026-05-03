@@ -44,18 +44,18 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 
 ## Конфигурационная модель
 
-- `bootstrap config` — минимальная локальная конфигурация запуска edge-agent: `agent_id`, MQTT endpoint, credentials/secret refs, local storage и observability. Не содержит registry sources/points.
+- `bootstrap config` — минимальная локальная конфигурация запуска wm-edge-agent: `agent_id`, MQTT endpoint, credentials/secret refs, local storage и observability. Не содержит registry sources/points.
 - `server-issued config` — конфигурация runtime, выданная платформенным контуром через retained MQTT topics.
 - `runtime config` — retained root config агента `wm.edge.runtime-config.v1`: `tenant_id`, `asset_id`, `agent_id`, `config_revision` и список активных sources.
 - `source config` — retained config конкретного `source_id` `wm.edge.source-config.v1`: connection settings, points, acquisition/publish policies и metadata точек.
-- `config revision` — стабильная версия root runtime config, выпускаемая через Kafka-first delivery log и применяемая edge-agent после материализации в MQTT retained topics.
+- `config revision` — стабильная версия root runtime config, выпускаемая через Kafka-first delivery log и применяемая wm-edge-agent после материализации в MQTT retained topics.
 - `source_config_revision` — стабильная версия source config, которую telemetry event указывает как metadata context.
 - `config event publisher` — backend worker, который читает единственную PostgreSQL таблицу `config_outbox` и публикует `wm.platform.edge.config.delivery.v1` records в Kafka topic `wm.platform.edge.configs.v1`.
 - `source config snapshot projector` — consumer, который читает `wm.platform.edge.configs.v1` и публикует canonical `wm.platform.source.config.v1` records в `wm.platform.source.configs.v1`.
-- `edge config MQTT projector` — Redpanda Connect pipeline, который читает `wm.platform.edge.configs.v1` и материализует retained MQTT topics для edge-agent.
-- `config delivery projection` — materialized MQTT retained topics, которые Redpanda Connect строит из Kafka config delivery records для edge-agent.
+- `edge config MQTT projector` — Redpanda Connect pipeline, который читает `wm.platform.edge.configs.v1` и материализует retained MQTT topics для wm-edge-agent.
+- `config delivery projection` — materialized MQTT retained topics, которые Redpanda Connect строит из Kafka config delivery records для wm-edge-agent.
 - `transactional outbox` — паттерн надежной интеграции PostgreSQL и Kafka: domain change и outbox record записываются атомарно в PostgreSQL, а отдельный publisher доставляет запись во внешний broker с retry и idempotency.
-- `YAML config bundle` — временный authoring/import path до внедрения `Config Registry`; после `ADR-010` не конкурирует с `Platform Store` как source of truth.
+- `YAML config bundle` — versioned import/bootstrap artifact для seed и support-сценариев; после `ADR-010` не конкурирует с `Config Registry`/`Platform Store` как source of truth и служит входом для publish/import workflow.
 - `source` — логическое подключение агента к конкретному источнику данных, идентифицируемое `source_id`.
 - `point` — точка мониторинга внутри `source`, идентифицируемая `point_ref`.
 - `point_ref` — технический идентификатор точки внутри источника, например group address, node id или register reference.

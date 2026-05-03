@@ -12,7 +12,7 @@ from wm_demo_stack.models import ConfigBundle, ConfigRegistryConfig
 Output = Callable[[str], None]
 
 
-def publish_bundle_via_config_registry(
+def publish_bundle_via_wm_config_registry(
     *,
     config: ConfigRegistryConfig,
     bundle: ConfigBundle,

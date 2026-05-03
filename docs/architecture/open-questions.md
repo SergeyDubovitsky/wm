@@ -7,7 +7,7 @@
 
 - верхнеуровневой markdown-документации в `docs/architecture/`
 - LikeC4-модели в `arch/likec4/`
-- текущей Python-реализации в `apps/edge_agent/` и `apps/knx_demo/`
+- текущей Python-реализации в `apps/wm_edge_agent/` и `apps/wm_knx_demo/`
 - локального dev-контура в `infra/local/`
 - versioned edge profile demo-стенда в `environments/demo-stand/`
 
@@ -17,18 +17,23 @@
   `0/0/1` как `command`, `0/0/7` как `feedback`, `2/0/0` как `sensor`.
 - В текущем конфиге `read_on_start` уже включен для `0/0/7` и `2/0/0`, а
   `change_threshold = 1.0` уже задан для температуры.
-- В коде `edge_agent` уже реализованы и покрыты тестами:
+- В коде `wm_edge_agent` уже реализованы и покрыты тестами:
   загрузка bootstrap + retained runtime/source config, fail-fast валидация,
   подавление `command`-точек, threshold-based processing и `SQLite Delivery Outbox`.
 - В коде и `infra/local/` уже зафиксирован рабочий локальный dev-контур:
-  `MQTT broker`, `Apache Kafka` и `Redpanda Connect` pipeline для integration flow.
-- Для целевой configuration-модели принят `ADR-008`: edge-agent получает
+  `MQTT broker`, `Apache Kafka`, `Redpanda Connect` ingestion/config projection
+  pipelines, `PostgreSQL`, `Config Registry`, `ClickHouse`, `Kafka Connect` и
+  `Grafana`.
+- Для целевой configuration-модели принят `ADR-008`: wm-edge-agent получает
   retained runtime/source configs из MQTT; delivery path уточнен в `ADR-010`
   как PostgreSQL config outbox -> Kafka -> MQTT retained projection.
 - Для локального config delivery baseline уже реализованы `Config Registry`
   outbox publisher и Redpanda Connect projection
   `wm.platform.edge.configs.v1 -> retained MQTT runtime/source topics`.
-- Текущий проект уже достиг `MVP baseline`: `KNX/edge_agent -> MQTT -> Kafka`
+- Для локального storage/read baseline уже реализованы `ClickHouse`
+  migrations, `Kafka Connect` raw landing path и `Grafana` read-model
+  проверка integration-тестом.
+- Текущий проект уже достиг `MVP baseline`: `KNX/wm_edge_agent -> MQTT -> Kafka`
   ingestion slice работает в репозитории и покрыт integration-тестами.
 - Полная `Monitoring & Alarm Platform` как `MQTT Ingestion Gateway`,
   `Redpanda Connect`, `Redpanda`, `Kafka Event Log`, `Telemetry Consumers`, `Streaming Analytics`,
@@ -51,7 +56,7 @@
 
 | Вопрос | Почему это важно | Степень блокировки |
 | --- | --- | --- |
-| Являются ли текущие артефакты demo-стенда: `.local/Выстовка.knxproj*` и текущие YAML-файлы утвержденным source of truth для формирования первого `wm.edge.source-config.v1` bundle? | После `ADR-008` runtime source of truth для edge-agent должен приходить через retained MQTT configs, но исходная KNX-карта все равно нужна для генерации source config | Критично |
+| Являются ли текущие артефакты demo-стенда: `.local/Выстовка.knxproj*` и текущие YAML-файлы утвержденным source of truth для формирования первого `wm.edge.source-config.v1` bundle? | После `ADR-008` runtime source of truth для wm-edge-agent должен приходить через retained MQTT configs, но исходная KNX-карта все равно нужна для генерации source config | Критично |
 | Подтверждены ли для первого среза `read_on_start` и семантика чтения именно для `0/0/7` и `2/0/0`? | Versioned конфиг уже включает `read_on_start`, но это нужно подтвердить эксплуатационно, чтобы не зависеть от неподдерживаемого `GroupValueRead` | Высокая |
 | Какой следующий утвержденный whitelist точек нужен после текущих `0/0/7` и `2/0/0`? | Без этого нельзя планировать второй инкремент адаптера, расширение point registry и проверку `value_model` beyond demo | Средняя |
 
@@ -70,7 +75,7 @@
 
 | Вопрос | Почему это важно | Степень блокировки |
 | --- | --- | --- |
-| Какой минимальный implementation scope `Config Registry` нужен для первого инкремента: только tenants/assets/agents/sources/points или сразу render config revisions? | `ADR-010` зафиксировал backend хранения настроек, но backlog первого кода нужно ограничить | Высокая |
+| Какой следующий production-ready scope нужен поверх текущего `Config Registry` foundation: authz и internal/backoffice hardening, rollout/approval workflow config revisions, или уже внешний tenant-facing `Platform API` contract? | Первый backend-срез уже реализован локально. Теперь важно не повторно обсуждать стартовый scope, а зафиксировать следующий эксплуатационный инкремент | Высокая |
 | Где фиксируется `Redpanda Connect` pipeline config: в platform repository, IaC, Redpanda Cloud-managed pipeline или отдельном operations bundle? | MQTT input, mapping/transform и redpanda output становятся частью production data path, поэтому конфигурация pipeline должна быть версионирована и управляться так же строго, как edge source config | Высокая |
 | Нужно ли менять draft Kafka topics, retention и consumer groups после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/kafka/topics.v1.md`, но реальные partition counts и retention могут потребовать корректировки после измерений | Средняя |
 | Нужно ли менять draft ClickHouse DDL, rollups и TTL после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/clickhouse/telemetry-store.v1.md`, но production performance schema должна быть подтверждена на данных целевого масштаба | Средняя |
@@ -94,7 +99,7 @@
 | Какой максимальный размер одного retained `wm.edge.source-config.v1` допустим для production MQTT broker? | Runtime config делится по `source_id`, но один source все равно может содержать десятки тысяч points. Нужно понять, когда потребуется chunking | Высокая |
 | Как формировать deterministic `config_revision` и `source_config_revision`: human version, content hash или оба поля? | AI-agent должен давать воспроизводимый diff и publish summary, а edge/ingestion должны однозначно валидировать примененную версию | Высокая |
 | Как Redpanda Connect projection должен публиковать rollback или отключение source: новый retained payload с `enabled=false` или retained tombstone? | Это влияет на MQTT retained lifecycle и на безопасное удаление/отключение источников | Средняя |
-| Когда YAML config bundle мигрирует в `Platform Store` и `Platform API`? | На первом этапе server UI/API не делаем, но нужно заранее не сломать будущую модель authoring через API | Средняя |
+| Какой lifecycle остается у YAML config bundle после появления `Config Registry`: только import/bootstrap path, аварийный fallback или долгоживущий backoffice-инструмент? | `Config Registry` уже стал source of truth для runtime/source config, но нужно явно зафиксировать, какую роль bundle сохраняет в production workflow и support-процедурах | Средняя |
 
 ## Observability и эксплуатация
 
@@ -103,12 +108,12 @@
 | Какие health/metrics считаются обязательными для edge runtime и платформы в первом production-срезе? | В конфиге уже есть `metrics_bind`, а в архитектуре есть observability, но минимальный контракт SLI/SLO пока не назван | Средняя |
 | Нужно ли в production считать lag по Delivery Outbox, delivery latency и source connection uptime как обязательные SLI? | Эти метрики логично следуют из архитектуры Local State Store и delivery-модели, но без явного решения их легко не реализовать вовремя | Средняя |
 | Куда должны уходить логи edge runtime и платформы: только локальный файл/journal или централизованный log sink? | Без этого сложно определить retention, incident workflow и реальную поддержку объекта | Средняя |
-| Достаточно ли текущих CLI и demo utilities для диагностики на объекте, или нужен отдельный support-oriented diagnostic mode/UI? | В репозитории уже есть `edge-agent check-config`, `show-config`, `enqueue-demo-event`, `deliver-once` и `knx-demo`, но production-support workflow пока не утвержден | Низкая |
+| Достаточно ли текущих CLI и demo utilities для диагностики на объекте, или нужен отдельный support-oriented diagnostic mode/UI? | В репозитории уже есть `wm-edge-agent check-config`, `show-config`, `enqueue-demo-event`, `deliver-once` и `wm-knx-demo`, но production-support workflow пока не утвержден | Низкая |
 
 ## Ближайшие решения
 
 - подтвердить, что текущий `demo-stand` конфиг и ETS-derived артефакты являются каноническим source of truth для первого `KNX`-среза
 - зафиксировать production MQTT broker, требования по `TLS`/`ACL` и способ хранения секретов
 - зафиксировать contract и limits для config delivery: bundle layout, revision generation, Kafka delivery record, retained projection order и rollback semantics
-- определить первый implementation scope для `Config Registry` поверх `ADR-010`
+- зафиксировать production scope `Config Registry` и `Platform API` поверх текущего foundation-среза
 - зафиксировать Kafka topic contract, retention/rollup/deduplication contract для ClickHouse и минимальный lifecycle `alarm`

@@ -9,25 +9,25 @@ import paho.mqtt.client as mqtt
 import pytest
 import yaml
 
-from edge_agent.cli import main
-from edge_agent.domain.config import MqttSettings
-from edge_agent.domain.events import MqttPublication
-from edge_agent.infrastructure.mqtt_publisher import connect_mqtt_publisher
 from wm_demo_stack.bundle import load_bundle
 from wm_demo_stack.models import TopicScope
 from wm_demo_stack.scenario import runtime_config_payload, source_config_payload
+from wm_edge_agent.cli import main
+from wm_edge_agent.domain.config import MqttSettings
+from wm_edge_agent.domain.events import MqttPublication
+from wm_edge_agent.infrastructure.mqtt_publisher import connect_mqtt_publisher
 
 pytestmark = pytest.mark.integration
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEMO_BUNDLE_PATH = REPO_ROOT / "environments" / "demo-stand" / "edge_agent" / "config.bundle.yaml"
+DEMO_BUNDLE_PATH = REPO_ROOT / "environments" / "demo-stand" / "wm_edge_agent" / "config.bundle.yaml"
 
 
 def test_edge_agent_mqtt_publisher_sends_publication_to_local_broker(
     local_stack,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    topic = f"wm/v1/edge-agent-smoke/{uuid4().hex}"
+    topic = f"wm/v1/wm-edge-agent-smoke/{uuid4().hex}"
     connected = threading.Event()
     received = threading.Event()
     subscribed = threading.Event()
@@ -79,7 +79,7 @@ def test_edge_agent_mqtt_publisher_sends_publication_to_local_broker(
             version="5.0",
             broker=f"mqtt://127.0.0.1:{local_stack.mqtt_port}",
             topic_root="wm/v1",
-            client_id_prefix="edge-agent-it",
+            client_id_prefix="wm-edge-agent-it",
             username_env="EDGE_AGENT_MQTT_USERNAME",
             password_env="EDGE_AGENT_MQTT_PASSWORD",
             qos=1,
@@ -304,7 +304,7 @@ def _write_bootstrap_config(
                 "version": "5.0",
                 "broker": broker,
                 "topic_root": "wm/v1",
-                "client_id_prefix": "edge-agent-it",
+                "client_id_prefix": "wm-edge-agent-it",
                 "username_env": "MQTT_USERNAME",
                 "password_env": "MQTT_PASSWORD",
                 "qos": 1,

@@ -127,7 +127,7 @@ class WaveConfig:
 class DemoSettings:
     broker: BrokerConfig
     kafka: KafkaConfig
-    config_registry: ConfigRegistryConfig
+    wm_config_registry: ConfigRegistryConfig
     username: str | None
     password: str | None
     client_id: str

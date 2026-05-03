@@ -35,7 +35,7 @@ config revision/outbox flow, что и HTTP API.
 - достаточно легкий для backoffice CRUD/view workflow
 - не требует перехода на другой ORM
 
-Админка подключается как infrastructure adapter внутри `apps/config_registry`.
+Админка подключается как infrastructure adapter внутри `apps/wm_config_registry`.
 Backoffice write operations обязаны вызывать application use cases, а не менять
 config tables напрямую:
 
@@ -182,7 +182,7 @@ state, остаются custom actions и должны вызывать applicat
 ## План реализации
 
 1. Добавить dependency `sqladmin`.
-2. Подключить SQLAdmin в `apps/config_registry` на `/backoffice`.
+2. Подключить SQLAdmin в `apps/wm_config_registry` на `/backoffice`.
 3. Создать `admin` infrastructure module отдельно от `api/routers`.
 4. Добавить CRUD ModelViews для registry/outbox/revision tables.
 5. Для create registry entities использовать application use case adapters там,

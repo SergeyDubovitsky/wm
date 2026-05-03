@@ -34,7 +34,7 @@
 
 - `tenant_id` обязателен во всех normal platform topics.
 - `tenant_id` присутствует в MQTT telemetry payload как edge claim из server-issued runtime config и валидируется ingestion-слоем.
-- `wm.platform.edge.configs.v1` является Kafka-first delivery log для edge runtime/source configs; edge-agent не читает Kafka, а получает MQTT retained projection.
+- `wm.platform.edge.configs.v1` является Kafka-first delivery log для edge runtime/source configs; wm-edge-agent не читает Kafka, а получает MQTT retained projection.
 - `wm.platform.edge.configs.v1` records обязаны содержать `config_scope`: `runtime` для root config или `source:{source_id}` для source config.
 - `wm.platform.edge.configs.v1` records обязаны содержать `target_mqtt_topic`, `mqtt_retain=true`, `mqtt_qos=1`, `operation` и `payload`, чтобы MQTT retained projection была детерминированной и восстанавливаемой replay-ем Kafka topic.
 - `wm.platform.source.configs.v1` строится только из `wm.platform.edge.configs.v1`; retained MQTT source configs не являются authoritative Kafka ingress для source config snapshots.

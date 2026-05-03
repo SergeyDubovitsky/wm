@@ -98,7 +98,7 @@ Telemetry payload principles:
 - complex protocol values вроде массивов, структур или `ByteString` не входят в текущую версию wire contract
 
 Полная схема telemetry payload является контрактом `wm.telemetry.event.v1` и
-зафиксирована в `docs/contracts/edge-agent/`.
+зафиксирована в `docs/contracts/wm-edge-agent/`.
 
 Source config payload:
 
@@ -107,7 +107,7 @@ Source config payload:
 - позволяет consumer-у сделать одну retained subscription на source вместо `N` per-point metadata subscriptions
 
 Полная схема source config payload является контрактом
-`wm.edge.source-config.v1` и зафиксирована в `docs/contracts/edge-agent/`.
+`wm.edge.source-config.v1` и зафиксирована в `docs/contracts/wm-edge-agent/`.
 
 ### 6. QoS и свойства публикации
 
@@ -168,7 +168,7 @@ Source config payload:
 
 ## Source of truth контрактов
 
-Полные MQTT topic templates и payload schemas вынесены в `docs/contracts/edge-agent/`.
+Полные MQTT topic templates и payload schemas вынесены в `docs/contracts/wm-edge-agent/`.
 
 ## Отклоненные альтернативы
 

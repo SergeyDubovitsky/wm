@@ -6,28 +6,28 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from config_registry.application.use_cases.config_outbox import (
+from wm_config_registry.application.use_cases.config_outbox import (
     MarkConfigOutboxPublished,
     ReleaseExpiredConfigOutboxLeases,
     ReserveConfigOutboxCommand,
     ReserveConfigOutboxRecords,
 )
-from config_registry.application.use_cases.render_config import (
+from wm_config_registry.application.use_cases.render_config import (
     RenderAgentConfig,
     RenderAgentConfigCommand,
     StoreRenderedAgentConfig,
 )
-from config_registry.domain.value_objects import ConfigOutboxStatus
-from config_registry.infrastructure.json_schema_validator import (
+from wm_config_registry.domain.value_objects import ConfigOutboxStatus
+from wm_config_registry.infrastructure.json_schema_validator import (
     JsonSchemaConfigPayloadValidator,
 )
-from config_registry.infrastructure.postgres.unit_of_work import (
+from wm_config_registry.infrastructure.postgres.unit_of_work import (
     PostgresUnitOfWorkFactory,
 )
-from config_registry.main import create_app
-from config_registry.settings import ConfigRegistrySettings
+from wm_config_registry.main import create_app
+from wm_config_registry.settings import ConfigRegistrySettings
 
-CONTRACT_DIR = Path("docs/contracts/edge-agent/schemas")
+CONTRACT_DIR = Path("docs/contracts/wm-edge-agent/schemas")
 
 
 def test_config_registry_persists_tenants_in_postgres(

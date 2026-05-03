@@ -14,7 +14,7 @@
 ```text
 environments/demo-stand-remote/
 ├── README.md
-└── edge_agent/
+└── wm_edge_agent/
     ├── bootstrap.yaml
     └── config.bundle.yaml
 ```
@@ -22,8 +22,8 @@ environments/demo-stand-remote/
 Проверка bootstrap + retained config path после demo config seed:
 
 ```bash
-uv run --env-file .env --package edge-agent edge-agent check-config \
-  --bootstrap-config environments/demo-stand-remote/edge_agent/bootstrap.yaml
+uv run --env-file .env --package wm-edge-agent wm-edge-agent check-config \
+  --bootstrap-config environments/demo-stand-remote/wm_edge_agent/bootstrap.yaml
 ```
 
 Для seed config через `Config Registry API -> outbox worker -> Kafka`
@@ -31,7 +31,7 @@ uv run --env-file .env --package edge-agent edge-agent check-config \
 
 ```bash
 uv run --env-file .env --package wm-demo-stack publish-edge-demo \
-  --bundle-config environments/demo-stand-remote/edge_agent/config.bundle.yaml
+  --bundle-config environments/demo-stand-remote/wm_edge_agent/config.bundle.yaml
 ```
 
 Секреты и machine-local overrides сюда не коммитятся.

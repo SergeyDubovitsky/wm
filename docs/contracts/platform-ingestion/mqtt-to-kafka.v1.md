@@ -17,13 +17,13 @@ Ingestion pipeline принимает:
   `point_id`; registry/cache строится из `wm.platform.source.configs.v1` и/или
   `Platform Store`, а не из retained MQTT config topics
 
-`tenant_id` публикуется edge-agent-ом в MQTT payload как claim из retained
+`tenant_id` публикуется wm-edge-agent-ом в MQTT payload как claim из retained
 runtime config. Ingestion не берет tenant из topic path и обязан валидировать
 claim через MQTT auth/ACL и config registry/cache.
 
 `wm.edge.runtime-config.v1` и `wm.edge.config.status.v1` не входят в Kafka
 surface этого контракта `v1`. Они остаются retained MQTT contracts для
-bootstrap/operational lifecycle edge-agent и должны быть исключены фильтром
+bootstrap/operational lifecycle wm-edge-agent и должны быть исключены фильтром
 подписки или routing rules до стадии Kafka mapping, а не считаться ingestion
 error.
 
@@ -70,7 +70,7 @@ Source config enrichment:
   и уходит в ingestion error topic
 
 Retained `wm.edge.runtime-config.v1` / `wm.edge.source-config.v1` topics являются
-delivery projection для edge-agent и не являются authoritative MQTT ingress для
+delivery projection для wm-edge-agent и не являются authoritative MQTT ingress для
 `wm.platform.source.configs.v1`.
 
 ## Output records

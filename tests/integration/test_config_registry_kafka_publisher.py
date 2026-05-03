@@ -10,28 +10,28 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from config_registry.application.use_cases.render_config import (
+from wm_config_registry.application.use_cases.render_config import (
     RenderAgentConfig,
     RenderAgentConfigCommand,
     StoreRenderedAgentConfig,
 )
-from config_registry.domain.entities import ConfigOutboxRecord
-from config_registry.infrastructure.json_schema_validator import (
+from wm_config_registry.domain.entities import ConfigOutboxRecord
+from wm_config_registry.infrastructure.json_schema_validator import (
     JsonSchemaConfigPayloadValidator,
 )
-from config_registry.infrastructure.kafka.config_delivery import (
+from wm_config_registry.infrastructure.kafka.config_delivery import (
     ConfluentKafkaConfigRecordPublisher,
 )
-from config_registry.infrastructure.postgres.unit_of_work import (
+from wm_config_registry.infrastructure.postgres.unit_of_work import (
     PostgresUnitOfWorkFactory,
 )
-from config_registry.main import create_app
-from config_registry.settings import ConfigRegistrySettings
+from wm_config_registry.main import create_app
+from wm_config_registry.settings import ConfigRegistrySettings
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CONTRACT_DIR = REPO_ROOT / "docs" / "contracts" / "edge-agent" / "schemas"
+CONTRACT_DIR = REPO_ROOT / "docs" / "contracts" / "wm-edge-agent" / "schemas"
 DEMO_BUNDLE_PATH = (
-    REPO_ROOT / "environments" / "demo-stand" / "edge_agent" / "config.bundle.yaml"
+    REPO_ROOT / "environments" / "demo-stand" / "wm_edge_agent" / "config.bundle.yaml"
 )
 
 
@@ -84,7 +84,7 @@ async def test_config_registry_kafka_publisher_writes_config_delivery_record(
     )
     publisher = ConfluentKafkaConfigRecordPublisher.from_bootstrap_servers(
         f"127.0.0.1:{local_platform_stack.kafka_port}",
-        client_id="config-registry-it",
+        client_id="wm-config-registry-it",
     )
 
     await publisher.publish(record)
@@ -139,7 +139,7 @@ async def test_config_registry_cli_publishes_outbox_batch_to_kafka(
                 local_config_registry_postgres_stack.database_url
             ),
             "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{local_platform_stack.kafka_port}",
-            "CONFIG_REGISTRY_KAFKA_CLIENT_ID": "config-registry-cli-it",
+            "CONFIG_REGISTRY_KAFKA_CLIENT_ID": "wm-config-registry-cli-it",
         }
     )
     result = subprocess.run(
@@ -148,8 +148,8 @@ async def test_config_registry_cli_publishes_outbox_batch_to_kafka(
             "run",
             "--frozen",
             "--package",
-            "config-registry",
-            "config-registry",
+            "wm-config-registry",
+            "wm-config-registry",
             "publish-config-outbox-once",
             "--limit",
             "10",

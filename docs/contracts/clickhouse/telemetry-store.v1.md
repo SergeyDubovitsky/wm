@@ -3,9 +3,10 @@
 Дата: 2026-05-02
 Статус: working draft
 
-Этот контракт фиксирует draft физической модели `Telemetry Store` на базе
-ClickHouse. Он нужен для review, будущих миграций и проверки совместимости
-Kafka consumers. DDL не является production-validated performance schema до
+Этот контракт фиксирует начальную migration-backed физическую модель
+`Telemetry Store` на базе ClickHouse. Он нужен для review, проверки
+совместимости Kafka consumers и сопровождения уже существующих миграций.
+Физическая схема еще не считается production-validated performance schema до
 нагрузочного PoC.
 
 ## Tables

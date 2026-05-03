@@ -16,6 +16,11 @@
 slice `MQTT -> Redpanda Connect -> Kafka`. Более широкая platform-часть ниже в
 документе остается целевой post-MVP эволюцией.
 
+Поверх этого baseline в текущей ветке уже реализованы первые локальные
+platform-foundation slices: `Config Registry` на `PostgreSQL`, Kafka-first
+config delivery projection, `ClickHouse Telemetry Store` path и `Grafana`
+read-model surface.
+
 ## Границы решения
 
 В контуре этого решения:
@@ -65,7 +70,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 
 - Edge-first. Сборщик работает в сети объекта и не зависит от постоянной доступности внешнего контура.
 - Read-only by default. В production data path web-monitoring контура сервис читает и наблюдает сигналы, но не управляет ими.
-- Server-issued config. Все известные точки, `value_model`, параметры чтения и правила публикации приходят в edge-agent как retained runtime/source configs; целевой поток доставки: PostgreSQL config revisions -> config outbox -> Kafka -> Redpanda Connect -> MQTT retained topics.
+- Server-issued config. Все известные точки, `value_model`, параметры чтения и правила публикации приходят в wm-edge-agent как retained runtime/source configs; целевой поток доставки: PostgreSQL config revisions -> config outbox -> Kafka -> Redpanda Connect -> MQTT retained topics.
 - Hybrid acquisition. Основной поток данных приходит из event/listen режима там, где он поддерживается; активное чтение включается только для whitelist endpoints.
 - Loose coupling. Протокольная интеграция, правила фильтрации и доставка во внешний контур разделены по компонентам.
 - Fail-safe degradation. При потере backend события не теряются сразу, а уходят в локальный Delivery Outbox.
@@ -81,7 +86,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 - публиковать аналоговые сигналы по достижению порога изменения
 - логировать события связи, декодирования и доставки
 - буферизовать неотправленные события локально
-- принимать `MQTT` telemetry events и status topics в центральной платформе; retained runtime/source configs являются delivery projection для edge-agent
+- принимать `MQTT` telemetry events и status topics в центральной платформе; retained runtime/source configs являются delivery projection для wm-edge-agent
 - хранить телеметрию, source config snapshots и историю `alarm`
 - выполнять правила `alarm` и маршрутизировать уведомления
 - предоставлять операторский UI и backend API для мониторинга и работы с `alarm`
@@ -110,7 +115,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 
 1. `Config Registry` хранит rendered runtime/source config revisions в PostgreSQL и создает `config_outbox` record.
 2. `Config Event Publisher` публикует `wm.platform.edge.config.delivery.v1` records в Kafka topic `wm.platform.edge.configs.v1`.
-3. `Redpanda Connect` материализует config delivery records в retained MQTT runtime/source topics; edge-agent получает `tenant_id`, `asset_id`, `sources` и `points` из этих retained configs.
+3. `Redpanda Connect` материализует config delivery records в retained MQTT runtime/source topics; wm-edge-agent получает `tenant_id`, `asset_id`, `sources` и `points` из этих retained configs.
 4. `Source Config Snapshot Projector` строит `wm.platform.source.configs.v1` из `wm.platform.edge.configs.v1`; retained MQTT source configs не являются authoritative Kafka ingress для source config snapshots.
 5. `Edge Telemetry Agent` в текущем runtime baseline публикует telemetry events по `MQTT 5.0`; source connection status, config status и agent LWT/status остаются target contracts следующей runtime-фазы.
 6. `MQTT Ingestion Gateway` принимает MQTT-поток, валидирует payload и восстанавливает routing context.
@@ -130,7 +135,8 @@ Source of truth для `C1/C2` и следующих уровней декомп
 - `Platform Store` — `PostgreSQL`, transactional store для assets, agents, sources, point registry, alarm rules, notification policies, current alarm state, acknowledgements, mutes, audit и Keycloak persistence.
 - `Redpanda` и `Kafka Event Log` являются streaming/replay слоем и не заменяют долговременное хранилище платформы.
 
-Source of truth для ingestion, Kafka topics и ClickHouse DDL draft находится в
+Source of truth для ingestion, Kafka topics, ClickHouse contracts и migrations
+находится в
 `docs/contracts/platform-ingestion/`, `docs/contracts/kafka/` и
 `docs/contracts/clickhouse/`.
 
@@ -195,7 +201,7 @@ production-контуре как слой визуализации.
 
 Ограничения текущего MVP-среза:
 
-- локальный demo/integration flow ограничен `KNX -> edge_agent -> MQTT`
+- локальный demo/integration flow ограничен `KNX -> wm_edge_agent -> MQTT`
 - Grafana не входит в текущий обязательный demo surface
 - alarm-логика, история и richer backend-возможности принадлежат
   `Monitoring & Alarm Platform`
@@ -256,7 +262,7 @@ production-контуре как слой визуализации.
 - `value_raw`
 - `quality`
 
-Подробный контракт вынесен в `docs/contracts/edge-agent/`.
+Подробный контракт вынесен в `docs/contracts/wm-edge-agent/`.
 
 ## MQTT status topics и operational logs
 
@@ -325,9 +331,9 @@ production-контуре как слой визуализации.
 - `arch/README.md`
 - `docs/architecture/glossary.md`
 - `docs/contracts/README.md`
-- `docs/contracts/edge-agent/`
-- `apps/edge_agent/docs/data-contracts.md`
-- `apps/edge_agent/docs/mqtt-topics.md`
+- `docs/contracts/wm-edge-agent/`
+- `apps/wm_edge_agent/docs/data-contracts.md`
+- `apps/wm_edge_agent/docs/mqtt-topics.md`
 - `docs/architecture/open-questions.md`
 - `docs/architecture/adrs/ADR-001-runtime-topology.md`
 - `docs/architecture/adrs/ADR-002-acquisition-mode.md`
@@ -336,4 +342,4 @@ production-контуре как слой визуализации.
 - `docs/architecture/adrs/ADR-005-mqtt-event-transport.md`
 - `docs/architecture/adrs/ADR-007-monitoring-platform-data-stores.md`
 - `docs/architecture/adrs/ADR-008-server-issued-edge-runtime-configuration.md`
-- `docs/contracts/edge-agent/config-bundle.v1.md`
+- `docs/contracts/wm-edge-agent/config-bundle.v1.md`

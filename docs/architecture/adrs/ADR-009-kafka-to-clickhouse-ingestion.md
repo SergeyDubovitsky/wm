@@ -236,7 +236,7 @@ default path. Он может снизить операционную нагру
 7. Добавить connector config с `topic2TableMap`, DLQ, retry policy, metrics и
    secret injection.
 8. Добавить integration test:
-   `edge_agent -> MQTT -> Kafka -> Kafka Connect Sink -> ClickHouse landing -> contract table`.
+   `wm_edge_agent -> MQTT -> Kafka -> Kafka Connect Sink -> ClickHouse landing -> contract table`.
 9. Добавить dedup/read verification для повторной доставки одного telemetry
    record.
 

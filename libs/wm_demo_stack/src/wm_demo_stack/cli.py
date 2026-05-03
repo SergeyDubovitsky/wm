@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from wm_demo_stack.bundle import load_bundle
-from wm_demo_stack.config_registry_client import publish_bundle_via_config_registry
+from wm_demo_stack.config_registry_client import publish_bundle_via_wm_config_registry
 from wm_demo_stack.kafka_publisher import connect_kafka_publisher
 from wm_demo_stack.models import (
     BrokerConfig,
@@ -123,7 +123,8 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--config-registry-url",
+        "--wm-config-registry-url",
+        dest="config_registry_url",
         default=default_config_registry_url,
         help=(
             "Config Registry API base URL. Defaults to CONFIG_REGISTRY_URL "
@@ -210,7 +211,7 @@ def settings_from_args(args: argparse.Namespace) -> DemoSettings:
             bootstrap_servers=args.kafka_bootstrap_servers,
             client_id=args.kafka_client_id,
         ),
-        config_registry=ConfigRegistryConfig(
+        wm_config_registry=ConfigRegistryConfig(
             base_url=args.config_registry_url.rstrip("/")
         ),
         username=args.username,
@@ -264,8 +265,8 @@ def main() -> int:
         )
         settings = replace(settings, publish_config=False)
     elif settings.config_delivery == "api":
-        publish_bundle_via_config_registry(
-            config=settings.config_registry,
+        publish_bundle_via_wm_config_registry(
+            config=settings.wm_config_registry,
             bundle=settings.bundle,
         )
         wait_for_retained_config_projection(

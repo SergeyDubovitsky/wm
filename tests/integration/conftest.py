@@ -692,10 +692,10 @@ class LocalConfigRegistryPostgresStack(LocalComposeStack):
                 "--env-file",
                 str(self.env_file),
                 "--package",
-                "config-registry",
+                "wm-config-registry",
                 "alembic",
                 "-c",
-                "apps/config_registry/alembic.ini",
+                "apps/wm_config_registry/alembic.ini",
                 "upgrade",
                 "head",
             ],
@@ -759,14 +759,14 @@ class LocalConfigDeliveryStack(LocalPlatformStack):
             result = self.compose(
                 "logs",
                 "--no-color",
-                "config-registry-outbox-publisher",
+                "wm-config-registry-outbox-worker",
                 check=False,
                 timeout=30,
             )
             last_logs = "\n".join(
                 part for part in (result.stdout, result.stderr) if part
             ).strip()
-            if "Config outbox publisher worker started" in last_logs:
+            if "Config outbox worker started" in last_logs:
                 return
             time.sleep(1)
 
@@ -792,6 +792,20 @@ class LocalConfigDeliveryStack(LocalPlatformStack):
         raise AssertionError(
             f"Config Registry API did not become ready within {timeout:.0f}s. "
             f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
+        )
+
+    def run_config_registry_migrations(self, timeout: int = 300) -> None:
+        self.compose(
+            "run",
+            "--rm",
+            "--no-deps",
+            "wm-config-registry",
+            "alembic",
+            "-c",
+            "apps/wm_config_registry/alembic.ini",
+            "upgrade",
+            "head",
+            timeout=timeout,
         )
 
     def config_registry_json(
@@ -1136,7 +1150,7 @@ def local_config_registry_postgres_stack(
         }
     )
 
-    env_dir = tmp_path_factory.mktemp("config-registry-postgres-stack")
+    env_dir = tmp_path_factory.mktemp("wm-config-registry-postgres-stack")
     env_file = env_dir / ".env.integration"
     _write_env_file(env_file, env_values)
 
@@ -1202,7 +1216,7 @@ def local_config_delivery_stack(
             "POSTGRES_PORT": str(postgres_port),
             "CONFIG_REGISTRY_PORT": str(config_registry_port),
             "CONFIG_REGISTRY_DATABASE_URL": database_url,
-            "CONFIG_REGISTRY_KAFKA_CLIENT_ID": "config-registry-worker-it",
+            "CONFIG_REGISTRY_KAFKA_CLIENT_ID": "wm-config-registry-worker-it",
             "CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS": "0.5",
         }
     )
@@ -1227,25 +1241,31 @@ def local_config_delivery_stack(
     )
 
     try:
-        stack.compose("build", "config-registry-outbox-publisher", timeout=1200)
+        stack.compose("build", "wm-config-registry", timeout=1200)
         stack.compose(
             "up",
             "-d",
             "mqtt-broker",
             "kafka",
-            "kafka-init",
-            "redpanda-connect-config-projection",
-            "redpanda-connect-source-config-snapshot",
             "postgres",
-            "config-registry-api",
-            "config-registry-outbox-publisher",
             timeout=900,
         )
         stack.wait_for_mqtt()
         stack.wait_for_kafka()
+        stack.wait_for_postgres()
+        stack.run_config_registry_migrations(timeout=900)
+        stack.compose(
+            "up",
+            "-d",
+            "kafka-init",
+            "redpanda-connect-config-projection",
+            "redpanda-connect-source-config-snapshot",
+            "wm-config-registry",
+            "wm-config-registry-outbox-worker",
+            timeout=900,
+        )
         stack.wait_for_redpanda_connect_config_projection()
         stack.wait_for_redpanda_connect_source_config_snapshot()
-        stack.wait_for_postgres()
         stack.wait_for_config_registry_api()
         stack.wait_for_config_outbox_worker()
         yield stack

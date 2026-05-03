@@ -101,9 +101,10 @@
   `ClickHouse` попадают как снимки метаданных для исторической аналитики
 - добавление нового тега/датчика не должно требовать `ALTER TABLE`
 
-Полный DDL draft и имена таблиц являются контрактами хранения и фиксируются в
-`docs/contracts/clickhouse/telemetry-store.v1.md`. Этот ADR фиксирует решение
-и принципы модели, а не является source of truth для ClickHouse DDL.
+Полная migration-backed физическая модель, contract tables и имена таблиц
+фиксируются в `docs/contracts/clickhouse/telemetry-store.v1.md`. Этот ADR
+фиксирует решение и принципы модели, а не является source of truth для
+ClickHouse schema details.
 
 Правила физической модели:
 

@@ -10,18 +10,19 @@
 
 - `examples/bootstrap.example.yaml` — минимальный локальный bootstrap
 - `examples/config.bundle.example.yaml` — authoring bundle, из которого demo/tooling
-  публикует Kafka config delivery records для retained MQTT projection
+  импортирует настройки в `Config Registry API`
 
 `edge_agent` читает локально только bootstrap-файл. Bundle не загружается
-напрямую рантаймом: он нужен для demo и интеграционных сценариев, где config
-delivery records попадают в Kafka, а retained config материализуется
-Redpanda Connect projection.
+напрямую рантаймом: он нужен для demo и интеграционных сценариев. В
+production-like local demo CLI импортирует bundle в `Config Registry API`,
+после чего outbox worker публикует Kafka config delivery records, а retained
+config материализуется Redpanda Connect projection.
 
 Текущие integration-тесты используют именно этот split:
 
 - временный локальный `bootstrap.yaml`, созданный в `tmp_path` на время теста
 - retained runtime/source config, материализованный из Kafka delivery records
-  по `config.bundle.yaml`
+  по данным `config.bundle.yaml`
 - затем `edge_agent` валидирует и использует уже собранный MQTT-side runtime state
 
 Для локального запуска examples могут использовать placeholders вида `${VAR}`.

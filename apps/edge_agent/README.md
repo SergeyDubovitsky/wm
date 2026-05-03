@@ -32,14 +32,16 @@ uv run --group integration pytest \
 
 - `test_edge_agent_mqtt_publisher.py` — transport smoke и CLI-сценарий `enqueue-demo-event -> deliver-once`
 - `test_edge_agent_knx_to_mqtt.py` — реальный `ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT` для demo `knx_main`
-- retained runtime/source config для integration-сценариев seed-ится через
-  `config.bundle.yaml -> Kafka config delivery records -> Redpanda Connect
-  retained MQTT projection`
+- retained runtime/source config в edge-agent integration fixture seed-ится
+  напрямую через Kafka config delivery records, чтобы изолировать runtime агента.
+  Production-like local demo seed идет через
+  `Config Registry API -> outbox worker -> Kafka -> retained MQTT projection`.
 
 ## Runtime Assets
 
 - `config/examples/bootstrap.example.yaml` — локальный bootstrap example
-- `config/examples/config.bundle.example.yaml` — authoring bundle example для Kafka-first config delivery projection
+- `config/examples/config.bundle.example.yaml` — authoring bundle example для
+  demo import в `Config Registry API`
 - `../../docs/contracts/edge-agent/` — canonical edge contracts, MQTT topic tree, and payload schemas
 - `docs/data-contracts.md` — guide по edge runtime dataflow, config model, and contract usage
 - `docs/mqtt-topics.md` — guide по MQTT publish rules и ссылкам на canonical topic tree

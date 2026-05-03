@@ -33,7 +33,7 @@
 - `apps/knx_demo/` — KNX demo utilities
 - `apps/config_registry/` — первый backend-срез Config Registry
 - `libs/knx_parser/` — библиотека для разбора ETS `.knxproj`
-- `libs/wm_demo_stack/` — библиотека demo/scenario потока `config bundle -> Kafka config delivery -> retained MQTT config -> telemetry`
+- `libs/wm_demo_stack/` — библиотека demo/scenario потока `config bundle -> Config Registry API -> outbox worker -> Kafka config delivery -> retained MQTT config -> telemetry`
 - `tools/clickhouse_migrations/` — repo-native operational tooling и migration CLI
 - `environments/` — versioned edge profiles конкретных стендов и окружений
 - `infra/` — локальная инфраструктура разработки и будущие `compose`-артефакты
@@ -96,7 +96,7 @@ uv run --group integration pytest \
 - `tests/integration/test_config_registry_postgres.py` — `Config Registry -> PostgreSQL`
   через Alembic migration и FastAPI tenant endpoints
 - `tests/integration/test_edge_agent_mqtt_publisher.py` — raw `paho` publisher smoke и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
-- `tests/integration/test_edge_agent_knx_to_mqtt.py` — `config bundle -> Kafka config delivery -> retained MQTT config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+- `tests/integration/test_edge_agent_knx_to_mqtt.py` — lower-level edge-agent smoke: `Kafka config delivery fixture -> retained MQTT config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
 - `tests/integration/test_kafka_to_clickhouse_storage.py` —
   `Kafka -> Kafka Connect -> ClickHouse raw landing -> contract table`,
   включая byte-for-byte проверку `payload_json` и storage DLQ для невалидных

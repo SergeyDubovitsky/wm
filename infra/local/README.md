@@ -310,8 +310,9 @@ uv run --group integration pytest \
 
 - `test_edge_agent_mqtt_publisher.py` содержит два smoke-сценария:
   raw `PahoMqttPublisher -> MQTT` и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
-- `test_edge_agent_knx_to_mqtt.py` проверяет end-to-end путь
-  `config bundle -> Kafka config delivery records -> retained runtime/source config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+- `test_edge_agent_knx_to_mqtt.py` проверяет lower-level edge-agent путь:
+  тестовая fixture seed-ит Kafka config delivery records, дальше проверяется
+  `retained runtime/source config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
 - `test_kafka_to_clickhouse_storage.py` проверяет путь
   `Kafka -> Kafka Connect -> ClickHouse raw landing -> contract table`,
   byte-for-byte сохранение Kafka value в `payload_json` и storage DLQ для

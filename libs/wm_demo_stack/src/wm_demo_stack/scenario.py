@@ -9,18 +9,21 @@ from wm_demo_stack.models import (
     BundlePoint,
     BundleSource,
     DemoSettings,
+    KafkaRecord,
     PublishMessage,
     WaveConfig,
 )
 from wm_demo_stack.publisher import JsonPublisher
 from wm_demo_stack.runtime import RuntimePort
 
+EDGE_CONFIG_TOPIC = "wm.platform.edge.configs.v1"
+
 
 def runtime_config_payload(settings: DemoSettings) -> dict[str, Any]:
     return {
         "message_type": "wm.edge.runtime-config.v1",
         "tenant_id": settings.bundle.tenant_id,
-        "object_id": settings.bundle.object_id,
+        "asset_id": settings.bundle.asset_id,
         "agent_id": settings.bundle.agent_id,
         "config_revision": settings.bundle.config_revision,
         "issued_at": settings.bundle.issued_at,
@@ -43,7 +46,7 @@ def source_config_payload(
     return {
         "message_type": "wm.edge.source-config.v1",
         "tenant_id": settings.bundle.tenant_id,
-        "object_id": settings.bundle.object_id,
+        "asset_id": settings.bundle.asset_id,
         "agent_id": settings.bundle.agent_id,
         "config_revision": settings.bundle.config_revision,
         "source_id": source.source_id,
@@ -54,6 +57,86 @@ def source_config_payload(
         "acquisition_defaults": dict(source.acquisition_defaults),
         "publish_defaults": dict(source.publish_defaults),
         "points": [point.source_config_entry() for point in source.points],
+    }
+
+
+def config_delivery_records(settings: DemoSettings) -> list[KafkaRecord]:
+    runtime_payload = runtime_config_payload(settings)
+    records = [
+        KafkaRecord(
+            topic=EDGE_CONFIG_TOPIC,
+            key=(
+                f"{settings.bundle.tenant_id}|{settings.bundle.asset_id}|"
+                f"{settings.bundle.agent_id}|runtime"
+            ),
+            payload=_config_delivery_record(
+                settings=settings,
+                config_scope="runtime",
+                source_id=None,
+                source_config_revision=None,
+                target_mqtt_topic=settings.scope.runtime_config_topic(),
+                payload_message_type="wm.edge.runtime-config.v1",
+                payload=runtime_payload,
+            ),
+        )
+    ]
+    for source in settings.bundle.sources:
+        config_scope = f"source:{source.source_id}"
+        records.append(
+            KafkaRecord(
+                topic=EDGE_CONFIG_TOPIC,
+                key=(
+                    f"{settings.bundle.tenant_id}|{settings.bundle.asset_id}|"
+                    f"{settings.bundle.agent_id}|{config_scope}"
+                ),
+                payload=_config_delivery_record(
+                    settings=settings,
+                    config_scope=config_scope,
+                    source_id=source.source_id,
+                    source_config_revision=source.source_config_revision,
+                    target_mqtt_topic=settings.scope.source_config_topic(
+                        source.source_id
+                    ),
+                    payload_message_type="wm.edge.source-config.v1",
+                    payload=source_config_payload(settings, source=source),
+                ),
+            )
+        )
+    return records
+
+
+def _config_delivery_record(
+    *,
+    settings: DemoSettings,
+    config_scope: str,
+    source_id: str | None,
+    source_config_revision: str | None,
+    target_mqtt_topic: str,
+    payload_message_type: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    idempotency_scope = config_scope.replace(":", "|")
+    return {
+        "message_type": "wm.platform.edge.config.delivery.v1",
+        "tenant_id": settings.bundle.tenant_id,
+        "asset_id": settings.bundle.asset_id,
+        "agent_id": settings.bundle.agent_id,
+        "config_revision": settings.bundle.config_revision,
+        "config_scope": config_scope,
+        "source_id": source_id,
+        "source_config_revision": source_config_revision,
+        "target_mqtt_topic": target_mqtt_topic,
+        "mqtt_retain": True,
+        "mqtt_qos": 1,
+        "operation": "upsert",
+        "payload_message_type": payload_message_type,
+        "payload": payload,
+        "idempotency_key": (
+            f"{settings.bundle.tenant_id}|{settings.bundle.asset_id}|"
+            f"{settings.bundle.agent_id}|{settings.bundle.config_revision}|"
+            f"{idempotency_scope}"
+        ),
+        "issued_at": settings.bundle.issued_at,
     }
 
 

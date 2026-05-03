@@ -22,7 +22,7 @@ pipeline:
         root = this
         root._mqtt_topic = metadata("mqtt_topic")
         root._topic_parts = $parts
-        root._object_id = if $parts.length() > 3 && $parts.index(2) == "objects" { $parts.index(3) } else { null }
+        root._asset_id = if $parts.length() > 3 && $parts.index(2) == "assets" { $parts.index(3) } else { null }
         root._agent_id = if $parts.length() > 4 && $parts.index(2) == "agents" { $parts.index(3) } else if $parts.length() > 5 && $parts.index(4) == "agents" { $parts.index(5) } else { null }
         root._source_id = if $parts.length() > 5 && $parts.index(4) == "sources" { $parts.index(5) } else if $parts.length() > 7 && $parts.index(6) == "sources" { $parts.index(7) } else { null }
         root._point_key = if $parts.length() > 9 && $parts.index(8) == "points" { $parts.index(9) } else { null }
@@ -42,12 +42,12 @@ pipeline:
             - mapping: |
                 let ingested_at = now()
                 let tenant_id = this.tenant_id
-                let object_id = this.object_id
+                let asset_id = this.asset_id
                 let agent_id = this.agent_id
                 let source_id = this.source_id
                 root.message_type = "wm.platform.source.config.v1"
                 root.tenant_id = $tenant_id
-                root.object_id = $object_id
+                root.asset_id = $asset_id
                 root.agent_id = $agent_id
                 root.source_id = $source_id
                 root.source_type = this.source_type
@@ -55,7 +55,7 @@ pipeline:
                 root.ts = this.issued_at | this.ts | $ingested_at
                 root.ingested_at = $ingested_at
                 root.points = this.points.map_each(point -> {
-                  "point_id": "%s|%s|%s|%s".format($tenant_id, $object_id, $source_id, point.point_key),
+                  "point_id": "%s|%s|%s|%s".format($tenant_id, $asset_id, $source_id, point.point_key),
                   "point_key": point.point_key,
                   "point_ref": point.point_ref,
                   "name": point.name,
@@ -67,17 +67,18 @@ pipeline:
                   "tags": point.tags | {},
                 })
                 meta kafka_topic = "wm.platform.source.configs.v1"
-                meta kafka_key = "%s|%s|%s|%s".format(root.tenant_id, root.object_id, root.agent_id, root.source_id)
+                meta kafka_key = "%s|%s|%s|%s".format(root.tenant_id, root.asset_id, root.agent_id, root.source_id)
             - cache:
                 resource: source_configs
                 operator: set
-                key: '${! json("tenant_id") }|${! json("object_id") }|${! json("agent_id") }|${! json("source_id") }|${! json("source_config_revision") }'
+                key: '${! json("tenant_id") }|${! json("asset_id") }|${! json("agent_id") }|${! json("source_id") }|${! json("source_config_revision") }'
                 value: '${! content().string() }'
             - cache:
                 resource: source_routes
                 operator: set
-                key: '${! json("object_id") }|${! json("agent_id") }|${! json("source_id") }'
+                key: '${! json("asset_id") }|${! json("agent_id") }|${! json("source_id") }'
                 value: '${! content().string() }'
+            - mapping: root = deleted()
 
         - check: this.message_type == "wm.telemetry.event.v1"
           processors:
@@ -86,7 +87,7 @@ pipeline:
                   - cache:
                       resource: source_configs
                       operator: get
-                      key: '${! json("tenant_id") }|${! json("_object_id") }|${! json("_agent_id") }|${! json("_source_id") }|${! json("source_config_revision") }'
+                      key: '${! json("tenant_id") }|${! json("_asset_id") }|${! json("_agent_id") }|${! json("_source_id") }|${! json("source_config_revision") }'
                 result_map: root._source_config = this
             - mapping: |
                 let ingested_at = now()
@@ -95,8 +96,8 @@ pipeline:
                 root.message_type = "wm.platform.telemetry.event.v1"
                 root.tenant_id = this.tenant_id
                 root.event_id = this.event_id
-                root.idempotency_key = "%s|%s|%s|%s".format(this.tenant_id, this._object_id, this._agent_id, this.event_id)
-                root.object_id = this._object_id
+                root.idempotency_key = "%s|%s|%s|%s".format(this.tenant_id, this._asset_id, this._agent_id, this.event_id)
+                root.asset_id = this._asset_id
                 root.agent_id = this._agent_id
                 root.source_id = this._source_id
                 root.source_type = this._source_config.source_type
@@ -121,7 +122,7 @@ pipeline:
                   "unit": $point.unit | null,
                 }
                 meta kafka_topic = "wm.platform.telemetry.events.v1"
-                meta kafka_key = "%s|%s|%s|%s".format(root.tenant_id, root.object_id, root.source_id, root.point_key)
+                meta kafka_key = "%s|%s|%s|%s".format(root.tenant_id, root.asset_id, root.source_id, root.point_key)
 
         - check: this.message_type == "wm.source.connection.v1"
           processors:
@@ -129,7 +130,7 @@ pipeline:
                 let ingested_at = now()
                 root.message_type = "wm.platform.source.connection.v1"
                 root.tenant_id = if this.tenant_id != null { this.tenant_id } else { throw("tenant_claim_missing") }
-                root.object_id = if this._object_id != null { this._object_id } else { throw("topic_template_mismatch") }
+                root.asset_id = if this._asset_id != null { this._asset_id } else { throw("topic_template_mismatch") }
                 root.agent_id = if this._agent_id != null { this._agent_id } else { throw("topic_template_mismatch") }
                 root.source_id = if this._source_id != null { this._source_id } else { throw("topic_template_mismatch") }
                 root.state = this.state
@@ -137,7 +138,7 @@ pipeline:
                 root.ingested_at = $ingested_at
                 root.reason = this.reason | null
                 meta kafka_topic = "wm.platform.source.connections.v1"
-                meta kafka_key = "%s|%s|%s|%s".format(root.tenant_id, root.object_id, root.agent_id, root.source_id)
+                meta kafka_key = "%s|%s|%s|%s".format(root.tenant_id, root.asset_id, root.agent_id, root.source_id)
 
         - check: this.message_type == "wm.agent.lwt.v1"
           processors:
@@ -145,13 +146,13 @@ pipeline:
                 let ingested_at = now()
                 root.message_type = "wm.platform.agent.status.v1"
                 root.tenant_id = if this.tenant_id != null { this.tenant_id } else { throw("tenant_claim_missing") }
-                root.object_id = if this._object_id != null { this._object_id } else { throw("topic_template_mismatch") }
+                root.asset_id = if this._asset_id != null { this._asset_id } else { throw("topic_template_mismatch") }
                 root.agent_id = if this._agent_id != null { this._agent_id } else { throw("topic_template_mismatch") }
                 root.status = this.status
                 root.ts = this.ts
                 root.ingested_at = $ingested_at
                 meta kafka_topic = "wm.platform.agent.status.v1"
-                meta kafka_key = "%s|%s|%s".format(root.tenant_id, root.object_id, root.agent_id)
+                meta kafka_key = "%s|%s|%s".format(root.tenant_id, root.asset_id, root.agent_id)
 
         - processors:
             - mapping: |
@@ -161,7 +162,7 @@ pipeline:
                 root.reason_code = "topic_template_mismatch"
                 root.mqtt_topic = this._mqtt_topic
                 root.message_type_in = this.message_type | null
-                root.object_id = this._object_id
+                root.asset_id = this._asset_id
                 root.agent_id = this._agent_id
                 root.source_id = this._source_id
                 root.point_key = this._point_key
@@ -169,7 +170,7 @@ pipeline:
                 root.raw_payload_snapshot = content().string()
                 root.ingested_at = $ingested_at
                 meta kafka_topic = "wm.platform.ingestion.errors.v1"
-                meta kafka_key = "%s|%s|%s|%s".format(root.object_id.or("unknown"), root.agent_id.or("unknown"), root.source_id.or("unknown"), root.message_type_in.or("unknown"))
+                meta kafka_key = "%s|%s|%s|%s".format(root.asset_id.or("unknown"), root.agent_id.or("unknown"), root.source_id.or("unknown"), root.message_type_in.or("unknown"))
 
     - catch:
         - mapping: |
@@ -189,7 +190,7 @@ pipeline:
             }
             root.mqtt_topic = this._mqtt_topic
             root.message_type_in = this.message_type | null
-            root.object_id = this._object_id
+            root.asset_id = this._asset_id
             root.agent_id = this._agent_id
             root.source_id = this._source_id
             root.point_key = this._point_key
@@ -197,7 +198,7 @@ pipeline:
             root.raw_payload_snapshot = content().string()
             root.ingested_at = $ingested_at
             meta kafka_topic = "wm.platform.ingestion.errors.v1"
-            meta kafka_key = "%s|%s|%s|%s".format(root.object_id.or("unknown"), root.agent_id.or("unknown"), root.source_id.or("unknown"), root.message_type_in.or("unknown"))
+            meta kafka_key = "%s|%s|%s|%s".format(root.asset_id.or("unknown"), root.agent_id.or("unknown"), root.source_id.or("unknown"), root.message_type_in.or("unknown"))
 
 output:
   redpanda:

@@ -2,23 +2,42 @@ from __future__ import annotations
 
 import argparse
 import os
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlparse
 
 from wm_demo_stack.bundle import load_bundle
-from wm_demo_stack.models import BrokerConfig, DemoSettings, TopicScope, WaveConfig
+from wm_demo_stack.config_registry_client import publish_bundle_via_wm_config_registry
+from wm_demo_stack.kafka_publisher import connect_kafka_publisher
+from wm_demo_stack.models import (
+    BrokerConfig,
+    ConfigRegistryConfig,
+    DemoSettings,
+    KafkaConfig,
+    TopicScope,
+    WaveConfig,
+)
 from wm_demo_stack.publisher import connect_publisher
+from wm_demo_stack.retained_config import wait_for_retained_config_projection
 from wm_demo_stack.runtime import SystemRuntime
-from wm_demo_stack.scenario import run_demo
+from wm_demo_stack.scenario import config_delivery_records, run_demo
 
 
 def parse_args() -> argparse.Namespace:
     default_broker = os.environ.get("MQTT_BROKER", "mqtt://localhost:1883")
+    default_kafka = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
+    default_config_registry_url = os.environ.get(
+        "CONFIG_REGISTRY_URL",
+        "http://localhost:8000",
+    )
     default_username = os.environ.get("MQTT_USERNAME")
     default_password = os.environ.get("MQTT_PASSWORD")
 
     parser = argparse.ArgumentParser(
-        description="Publish demo retained config and telemetry to MQTT.",
+        description=(
+            "Seed demo edge config through Config Registry API and publish "
+            "telemetry to MQTT."
+        ),
     )
     parser.add_argument(
         "--bundle-config",
@@ -53,7 +72,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--topic-root",
         default="wm/v1",
-        help="MQTT topic root for retained config and telemetry topics.",
+        help="MQTT topic root for projected retained config and telemetry topics.",
     )
     parser.add_argument(
         "--source-id",
@@ -96,9 +115,50 @@ def parse_args() -> argparse.Namespace:
         help="Number of cycles in one temperature wave period.",
     )
     parser.add_argument(
+        "--kafka-bootstrap-servers",
+        default=default_kafka,
+        help=(
+            "Kafka bootstrap servers for config delivery records. "
+            "Defaults to KAFKA_BOOTSTRAP_SERVERS or localhost:19092."
+        ),
+    )
+    parser.add_argument(
+        "--wm-config-registry-url",
+        dest="config_registry_url",
+        default=default_config_registry_url,
+        help=(
+            "Config Registry API base URL. Defaults to CONFIG_REGISTRY_URL "
+            "or http://localhost:8000."
+        ),
+    )
+    parser.add_argument(
+        "--kafka-client-id",
+        default="manual-edge-demo-config-publisher",
+        help="Kafka producer client id for config delivery records.",
+    )
+    parser.add_argument(
+        "--config-delivery",
+        choices=("api", "kafka", "mqtt", "none"),
+        default="api",
+        help=(
+            "How to seed runtime/source config. Default api imports the bundle "
+            "through Config Registry API and relies on the outbox worker."
+        ),
+    )
+    parser.add_argument(
+        "--config-projection-timeout-seconds",
+        type=float,
+        default=15.0,
+        help=(
+            "When --config-delivery api or kafka is used, wait this long for "
+            "retained runtime/source configs to appear in MQTT before telemetry "
+            "starts. 0 disables waiting."
+        ),
+    )
+    parser.add_argument(
         "--no-config",
         action="store_true",
-        help="Do not publish retained runtime/source config on startup.",
+        help="Deprecated shortcut for --config-delivery none.",
     )
     parser.add_argument(
         "--no-status",
@@ -110,7 +170,8 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=30.0,
         help=(
-            "Republish retained config and status while running. 0 disables refresh."
+            "Republish MQTT retained config only in --config-delivery mqtt mode; "
+            "status refresh still uses this interval. 0 disables refresh."
         ),
     )
     return parser.parse_args()
@@ -137,18 +198,28 @@ def settings_from_args(args: argparse.Namespace) -> DemoSettings:
         raise ValueError("--count must be non-negative")
     if args.retained_refresh_seconds < 0:
         raise ValueError("--retained-refresh-seconds must be non-negative")
+    if args.config_projection_timeout_seconds < 0:
+        raise ValueError("--config-projection-timeout-seconds must be non-negative")
+    config_delivery = "none" if args.no_config else args.config_delivery
 
     bundle = load_bundle(args.bundle_config)
     selected_source = bundle.source(args.source_id)
 
     return DemoSettings(
         broker=parse_broker(args.broker),
+        kafka=KafkaConfig(
+            bootstrap_servers=args.kafka_bootstrap_servers,
+            client_id=args.kafka_client_id,
+        ),
+        wm_config_registry=ConfigRegistryConfig(
+            base_url=args.config_registry_url.rstrip("/")
+        ),
         username=args.username,
         password=args.password,
         client_id=args.client_id,
         scope=TopicScope(
             topic_root=args.topic_root,
-            object_id=bundle.object_id,
+            asset_id=bundle.asset_id,
             agent_id=bundle.agent_id,
         ),
         bundle=bundle,
@@ -160,7 +231,8 @@ def settings_from_args(args: argparse.Namespace) -> DemoSettings:
             amplitude=args.temperature_amplitude,
             period=args.temperature_period,
         ),
-        publish_config=not args.no_config,
+        config_delivery=config_delivery,
+        publish_config=config_delivery == "mqtt",
         publish_status=not args.no_status,
         retained_refresh_seconds=args.retained_refresh_seconds,
     )
@@ -173,11 +245,41 @@ def main() -> int:
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
+    if settings.config_delivery == "kafka":
+        kafka_publisher = connect_kafka_publisher(config=settings.kafka)
+        try:
+            records = config_delivery_records(settings)
+            for record in records:
+                kafka_publisher.publish(record)
+            print(
+                "PUBLISHED_CONFIG_DELIVERY "
+                f"records={len(records)} "
+                f"bootstrap_servers={settings.kafka.bootstrap_servers} "
+                f"agent_id={settings.bundle.agent_id}"
+            )
+        finally:
+            kafka_publisher.close()
+        wait_for_retained_config_projection(
+            settings,
+            timeout_seconds=args.config_projection_timeout_seconds,
+        )
+        settings = replace(settings, publish_config=False)
+    elif settings.config_delivery == "api":
+        publish_bundle_via_wm_config_registry(
+            config=settings.wm_config_registry,
+            bundle=settings.bundle,
+        )
+        wait_for_retained_config_projection(
+            settings,
+            timeout_seconds=args.config_projection_timeout_seconds,
+        )
+        settings = replace(settings, publish_config=False)
+
     publisher = connect_publisher(settings=settings)
     print(
         "CONNECTED "
         f"broker={settings.broker.host}:{settings.broker.port} "
-        f"object_id={settings.bundle.object_id} "
+        f"asset_id={settings.bundle.asset_id} "
         f"agent_id={settings.bundle.agent_id} "
         f"source_id={settings.telemetry_source_id}"
     )

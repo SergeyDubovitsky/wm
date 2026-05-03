@@ -1,12 +1,15 @@
 # wm-demo-stack
 
-Внутренняя библиотека для локального demo/scenario потока `config bundle -> retained MQTT config -> telemetry`.
+Внутренняя библиотека для локального demo/scenario потока
+`config bundle -> Config Registry API -> outbox worker -> Kafka config delivery -> retained MQTT config -> telemetry`.
 
 Содержит:
 
 - модели и topic scope для demo-данных
-- генерацию bootstrap/status/telemetry сообщений
+- импорт demo bundle в `Config Registry API`
+- генерацию Kafka config delivery records и MQTT status/telemetry сообщений
 - тонкий `paho-mqtt` publisher adapter
+- тонкий `confluent-kafka` publisher adapter для fallback config delivery records
 - CLI для публикации demo-потока
 
 ## Запуск CLI
@@ -15,20 +18,36 @@
 
 ```bash
 uv run --env-file .env --package wm-demo-stack publish-edge-demo \
-  --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml
+  --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml
 ```
+
+По умолчанию config seed идет через `Config Registry API`: CLI импортирует
+tenant/asset/agent/source/points из bundle, вызывает `render-config`, дальше
+outbox worker публикует records в Kafka topic `wm.platform.edge.configs.v1`.
+Retained MQTT runtime/source config появляются через локальный
+`redpanda-connect-config-projection`. CLI ждет retained projection перед
+публикацией telemetry, чтобы локальный smoke не зависел от гонки Kafka/MQTT.
 
 Полезные варианты:
 
 ```bash
 uv run --env-file .env --package wm-demo-stack \
-  publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml --count 10
+  publish-edge-demo --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml --count 10
 
 uv run --env-file .env --package wm-demo-stack \
-  publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml --source-id knx_main
+  publish-edge-demo --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml --source-id knx_main
 
 uv run --env-file .env --package wm-demo-stack \
-  publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml --retained-refresh-seconds 15
+  publish-edge-demo --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml --retained-refresh-seconds 15
+
+uv run --env-file .env --package wm-demo-stack \
+  publish-edge-demo --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml --config-delivery mqtt
+
+uv run --env-file .env --package wm-demo-stack \
+  publish-edge-demo --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml --config-delivery kafka
+
+uv run --env-file .env --package wm-demo-stack \
+  publish-edge-demo --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml --config-projection-timeout-seconds 30
 ```
 
 Совместимый shim через `infra/local/scripts` тоже поддерживается:
@@ -36,7 +55,7 @@ uv run --env-file .env --package wm-demo-stack \
 ```bash
 uv run --env-file .env --group integration \
   python infra/local/scripts/publish_edge_demo.py \
-  --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml
+  --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml
 ```
 
 ## Тесты
@@ -59,5 +78,8 @@ uv run --group integration pytest \
 Что именно покрывается:
 
 - `tests/integration/test_edge_agent_mqtt_publisher.py` — raw publisher smoke и CLI-path `enqueue-demo-event -> deliver-once`
-- `tests/integration/test_edge_agent_knx_to_mqtt.py` — `bundle -> retained config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+- `tests/integration/test_edge_agent_knx_to_mqtt.py` —
+  lower-level wm-edge-agent smoke, где тестовая fixture напрямую seed-ит Kafka
+  config delivery records, а дальше проверяется
+  `retained config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
 - Grafana не входит в текущий demo/integration surface; визуализация вернется поверх `Telemetry Store`, а не напрямую поверх MQTT

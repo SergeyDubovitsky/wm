@@ -8,6 +8,7 @@ import secrets
 import shutil
 import socket
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -132,11 +133,84 @@ class LocalMqttStack(LocalComposeStack):
             f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
         )
 
+    def wait_for_mqtt_json(
+        self,
+        topic: str,
+        *,
+        timeout: float = 30.0,
+    ) -> MqttJsonMessage:
+        received = threading.Event()
+        result: dict[str, MqttJsonMessage] = {}
+        last_error = "MQTT message has not arrived yet."
+
+        def on_connect(
+            client: mqtt.Client,
+            _userdata: object,
+            _flags: mqtt.ConnectFlags,
+            reason_code: mqtt.ReasonCode,
+            _properties: mqtt.Properties | None,
+        ) -> None:
+            nonlocal last_error
+            if reason_code.is_failure:
+                last_error = f"connect reason_code={reason_code}"
+                received.set()
+                return
+            client.subscribe(topic, qos=1)
+
+        def on_message(
+            _client: mqtt.Client,
+            _userdata: object,
+            message: mqtt.MQTTMessage,
+        ) -> None:
+            nonlocal last_error
+            try:
+                payload = json.loads(message.payload.decode())
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                return
+            if isinstance(payload, dict):
+                result["message"] = MqttJsonMessage(
+                    topic=message.topic,
+                    payload=payload,
+                    retained=message.retain,
+                )
+                received.set()
+
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        client.username_pw_set(self.mqtt_username, self.mqtt_password)
+        client.on_connect = on_connect
+        client.on_message = on_message
+        try:
+            client.connect("127.0.0.1", self.mqtt_port, keepalive=20)
+            client.loop_start()
+            if received.wait(timeout):
+                message = result.get("message")
+                if message is not None:
+                    return message
+            raise AssertionError(
+                f"MQTT topic {topic!r} did not receive a JSON object within "
+                f"{timeout:.0f}s. Last error: {last_error}\n\n"
+                f"Compose logs:\n{self.logs()}"
+            )
+        finally:
+            with contextlib.suppress(Exception):
+                client.disconnect()
+            client.loop_stop()
+
+
+@dataclass(frozen=True)
+class MqttJsonMessage:
+    topic: str
+    payload: dict[str, object]
+    retained: bool
+
 
 @dataclass(frozen=True)
 class LocalPlatformStack(LocalMqttStack):
     kafka_port: int
     redpanda_connect_port: int
+    redpanda_connect_config_port: int
+    redpanda_connect_source_config_port: int
 
     def wait_for_kafka(self, timeout: float = 120.0) -> None:
         deadline = time.monotonic() + timeout
@@ -167,21 +241,54 @@ class LocalPlatformStack(LocalMqttStack):
         )
 
     def wait_for_redpanda_connect(self, timeout: float = 90.0) -> None:
+        self._wait_for_tcp_port(
+            self.redpanda_connect_port,
+            service_label="Redpanda Connect MQTT -> Kafka",
+            timeout=timeout,
+        )
+
+    def wait_for_redpanda_connect_config_projection(
+        self,
+        timeout: float = 90.0,
+    ) -> None:
+        self._wait_for_tcp_port(
+            self.redpanda_connect_config_port,
+            service_label="Redpanda Connect Kafka -> MQTT config projection",
+            timeout=timeout,
+        )
+
+    def wait_for_redpanda_connect_source_config_snapshot(
+        self,
+        timeout: float = 90.0,
+    ) -> None:
+        self._wait_for_tcp_port(
+            self.redpanda_connect_source_config_port,
+            service_label="Redpanda Connect source config snapshot projector",
+            timeout=timeout,
+        )
+
+    def _wait_for_tcp_port(
+        self,
+        port: int,
+        *,
+        service_label: str,
+        timeout: float,
+    ) -> None:
         deadline = time.monotonic() + timeout
-        last_error = "Redpanda Connect HTTP port is not open yet."
+        last_error = f"{service_label} HTTP port is not open yet."
 
         while time.monotonic() < deadline:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 sock.settimeout(2)
                 try:
-                    sock.connect(("127.0.0.1", self.redpanda_connect_port))
+                    sock.connect(("127.0.0.1", port))
                     return
                 except OSError as exc:
                     last_error = f"{type(exc).__name__}: {exc}"
             time.sleep(1)
 
         raise AssertionError(
-            f"Redpanda Connect did not become reachable within {timeout:.0f}s. "
+            f"{service_label} did not become reachable within {timeout:.0f}s. "
             f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
         )
 
@@ -539,6 +646,189 @@ class LocalGrafanaClickHouseStack(LocalComposeStack):
         return json.loads(response_text) if response_text else {}
 
 
+@dataclass(frozen=True)
+class LocalConfigRegistryPostgresStack(LocalComposeStack):
+    postgres_port: int
+    database_url: str
+
+    def wait_for_postgres(self, timeout: float = 90.0) -> None:
+        deadline = time.monotonic() + timeout
+        last_error = "PostgreSQL has not accepted connections yet."
+
+        while time.monotonic() < deadline:
+            result = self.compose(
+                "exec",
+                "-T",
+                "postgres",
+                "pg_isready",
+                "-h",
+                "127.0.0.1",
+                "-p",
+                "5432",
+                "-U",
+                "wm",
+                "-d",
+                "wm_config_registry",
+                check=False,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                return
+            last_error = "\n".join(
+                part for part in (result.stdout, result.stderr) if part
+            ).strip()
+            time.sleep(1)
+
+        raise AssertionError(
+            f"PostgreSQL did not become healthy within {timeout:.0f}s. "
+            f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
+        )
+
+    def apply_config_registry_migrations(self) -> None:
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--env-file",
+                str(self.env_file),
+                "--package",
+                "wm-config-registry",
+                "alembic",
+                "-c",
+                "apps/wm_config_registry/alembic.ini",
+                "upgrade",
+                "head",
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            raise AssertionError(
+                "Config Registry migrations failed.\n\n"
+                f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
+            )
+
+
+@dataclass(frozen=True)
+class LocalConfigDeliveryStack(LocalPlatformStack):
+    postgres_port: int
+    config_registry_port: int
+    database_url: str
+
+    def wait_for_postgres(self, timeout: float = 90.0) -> None:
+        deadline = time.monotonic() + timeout
+        last_error = "PostgreSQL has not accepted connections yet."
+
+        while time.monotonic() < deadline:
+            result = self.compose(
+                "exec",
+                "-T",
+                "postgres",
+                "pg_isready",
+                "-h",
+                "127.0.0.1",
+                "-p",
+                "5432",
+                "-U",
+                "wm",
+                "-d",
+                "wm_config_registry",
+                check=False,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                return
+            last_error = "\n".join(
+                part for part in (result.stdout, result.stderr) if part
+            ).strip()
+            time.sleep(1)
+
+        raise AssertionError(
+            f"PostgreSQL did not become healthy within {timeout:.0f}s. "
+            f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
+        )
+
+    def wait_for_config_outbox_worker(self, timeout: float = 120.0) -> None:
+        deadline = time.monotonic() + timeout
+        last_logs = ""
+
+        while time.monotonic() < deadline:
+            result = self.compose(
+                "logs",
+                "--no-color",
+                "wm-config-registry-outbox-worker",
+                check=False,
+                timeout=30,
+            )
+            last_logs = "\n".join(
+                part for part in (result.stdout, result.stderr) if part
+            ).strip()
+            if "Config outbox worker started" in last_logs:
+                return
+            time.sleep(1)
+
+        raise AssertionError(
+            "Config Registry outbox worker did not start within "
+            f"{timeout:.0f}s.\n\nCompose logs:\n{last_logs or self.logs()}"
+        )
+
+    def wait_for_config_registry_api(self, timeout: float = 90.0) -> None:
+        deadline = time.monotonic() + timeout
+        url = f"http://127.0.0.1:{self.config_registry_port}/ready"
+        last_error = "Config Registry API is not reachable yet."
+
+        while time.monotonic() < deadline:
+            try:
+                with urllib.request.urlopen(url, timeout=5) as response:
+                    if response.status == 200:
+                        return
+            except (OSError, urllib.error.URLError) as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+            time.sleep(1)
+
+        raise AssertionError(
+            f"Config Registry API did not become ready within {timeout:.0f}s. "
+            f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
+        )
+
+    def run_config_registry_migrations(self, timeout: int = 300) -> None:
+        self.compose(
+            "run",
+            "--rm",
+            "--no-deps",
+            "wm-config-registry",
+            "alembic",
+            "-c",
+            "apps/wm_config_registry/alembic.ini",
+            "upgrade",
+            "head",
+            timeout=timeout,
+        )
+
+    def config_registry_json(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, object] | None = None,
+        *,
+        timeout: int = 30,
+    ) -> dict[str, object] | list[object]:
+        url = f"http://127.0.0.1:{self.config_registry_port}{path}"
+        data = None
+        if payload is not None:
+            data = json.dumps(payload).encode()
+        request = urllib.request.Request(url, data=data, method=method)
+        request.add_header("Accept", "application/json")
+        request.add_header("Content-Type", "application/json")
+
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            response_text = response.read().decode()
+        return json.loads(response_text) if response_text else {}
+
+
 def publish_json_message(
     *,
     host: str,
@@ -622,6 +912,8 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
     mqtt_ws_port = _reserve_free_port()
     kafka_port = _reserve_free_port()
     redpanda_connect_port = _reserve_free_port()
+    redpanda_connect_config_port = _reserve_free_port()
+    redpanda_connect_source_config_port = _reserve_free_port()
     mqtt_username = f"wm_test_{uuid.uuid4().hex[:8]}"
     mqtt_password = secrets.token_urlsafe(18)
 
@@ -635,6 +927,10 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
             "KAFKA_PORT": str(kafka_port),
             "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{kafka_port}",
             "REDPANDA_CONNECT_PORT": str(redpanda_connect_port),
+            "REDPANDA_CONNECT_CONFIG_PORT": str(redpanda_connect_config_port),
+            "REDPANDA_CONNECT_SOURCE_CONFIG_PORT": str(
+                redpanda_connect_source_config_port
+            ),
         }
     )
 
@@ -650,6 +946,8 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
         mqtt_password=mqtt_password,
         kafka_port=kafka_port,
         redpanda_connect_port=redpanda_connect_port,
+        redpanda_connect_config_port=redpanda_connect_config_port,
+        redpanda_connect_source_config_port=redpanda_connect_source_config_port,
     )
 
     try:
@@ -660,11 +958,15 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
             "kafka",
             "kafka-init",
             "redpanda-connect",
+            "redpanda-connect-config-projection",
+            "redpanda-connect-source-config-snapshot",
             timeout=900,
         )
         stack.wait_for_mqtt()
         stack.wait_for_kafka()
         stack.wait_for_redpanda_connect()
+        stack.wait_for_redpanda_connect_config_projection()
+        stack.wait_for_redpanda_connect_source_config_snapshot()
         yield stack
     except subprocess.CalledProcessError as exc:
         raise AssertionError(
@@ -685,6 +987,8 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
     mqtt_ws_port = _reserve_free_port()
     kafka_port = _reserve_free_port()
     redpanda_connect_port = _reserve_free_port()
+    redpanda_connect_config_port = _reserve_free_port()
+    redpanda_connect_source_config_port = _reserve_free_port()
     clickhouse_http_port = _reserve_free_port()
     clickhouse_native_port = _reserve_free_port()
     kafka_connect_rest_port = _reserve_free_port()
@@ -702,6 +1006,10 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
             "KAFKA_PORT": str(kafka_port),
             "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{kafka_port}",
             "REDPANDA_CONNECT_PORT": str(redpanda_connect_port),
+            "REDPANDA_CONNECT_CONFIG_PORT": str(redpanda_connect_config_port),
+            "REDPANDA_CONNECT_SOURCE_CONFIG_PORT": str(
+                redpanda_connect_source_config_port
+            ),
             "CLICKHOUSE_HOST": "127.0.0.1",
             "CLICKHOUSE_HTTP_PORT": str(clickhouse_http_port),
             "CLICKHOUSE_NATIVE_PORT": str(clickhouse_native_port),
@@ -723,6 +1031,8 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
         mqtt_password=mqtt_password,
         kafka_port=kafka_port,
         redpanda_connect_port=redpanda_connect_port,
+        redpanda_connect_config_port=redpanda_connect_config_port,
+        redpanda_connect_source_config_port=redpanda_connect_source_config_port,
         clickhouse_http_port=clickhouse_http_port,
         clickhouse_native_port=clickhouse_native_port,
         kafka_connect_rest_port=kafka_connect_rest_port,
@@ -738,6 +1048,8 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
             "kafka",
             "kafka-init",
             "redpanda-connect",
+            "redpanda-connect-config-projection",
+            "redpanda-connect-source-config-snapshot",
             "clickhouse",
             "kafka-connect",
             timeout=900,
@@ -745,6 +1057,8 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
         stack.wait_for_mqtt()
         stack.wait_for_kafka()
         stack.wait_for_redpanda_connect()
+        stack.wait_for_redpanda_connect_config_projection()
+        stack.wait_for_redpanda_connect_source_config_snapshot()
         stack.wait_for_clickhouse()
         stack.apply_clickhouse_migrations()
         stack.wait_for_kafka_connect()
@@ -808,6 +1122,156 @@ def local_grafana_clickhouse_stack(
     except subprocess.CalledProcessError as exc:
         raise AssertionError(
             "Failed to start the local Grafana + ClickHouse stack.\n\n"
+            f"stdout:\n{exc.stdout}\n\nstderr:\n{exc.stderr}"
+        ) from exc
+    finally:
+        stack.compose("down", "-v", "--remove-orphans", check=False, timeout=300)
+
+
+@pytest.fixture()
+def local_config_registry_postgres_stack(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> LocalConfigRegistryPostgresStack:
+    if not _docker_is_available():
+        pytest.skip("Docker Compose is required for Config Registry integration tests.")
+
+    env_values = _read_env_file(BASE_ENV_FILE)
+    postgres_port = _reserve_free_port()
+    database_url = (
+        "postgresql+asyncpg://wm:change-me-local-postgres"
+        f"@127.0.0.1:{postgres_port}/wm_config_registry"
+    )
+
+    env_values.update(
+        {
+            "POSTGRES_HOST": "127.0.0.1",
+            "POSTGRES_PORT": str(postgres_port),
+            "CONFIG_REGISTRY_DATABASE_URL": database_url,
+        }
+    )
+
+    env_dir = tmp_path_factory.mktemp("wm-config-registry-postgres-stack")
+    env_file = env_dir / ".env.integration"
+    _write_env_file(env_file, env_values)
+
+    stack = LocalConfigRegistryPostgresStack(
+        project_name=f"wm-it-{uuid.uuid4().hex[:10]}",
+        env_file=env_file,
+        postgres_port=postgres_port,
+        database_url=database_url,
+    )
+
+    try:
+        stack.compose("up", "-d", "postgres", timeout=300)
+        stack.wait_for_postgres()
+        stack.apply_config_registry_migrations()
+        yield stack
+    except subprocess.CalledProcessError as exc:
+        raise AssertionError(
+            "Failed to start the local Config Registry PostgreSQL stack.\n\n"
+            f"stdout:\n{exc.stdout}\n\nstderr:\n{exc.stderr}"
+        ) from exc
+    finally:
+        stack.compose("down", "-v", "--remove-orphans", check=False, timeout=300)
+
+
+@pytest.fixture()
+def local_config_delivery_stack(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> LocalConfigDeliveryStack:
+    if not _docker_is_available():
+        pytest.skip("Docker Compose is required for Config Delivery integration tests.")
+
+    env_values = _read_env_file(BASE_ENV_FILE)
+    mqtt_port = _reserve_free_port()
+    mqtt_ws_port = _reserve_free_port()
+    kafka_port = _reserve_free_port()
+    redpanda_connect_port = _reserve_free_port()
+    redpanda_connect_config_port = _reserve_free_port()
+    redpanda_connect_source_config_port = _reserve_free_port()
+    postgres_port = _reserve_free_port()
+    config_registry_port = _reserve_free_port()
+    mqtt_username = f"wm_test_{uuid.uuid4().hex[:8]}"
+    mqtt_password = secrets.token_urlsafe(18)
+    database_url = (
+        "postgresql+asyncpg://wm:change-me-local-postgres"
+        f"@127.0.0.1:{postgres_port}/wm_config_registry"
+    )
+
+    env_values.update(
+        {
+            "MQTT_PORT": str(mqtt_port),
+            "MQTT_WS_PORT": str(mqtt_ws_port),
+            "MQTT_USERNAME": mqtt_username,
+            "MQTT_PASSWORD": mqtt_password,
+            "MQTT_BROKER": f"mqtt://127.0.0.1:{mqtt_port}",
+            "KAFKA_PORT": str(kafka_port),
+            "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{kafka_port}",
+            "REDPANDA_CONNECT_PORT": str(redpanda_connect_port),
+            "REDPANDA_CONNECT_CONFIG_PORT": str(redpanda_connect_config_port),
+            "REDPANDA_CONNECT_SOURCE_CONFIG_PORT": str(
+                redpanda_connect_source_config_port
+            ),
+            "POSTGRES_HOST": "127.0.0.1",
+            "POSTGRES_PORT": str(postgres_port),
+            "CONFIG_REGISTRY_PORT": str(config_registry_port),
+            "CONFIG_REGISTRY_DATABASE_URL": database_url,
+            "CONFIG_REGISTRY_KAFKA_CLIENT_ID": "wm-config-registry-worker-it",
+            "CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS": "0.5",
+        }
+    )
+
+    env_dir = tmp_path_factory.mktemp("config-delivery-stack")
+    env_file = env_dir / ".env.integration"
+    _write_env_file(env_file, env_values)
+
+    stack = LocalConfigDeliveryStack(
+        project_name=f"wm-it-{uuid.uuid4().hex[:10]}",
+        env_file=env_file,
+        mqtt_port=mqtt_port,
+        mqtt_username=mqtt_username,
+        mqtt_password=mqtt_password,
+        kafka_port=kafka_port,
+        redpanda_connect_port=redpanda_connect_port,
+        redpanda_connect_config_port=redpanda_connect_config_port,
+        redpanda_connect_source_config_port=redpanda_connect_source_config_port,
+        postgres_port=postgres_port,
+        config_registry_port=config_registry_port,
+        database_url=database_url,
+    )
+
+    try:
+        stack.compose("build", "wm-config-registry", timeout=1200)
+        stack.compose(
+            "up",
+            "-d",
+            "mqtt-broker",
+            "kafka",
+            "postgres",
+            timeout=900,
+        )
+        stack.wait_for_mqtt()
+        stack.wait_for_kafka()
+        stack.wait_for_postgres()
+        stack.run_config_registry_migrations(timeout=900)
+        stack.compose(
+            "up",
+            "-d",
+            "kafka-init",
+            "redpanda-connect-config-projection",
+            "redpanda-connect-source-config-snapshot",
+            "wm-config-registry",
+            "wm-config-registry-outbox-worker",
+            timeout=900,
+        )
+        stack.wait_for_redpanda_connect_config_projection()
+        stack.wait_for_redpanda_connect_source_config_snapshot()
+        stack.wait_for_config_registry_api()
+        stack.wait_for_config_outbox_worker()
+        yield stack
+    except subprocess.CalledProcessError as exc:
+        raise AssertionError(
+            "Failed to start the local Config Delivery stack.\n\n"
             f"stdout:\n{exc.stdout}\n\nstderr:\n{exc.stderr}"
         ) from exc
     finally:

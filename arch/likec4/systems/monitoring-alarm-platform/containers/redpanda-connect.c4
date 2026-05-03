@@ -1,12 +1,14 @@
 model {
     extend monitoring-alarm-platform {
         redpanda-connect = container 'Redpanda Connect' {
-            description 'Connector pipeline между MQTT ingress и Redpanda broker: подписывается на MQTT telemetry/config/status topics, валидирует tenant_id claim, применяет routing/transform mapping wm.platform-ingestion.mqtt-to-kafka.v1 и пишет события в Kafka topics через Redpanda output.'
-            technology 'Redpanda Connect / MQTT input / Redpanda output'
+            description 'Connector pipeline между MQTT, Kafka и MQTT retained projection: читает MQTT telemetry/status topics в Kafka, а также читает Kafka edge config delivery records и материализует их в retained MQTT runtime/source config topics.'
+            technology 'Redpanda Connect / MQTT input-output / Redpanda input-output'
             icon @/redpanda-connect.svg
 
-            -> mqtt-ingestion-gateway 'Подписывается на MQTT telemetry, retained source config и service topics по wm.mqtt.topic-tree.v1'
+            -> mqtt-ingestion-gateway 'Подписывается на MQTT telemetry/status topics по wm.mqtt.topic-tree.v1'
             -> redpanda 'Пишет Kafka records по wm.kafka.topics.v1 через Redpanda output'
+            -> kafka-event-log 'Читает wm.platform.edge.configs.v1 для MQTT retained projection'
+            -> mqtt-ingestion-gateway 'Публикует retained runtime/source configs из Kafka delivery log'
         }
     }
 }

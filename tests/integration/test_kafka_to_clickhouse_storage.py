@@ -17,12 +17,12 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
         "message_type": "wm.platform.telemetry.event.v1",
         "tenant_id": "tenant-storage-it",
         "event_id": "storage-raw-001",
-        "idempotency_key": "tenant-storage-it|object-storage-it|agent-storage-it|storage-raw-001",
-        "object_id": "object-storage-it",
+        "idempotency_key": "tenant-storage-it|asset-storage-it|agent-storage-it|storage-raw-001",
+        "asset_id": "asset-storage-it",
         "agent_id": "agent-storage-it",
         "source_id": "source-storage-it",
         "source_type": "knx",
-        "point_id": "tenant-storage-it|object-storage-it|source-storage-it|temperature",
+        "point_id": "tenant-storage-it|asset-storage-it|source-storage-it|temperature",
         "point_key": "temperature",
         "point_ref": "1/2/3",
         "source_config_revision": "rev-storage-it-001",
@@ -115,7 +115,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
         SELECT event_id, value_type, value_float
         FROM telemetry_latest_v1
         WHERE tenant_id = 'tenant-storage-it'
-          AND object_id = 'object-storage-it'
+          AND asset_id = 'asset-storage-it'
           AND source_id = 'source-storage-it'
           AND point_key = 'temperature'
         FORMAT TabSeparatedRaw
@@ -126,7 +126,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
         SELECT event_count, good_count, number_count, value_min, value_max, value_avg, value_last
         FROM telemetry_1m_v1
         WHERE tenant_id = 'tenant-storage-it'
-          AND object_id = 'object-storage-it'
+          AND asset_id = 'asset-storage-it'
           AND source_id = 'source-storage-it'
           AND point_key = 'temperature'
           AND bucket_start = toDateTime('2026-05-03 05:50:00', 'UTC')
@@ -138,7 +138,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
         SELECT event_count, good_count, number_count, value_min, value_max, value_avg, value_last
         FROM telemetry_1h_v1
         WHERE tenant_id = 'tenant-storage-it'
-          AND object_id = 'object-storage-it'
+          AND asset_id = 'asset-storage-it'
           AND source_id = 'source-storage-it'
           AND point_key = 'temperature'
           AND bucket_start = toDateTime('2026-05-03 05:00:00', 'UTC')
@@ -154,7 +154,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
     source_config_payload = {
         "message_type": "wm.platform.source.config.v1",
         "tenant_id": "tenant-storage-it",
-        "object_id": "object-storage-it",
+        "asset_id": "asset-storage-it",
         "agent_id": "agent-storage-it",
         "source_id": "source-storage-it",
         "source_type": "knx",
@@ -163,7 +163,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
         "ingested_at": "2026-05-03T05:50:03Z",
         "points": [
             {
-                "point_id": "tenant-storage-it|object-storage-it|source-storage-it|temperature",
+                "point_id": "tenant-storage-it|asset-storage-it|source-storage-it|temperature",
                 "point_key": "temperature",
                 "point_ref": "1/2/3",
                 "name": "Temperature",
@@ -181,7 +181,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
     local_storage_stack.produce_kafka_text(
         "wm.platform.source.configs.v1",
         source_config_json,
-        key="tenant-storage-it|object-storage-it|agent-storage-it|source-storage-it",
+        key="tenant-storage-it|asset-storage-it|agent-storage-it|source-storage-it",
     )
     source_config_row = local_storage_stack.wait_for_clickhouse_value(
         """
@@ -192,7 +192,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
         """.strip()
     )
     assert source_config_row == (
-        'knx\t[{"point_id":"tenant-storage-it|object-storage-it|source-storage-it|temperature",'
+        'knx\t[{"point_id":"tenant-storage-it|asset-storage-it|source-storage-it|temperature",'
         '"point_key":"temperature","point_ref":"1/2/3","name":"Temperature",'
         '"signal_type":"sensor","value_type":"number","value_model":"temperature"}]'
     )
@@ -208,7 +208,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
             ensure_ascii=True,
             separators=(",", ":"),
         ),
-        key="tenant-storage-it|object-storage-it|agent-storage-it|source-storage-it",
+        key="tenant-storage-it|asset-storage-it|agent-storage-it|source-storage-it",
     )
     duplicate_source_config_count = local_storage_stack.wait_for_clickhouse_value(
         """
@@ -234,7 +234,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
     source_connection_payload = {
         "message_type": "wm.platform.source.connection.v1",
         "tenant_id": "tenant-storage-it",
-        "object_id": "object-storage-it",
+        "asset_id": "asset-storage-it",
         "agent_id": "agent-storage-it",
         "source_id": "source-storage-it",
         "state": "connected",
@@ -245,7 +245,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
     local_storage_stack.produce_kafka_text(
         "wm.platform.source.connections.v1",
         json.dumps(source_connection_payload, ensure_ascii=True, separators=(",", ":")),
-        key="tenant-storage-it|object-storage-it|agent-storage-it|source-storage-it",
+        key="tenant-storage-it|asset-storage-it|agent-storage-it|source-storage-it",
     )
     source_connection_row = local_storage_stack.wait_for_clickhouse_value(
         """
@@ -260,7 +260,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
     agent_status_payload = {
         "message_type": "wm.platform.agent.status.v1",
         "tenant_id": "tenant-storage-it",
-        "object_id": "object-storage-it",
+        "asset_id": "asset-storage-it",
         "agent_id": "agent-storage-it",
         "status": "online",
         "ts": "2026-05-03T05:50:06Z",
@@ -269,7 +269,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
     local_storage_stack.produce_kafka_text(
         "wm.platform.agent.status.v1",
         json.dumps(agent_status_payload, ensure_ascii=True, separators=(",", ":")),
-        key="tenant-storage-it|object-storage-it|agent-storage-it",
+        key="tenant-storage-it|asset-storage-it|agent-storage-it",
     )
     agent_status_row = local_storage_stack.wait_for_clickhouse_value(
         """
@@ -285,8 +285,8 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
         "message_type": "wm.platform.derived.event.v1",
         "tenant_id": "tenant-storage-it",
         "derived_event_id": "derived-storage-001",
-        "idempotency_key": "tenant-storage-it|object-storage-it|derived-storage-001",
-        "object_id": "object-storage-it",
+        "idempotency_key": "tenant-storage-it|asset-storage-it|derived-storage-001",
+        "asset_id": "asset-storage-it",
         "rule_or_metric_id": "metric-temperature-high",
         "event_type": "derived.metric",
         "ts": "2026-05-03T05:50:08Z",
@@ -299,7 +299,7 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
     local_storage_stack.produce_kafka_text(
         "wm.platform.derived.events.v1",
         json.dumps(derived_payload, ensure_ascii=True, separators=(",", ":")),
-        key="tenant-storage-it|object-storage-it|metric-temperature-high",
+        key="tenant-storage-it|asset-storage-it|metric-temperature-high",
     )
     derived_row = local_storage_stack.wait_for_clickhouse_value(
         """
@@ -354,12 +354,12 @@ def test_invalid_storage_record_goes_to_kafka_connect_dlq(local_storage_stack) -
         "message_type": "wm.platform.telemetry.event.v1",
         "tenant_id": "tenant-storage-it",
         "event_id": "storage-invalid-001",
-        "idempotency_key": "tenant-storage-it|object-storage-it|agent-storage-it|storage-invalid-001",
-        "object_id": "object-storage-it",
+        "idempotency_key": "tenant-storage-it|asset-storage-it|agent-storage-it|storage-invalid-001",
+        "asset_id": "asset-storage-it",
         "agent_id": "agent-storage-it",
         "source_id": "source-storage-it",
         "source_type": "knx",
-        "point_id": "tenant-storage-it|object-storage-it|source-storage-it|temperature",
+        "point_id": "tenant-storage-it|asset-storage-it|source-storage-it|temperature",
         "point_key": "temperature",
         "point_ref": "1/2/3",
         "source_config_revision": "rev-storage-it-001",

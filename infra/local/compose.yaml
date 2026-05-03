@@ -82,6 +82,7 @@ services:
             "$$@"
         }
         create_topic wm.platform.telemetry.events.v1 --config retention.ms=604800000
+        create_topic wm.platform.edge.configs.v1 --config cleanup.policy=compact
         create_topic wm.platform.source.configs.v1 --config cleanup.policy=compact
         create_topic wm.platform.source.connections.v1 --config cleanup.policy=compact
         create_topic wm.platform.agent.status.v1 --config cleanup.policy=compact
@@ -116,6 +117,68 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wm_config_registry}
+      POSTGRES_USER: ${POSTGRES_USER:-wm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -p 5432 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  wm-config-registry:
+    build:
+      context: ../..
+      dockerfile: infra/local/wm-config-registry/Dockerfile
+    image: ${CONFIG_REGISTRY_IMAGE:-web-monitoring/wm-config-registry:local}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["wm-config-registry", "serve"]
+    ports:
+      - "${CONFIG_REGISTRY_PORT:-8000}:8000"
+    environment:
+      CONFIG_REGISTRY_HOST: 0.0.0.0
+      CONFIG_REGISTRY_PORT: 8000
+      CONFIG_REGISTRY_INTERNAL_MODE: ${CONFIG_REGISTRY_INTERNAL_MODE:-true}
+      CONFIG_REGISTRY_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wm}:${POSTGRES_PASSWORD:-change-me-local-postgres}@postgres:5432/${POSTGRES_DB:-wm_config_registry}
+
+  wm-config-registry-outbox-worker:
+    build:
+      context: ../..
+      dockerfile: infra/local/wm-config-registry/Dockerfile
+    image: ${CONFIG_REGISTRY_IMAGE:-web-monitoring/wm-config-registry:local}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    command: ["wm-config-registry", "publish-config-outbox-worker"]
+    environment:
+      CONFIG_REGISTRY_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wm}:${POSTGRES_PASSWORD:-change-me-local-postgres}@postgres:5432/${POSTGRES_DB:-wm_config_registry}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      CONFIG_REGISTRY_KAFKA_CLIENT_ID: ${CONFIG_REGISTRY_KAFKA_CLIENT_ID:-wm-config-registry-outbox-worker}
+      CONFIG_REGISTRY_OUTBOX_BATCH_LIMIT: ${CONFIG_REGISTRY_OUTBOX_BATCH_LIMIT:-100}
+      CONFIG_REGISTRY_OUTBOX_LEASE_SECONDS: ${CONFIG_REGISTRY_OUTBOX_LEASE_SECONDS:-30}
+      CONFIG_REGISTRY_OUTBOX_RETRY_DELAY_SECONDS: ${CONFIG_REGISTRY_OUTBOX_RETRY_DELAY_SECONDS:-30}
+      CONFIG_REGISTRY_OUTBOX_MAX_ATTEMPTS: ${CONFIG_REGISTRY_OUTBOX_MAX_ATTEMPTS:-5}
+      CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS: ${CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS:-2.0}
 
   grafana:
     build:
@@ -195,6 +258,34 @@ services:
     volumes:
       - ./redpanda-connect/mqtt-to-kafka.yaml:/etc/redpanda-connect/mqtt-to-kafka.yaml:ro
 
+  redpanda-connect-config-projection:
+    image: ${REDPANDA_CONNECT_IMAGE:-docker.redpanda.com/redpandadata/connect}
+    restart: unless-stopped
+    depends_on:
+      mqtt-broker:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    env_file:
+      - ${LOCAL_STACK_ENV_FILE:-../../.env}
+    command: ["run", "/etc/redpanda-connect/kafka-to-mqtt-config.yaml"]
+    ports:
+      - "${REDPANDA_CONNECT_CONFIG_PORT:-4196}:4195"
+    volumes:
+      - ./redpanda-connect/kafka-to-mqtt-config.yaml:/etc/redpanda-connect/kafka-to-mqtt-config.yaml:ro
+
+  redpanda-connect-source-config-snapshot:
+    image: ${REDPANDA_CONNECT_IMAGE:-docker.redpanda.com/redpandadata/connect}
+    restart: unless-stopped
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    command: ["run", "/etc/redpanda-connect/source-config-snapshot.yaml"]
+    ports:
+      - "${REDPANDA_CONNECT_SOURCE_CONFIG_PORT:-4197}:4195"
+    volumes:
+      - ./redpanda-connect/source-config-snapshot.yaml:/etc/redpanda-connect/source-config-snapshot.yaml:ro
+
   kafka-ui:
     image: ${KAFKA_UI_IMAGE:-provectuslabs/kafka-ui}
     restart: unless-stopped
@@ -223,3 +314,4 @@ volumes:
   clickhouse-data:
   clickhouse-log:
   grafana-data:
+  postgres-data:

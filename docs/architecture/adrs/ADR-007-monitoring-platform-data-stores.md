@@ -93,7 +93,7 @@
 
 - одна строка в `telemetry_events` соответствует одному наблюдению одной точки
   в один момент времени
-- тег/датчик идентифицируется колонками `tenant_id`, `object_id`, `source_id`,
+- тег/датчик идентифицируется колонками `tenant_id`, `asset_id`, `source_id`,
   `point_id` и/или `point_key`
 - значение хранится в типизированных value-колонках, например `value_float`,
   `value_bool`, `value_string`, `value_type`, `value_raw`
@@ -101,9 +101,10 @@
   `ClickHouse` попадают как снимки метаданных для исторической аналитики
 - добавление нового тега/датчика не должно требовать `ALTER TABLE`
 
-Полный DDL draft и имена таблиц являются контрактами хранения и фиксируются в
-`docs/contracts/clickhouse/telemetry-store.v1.md`. Этот ADR фиксирует решение
-и принципы модели, а не является source of truth для ClickHouse DDL.
+Полная migration-backed физическая модель, contract tables и имена таблиц
+фиксируются в `docs/contracts/clickhouse/telemetry-store.v1.md`. Этот ADR
+фиксирует решение и принципы модели, а не является source of truth для
+ClickHouse schema details.
 
 Правила физической модели:
 

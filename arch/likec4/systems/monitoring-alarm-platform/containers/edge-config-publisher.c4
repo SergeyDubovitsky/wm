@@ -1,13 +1,13 @@
 model {
     extend monitoring-alarm-platform {
         edge-config-publisher = container 'Edge Config Publisher' {
-            description 'Временный operations/tooling контейнер до появления server UI/API: читает YAML Config Bundle, валидирует JSON Schema, строит retained wm.edge.runtime-config.v1 и wm.edge.source-config.v1 и публикует их в MQTT broker.'
-            technology 'Config publisher tool / MQTT retained publisher'
+            description 'Config Event Publisher: до ADR-010 может читать versioned YAML bundle; после внедрения Config Registry читает PostgreSQL config_outbox и публикует wm.platform.edge.config.delivery.v1 records в Kafka topic wm.platform.edge.configs.v1. MQTT retained topics строит Redpanda Connect projection.'
+            technology 'Config event publisher / Kafka producer'
             icon bootstrap:cloud-upload
 
-            -> yaml-config-bundle 'Читает versioned YAML bundle и формирует config_revision/source_config_revision'
-            -> mqtt-ingestion-gateway 'Публикует retained runtime/source configs в MQTT topic tree'
-            -> platform-store 'Целевой будущий source of truth для конфигурации после появления Platform API'
+            -> yaml-config-bundle 'Временно читает versioned YAML bundle до перехода authoring source of truth в Platform Store'
+            -> platform-store 'Читает config_outbox и rendered config revisions из PostgreSQL'
+            -> kafka-event-log 'Публикует wm.platform.edge.config.delivery.v1 records в wm.platform.edge.configs.v1'
         }
     }
 }

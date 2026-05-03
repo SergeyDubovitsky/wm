@@ -11,7 +11,7 @@
 - data shape: append-heavy telemetry events with at-least-once delivery and
   replay duplicates
 - primary query patterns: latest value by point, point history by
-  tenant/object/source/point/time range, minute/hour rollups for charts
+  tenant/asset/source/point/time range, minute/hour rollups for charts
 - operational constraints: Kafka Connect writes raw landing tables;
   ClickHouse owns contract validation and read models
 
@@ -20,7 +20,7 @@
 - Per `schema-pk-plan-before-creation`: ORDER BY must be planned before large
   data volumes because it is effectively immutable.
 - Per `schema-pk-prioritize-filters`: read queries should filter on key-prefix
-  dimensions such as `tenant_id`, `object_id`, `source_id`, `point_key`, `ts`.
+  dimensions such as `tenant_id`, `asset_id`, `source_id`, `point_key`, `ts`.
 - Per `schema-pk-filter-on-orderby`: load PoC queries must include ORDER BY
   prefix filters to represent intended API/UI access patterns.
 - Per `schema-types-native-types`: timestamps, numeric values and booleans are
@@ -179,7 +179,7 @@ ClickHouse analytical read-model behavior from Kafka Connect ingestion behavior,
 which is already covered by integration tests.
 
 The PoC does not mutate or truncate existing data. Each run uses an isolated
-`tenant_id` / `object_id` derived from `run_id`.
+`tenant_id` / `asset_id` derived from `run_id`.
 
 ## Next Decision Gate
 

@@ -60,16 +60,18 @@ jobs:
             fail-fast: false
             matrix:
                 include:
-                    - package: edge-agent
-                      test_path: apps/edge_agent/tests
-                    - package: knx-demo
-                      test_path: apps/knx_demo/tests
-                    - package: knx-parser
-                      test_path: libs/knx_parser/tests
+                    - package: wm-edge-agent
+                      test_path: apps/wm_edge_agent/tests
+                    - package: wm-knx-demo
+                      test_path: apps/wm_knx_demo/tests
+                    - package: wm-config-registry
+                      test_path: apps/wm_config_registry/tests
+                    - package: wm-knx-parser
+                      test_path: libs/wm_knx_parser/tests
                     - package: wm-demo-stack
                       test_path: libs/wm_demo_stack/tests
                     - package: wm-clickhouse
-                      test_path: tools/clickhouse_migrations/tests
+                      test_path: tools/wm_clickhouse_migrations/tests
 
         steps:
             - name: Checkout
@@ -139,6 +141,8 @@ jobs:
               run: |
                   mkdir -p coverage-data
                   uv run --frozen --all-packages --group integration --group coverage coverage run -m pytest \
+                    tests/integration/test_config_registry_kafka_publisher.py \
+                    tests/integration/test_config_registry_postgres.py \
                     tests/integration/test_edge_agent_mqtt_publisher.py \
                     tests/integration/test_edge_agent_knx_to_mqtt.py \
                     tests/integration/test_kafka_to_clickhouse_storage.py \

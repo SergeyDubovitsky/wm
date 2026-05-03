@@ -3,7 +3,8 @@ name = "web-monitoring"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "edge-agent",
+    "wm-edge-agent",
+    "wm-config-registry",
     "wm-demo-stack",
     "wm-clickhouse",
 ]
@@ -26,7 +27,8 @@ coverage = [
 package = false
 
 [tool.uv.sources]
-edge-agent = { workspace = true }
+wm-edge-agent = { workspace = true }
+wm-config-registry = { workspace = true }
 wm-demo-stack = { workspace = true }
 wm-clickhouse = { workspace = true }
 
@@ -47,11 +49,12 @@ markers = [
 line-length = 88
 target-version = "py312"
 src = [
-    "apps/edge_agent/src",
-    "apps/knx_demo/src",
-    "libs/knx_parser/src",
+    "apps/wm_edge_agent/src",
+    "apps/wm_knx_demo/src",
+    "apps/wm_config_registry/src",
+    "libs/wm_knx_parser/src",
     "libs/wm_demo_stack/src",
-    "tools/clickhouse_migrations/src",
+    "tools/wm_clickhouse_migrations/src",
     "tests",
 ]
 
@@ -62,11 +65,12 @@ extend-select = ["I"]
 branch = true
 relative_files = true
 source = [
-    "apps/edge_agent/src/edge_agent",
-    "apps/knx_demo/src/knx_demo",
-    "libs/knx_parser/src/knx_parser",
+    "apps/wm_edge_agent/src/wm_edge_agent",
+    "apps/wm_knx_demo/src/wm_knx_demo",
+    "apps/wm_config_registry/src/wm_config_registry",
+    "libs/wm_knx_parser/src/wm_knx_parser",
     "libs/wm_demo_stack/src/wm_demo_stack",
-    "tools/clickhouse_migrations/src/wm_clickhouse",
+    "tools/wm_clickhouse_migrations/src/wm_clickhouse",
 ]
 
 [tool.coverage.report]

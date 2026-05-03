@@ -16,6 +16,13 @@
 - versioned config bundle для `demo-stand`
 - contract registry, архитектурные документы и integration-тесты для этого потока
 
+Поверх `MVP baseline` в текущей ветке уже реализованы первые platform-foundation
+slices:
+
+- `Config Registry` на `FastAPI + PostgreSQL` с `tenant/asset/agent/source/point` CRUD, render config revisions и transactional outbox
+- Kafka-first config delivery path `PostgreSQL -> wm.platform.edge.configs.v1 -> Redpanda Connect -> retained MQTT runtime/source config`
+- локальный storage/read path `Kafka -> Kafka Connect -> ClickHouse`, `Grafana` datasource provisioning и read-model PoC
+
 Целевая `Monitoring & Alarm Platform` проектируется для двух deployment modes:
 `self-hosted` и `cloud`.
 
@@ -31,15 +38,27 @@
 
 ## Структура
 
-- `apps/edge_agent/` — edge runtime, example-конфиги и runtime-guides
-- `apps/knx_demo/` — KNX demo utilities
-- `libs/knx_parser/` — библиотека для разбора ETS `.knxproj`
-- `libs/wm_demo_stack/` — библиотека demo/scenario потока `config bundle -> retained MQTT config -> telemetry`
-- `environments/` — versioned edge profiles конкретных стендов и окружений
-- `infra/` — локальная инфраструктура разработки и будущие `compose`-артефакты
-- `docs/architecture/` — архитектурные документы и ADR верхнего уровня
-- `docs/future-ideas.md` — идеи и возможные следующие инкременты, не текущий backlog
-- `arch/` — LikeC4-модель и связанные материалы
+- [`apps/wm_edge_agent/`](apps/wm_edge_agent/) — edge runtime, example-конфиги и runtime-guides
+- [`apps/wm_knx_demo/`](apps/wm_knx_demo/) — KNX demo utilities
+- [`apps/wm_config_registry/`](apps/wm_config_registry/) — первый backend-срез Config Registry
+- [`libs/wm_knx_parser/`](libs/wm_knx_parser/) — библиотека для разбора ETS `.knxproj`
+- [`libs/wm_demo_stack/`](libs/wm_demo_stack/) — библиотека demo/scenario потока `config bundle -> Config Registry API -> outbox worker -> Kafka config delivery -> retained MQTT config -> telemetry`
+- [`tools/wm_clickhouse_migrations/`](tools/wm_clickhouse_migrations/) — repo-native operational tooling и migration CLI
+- [`environments/`](environments/) — versioned edge profiles конкретных стендов и окружений
+- [`infra/`](infra/) — локальная инфраструктура разработки и будущие `compose`-артефакты
+- [`docs/architecture/`](docs/architecture/) — архитектурные документы и ADR верхнего уровня
+- [`docs/future-ideas.md`](docs/future-ideas.md) — идеи и возможные следующие инкременты, не текущий backlog
+- [`arch/`](arch/) — LikeC4-модель и связанные материалы
+
+Правило именования верхнего уровня:
+
+- `apps/` — deployable или operator-facing сервисы и приложения
+- `libs/` — импортируемые Python-пакеты, которые используются как библиотеки из кода или тестов
+- `tools/` — repo-native tooling, migration CLI, one-off operational helpers и automation packages
+
+По этой причине `wm_knx_parser` и `wm_demo_stack` остаются в `libs/`: оба уже живут как
+workspace packages с `src/`, тестами и импортируемым API, а `wm_demo_stack`
+используется в integration-тестах как библиотека, а не только как CLI.
 
 ## Task Tracking
 
@@ -56,9 +75,10 @@ Source of truth для текущих задач, приоритетов и ст
 ```bash
 cp .env.example .env
 uv sync
-uv run --package edge-agent pytest apps/edge_agent/tests
-uv run --package knx-demo pytest apps/knx_demo/tests
-uv run --package knx-parser pytest libs/knx_parser/tests
+uv run --package wm-edge-agent pytest apps/wm_edge_agent/tests
+uv run --package wm-knx-demo pytest apps/wm_knx_demo/tests
+uv run --package wm-config-registry pytest apps/wm_config_registry/tests
+uv run --package wm-knx-parser pytest libs/wm_knx_parser/tests
 uv run --group integration pytest libs/wm_demo_stack/tests/test_scenario.py
 ```
 
@@ -66,7 +86,7 @@ uv run --group integration pytest libs/wm_demo_stack/tests/test_scenario.py
 
 ```bash
 uv sync --group lint
-uv run --group lint ruff check apps libs tests infra
+uv run --group lint ruff check apps libs tests infra tools
 ```
 
 Для интеграционных тестов локального MQTT/Kafka-контура:
@@ -74,55 +94,67 @@ uv run --group lint ruff check apps libs tests infra
 ```bash
 uv sync --all-packages --group integration
 uv run --group integration pytest \
+  tests/integration/test_config_registry_kafka_publisher.py \
+  tests/integration/test_config_registry_postgres.py \
   tests/integration/test_edge_agent_mqtt_publisher.py \
   tests/integration/test_edge_agent_knx_to_mqtt.py \
-  tests/integration/test_kafka_to_clickhouse_storage.py
+  tests/integration/test_kafka_to_clickhouse_storage.py \
+  tests/integration/test_grafana_clickhouse.py
 ```
 
 Текущее покрытие integration-набора:
 
+- `tests/integration/test_config_registry_kafka_publisher.py` —
+  `Config Registry -> Kafka config delivery -> Redpanda Connect -> retained MQTT`
+  и end-to-end seed через `wm-demo-stack publish-edge-demo`
+- `tests/integration/test_config_registry_postgres.py` — `Config Registry -> PostgreSQL`
+  через Alembic migration и FastAPI tenant endpoints
 - `tests/integration/test_edge_agent_mqtt_publisher.py` — raw `paho` publisher smoke и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
-- `tests/integration/test_edge_agent_knx_to_mqtt.py` — `KNX-shaped retained config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+- `tests/integration/test_edge_agent_knx_to_mqtt.py` — lower-level wm-edge-agent smoke: `Kafka config delivery fixture -> retained MQTT config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
 - `tests/integration/test_kafka_to_clickhouse_storage.py` —
   `Kafka -> Kafka Connect -> ClickHouse raw landing -> contract table`,
   включая byte-for-byte проверку `payload_json` и storage DLQ для невалидных
   records
+- `tests/integration/test_grafana_clickhouse.py` — provisioning и чтение
+  `Grafana -> ClickHouse` read models поверх локального `Telemetry Store`
 
 Для host-side запуска приложений используйте общий root `.env` через
 `uv run --env-file .env ...`.
 
 Полезные package-scoped команды:
 
-- `uv run --package edge-agent edge-agent --help`
-- `uv run --package edge-agent edge-agent check-config`
-- `uv run --package knx-demo knx-demo --help`
-- `uv run --package knx-parser knx-parser --help`
+- `uv run --package wm-edge-agent wm-edge-agent --help`
+- `uv run --package wm-edge-agent wm-edge-agent check-config`
+- `uv run --package wm-knx-demo wm-knx-demo --help`
+- `uv run --package wm-config-registry wm-config-registry`
+- `uv run --env-file .env --package wm-config-registry alembic -c apps/wm_config_registry/alembic.ini upgrade head`
+- `uv run --package wm-knx-parser wm-knx-parser --help`
 - `uv run --env-file .env --package wm-demo-stack publish-edge-demo --help`
 - `uv run wm-clickhouse migrate status`
 
 ## Архитектурные Артефакты
 
-- `docs/architecture/current-state.md` — короткий снимок текущего состояния
+- [`docs/architecture/current-state.md`](docs/architecture/current-state.md) — короткий снимок текущего состояния
   системы для ориентации людей и AI-agent без чтения всех ADR
-- `docs/architecture/README.md` — навигация по архитектурным документам
-- `docs/architecture/solution-architecture.md` — целевая архитектура
+- [`docs/architecture/README.md`](docs/architecture/README.md) — навигация по архитектурным документам
+- [`docs/architecture/solution-architecture.md`](docs/architecture/solution-architecture.md) — целевая архитектура
   edge-сервиса, dataflow и deployment
-- `docs/architecture/glossary.md` — канонический словарь архитектурных терминов
-- `docs/architecture/open-questions.md` — список открытых вопросов к заказчику
+- [`docs/architecture/glossary.md`](docs/architecture/glossary.md) — канонический словарь архитектурных терминов
+- [`docs/architecture/open-questions.md`](docs/architecture/open-questions.md) — список открытых вопросов к заказчику
   и по эксплуатации
-- `docs/architecture/adrs/` — журнал архитектурных решений; навигация начинается
-  с `docs/architecture/adrs/README.md`
-- `docs/contracts/README.md` — реестр контрактов данных и единый source of truth
-- `docs/contracts/edge-agent/` — канонические edge boundary contracts, MQTT topic tree и схемы payload
-- `arch/likec4/` — source of truth для C4-модели и диаграмм
-- `arch/README.md` — навигация по LikeC4-модели и командам
-- `apps/edge_agent/docs/data-contracts.md` — guide по edge runtime dataflow,
+- [`docs/architecture/adrs/`](docs/architecture/adrs/) — журнал архитектурных решений; навигация начинается
+  с [`docs/architecture/adrs/README.md`](docs/architecture/adrs/README.md)
+- [`docs/contracts/README.md`](docs/contracts/README.md) — реестр контрактов данных и единый source of truth
+- [`docs/contracts/wm-edge-agent/`](docs/contracts/wm-edge-agent/) — канонические edge boundary contracts, MQTT topic tree и схемы payload
+- [`arch/likec4/`](arch/likec4/) — source of truth для C4-модели и диаграмм
+- [`arch/README.md`](arch/README.md) — навигация по LikeC4-модели и командам
+- [`apps/wm_edge_agent/docs/data-contracts.md`](apps/wm_edge_agent/docs/data-contracts.md) — guide по edge runtime dataflow,
   конфигурационной модели и ссылкам на канонические схемы
-- `apps/edge_agent/docs/mqtt-topics.md` — guide по MQTT publish contract и
+- [`apps/wm_edge_agent/docs/mqtt-topics.md`](apps/wm_edge_agent/docs/mqtt-topics.md) — guide по MQTT publish contract и
   ссылкам на канонический topic tree
-- `apps/edge_agent/config/examples/bootstrap.example.yaml` — bootstrap example для edge agent
-- `apps/edge_agent/config/examples/config.bundle.example.yaml` — config bundle example для retained runtime/source config
-- `apps/edge_agent/config/README.md` — описание структуры конфигурации и разделения examples/environment configs
+- [`apps/wm_edge_agent/config/examples/bootstrap.example.yaml`](apps/wm_edge_agent/config/examples/bootstrap.example.yaml) — bootstrap example для edge agent
+- [`apps/wm_edge_agent/config/examples/config.bundle.example.yaml`](apps/wm_edge_agent/config/examples/config.bundle.example.yaml) — config bundle example для Kafka-first retained runtime/source config projection
+- [`apps/wm_edge_agent/config/README.md`](apps/wm_edge_agent/config/README.md) — описание структуры конфигурации и разделения examples/environment configs
 
 ## LikeC4
 
@@ -136,7 +168,7 @@ npm run build
 
 ## Local Infrastructure
 
-Локальный dev-стек описан в [`infra/local`](infra/local).
+Локальный dev-стек описан в [`infra/local/`](infra/local/).
 Минимальный MQTT-срез:
 
 ```bash
@@ -147,21 +179,30 @@ docker compose --env-file ../../.env up -d mqtt-broker
 Полный MQTT/Kafka-срез:
 
 ```bash
-cd infra/local
-docker compose --env-file ../../.env up -d \
-  mqtt-broker kafka kafka-init redpanda-connect clickhouse kafka-connect kafka-ui mqttx-web grafana
+./infra/local/up-platform.sh
 ```
+
+`up-platform.sh` сам пересобирает локальные image, выполняет Alembic migrations
+для `Config Registry` и только потом поднимает полный stack.
 
 После старта:
 
 - `MQTT broker` доступен на `localhost:1883`
 - `MQTT websocket` доступен на `localhost:9001`
 - `Kafka` host listener доступен на `localhost:19092`
-- `Redpanda Connect` HTTP endpoint доступен на `localhost:4195`
+- `Redpanda Connect MQTT -> Kafka` HTTP endpoint доступен на `localhost:4195`
+- `Redpanda Connect Kafka -> MQTT config projection` HTTP endpoint доступен на
+  `localhost:4196`
+- `Redpanda Connect source config snapshot projector` HTTP endpoint доступен на
+  `localhost:4197`
 - `Kafka Connect REST` доступен на `localhost:8083`
 - `Kafka Connect JMX` подготовлен на `localhost:9102`
 - `ClickHouse HTTP` доступен на `localhost:8123`
 - `ClickHouse native` доступен на `localhost:9000`
+- `Config Registry API` доступен на [http://localhost:8000](http://localhost:8000)
+- internal CRUD `Config Registry Backoffice` доступен на
+  [http://localhost:8000/backoffice](http://localhost:8000/backoffice), когда
+  `CONFIG_REGISTRY_INTERNAL_MODE=true`
 - `Kafka UI` доступен на [http://localhost:8080](http://localhost:8080)
 - `MQTTX Web` доступен на [http://localhost:8081](http://localhost:8081)
 - `Grafana` доступна на [http://localhost:3000](http://localhost:3000)
@@ -170,30 +211,31 @@ docker compose --env-file ../../.env up -d \
   `CLICKHOUSE_PASSWORD` из `.env`
 - доступ к `Grafana` использует `GRAFANA_ADMIN_USER` и
   `GRAFANA_ADMIN_PASSWORD` из `.env`
-- для seed retained runtime/source config используйте
-  `uv run --env-file .env --package wm-demo-stack publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml`
+- для seed demo config через `Config Registry API -> outbox worker -> Kafka`
+  используйте
+  `uv run --env-file .env --package wm-demo-stack publish-edge-demo --bundle-config environments/demo-stand/wm_edge_agent/config.bundle.yaml`
 - для автоматизированной проверки используйте интеграционные тесты
-  `uv run --group integration pytest tests/integration/test_edge_agent_mqtt_publisher.py tests/integration/test_edge_agent_knx_to_mqtt.py tests/integration/test_kafka_to_clickhouse_storage.py tests/integration/test_grafana_clickhouse.py`
+  `uv run --group integration pytest tests/integration/test_config_registry_kafka_publisher.py tests/integration/test_config_registry_postgres.py tests/integration/test_edge_agent_mqtt_publisher.py tests/integration/test_edge_agent_knx_to_mqtt.py tests/integration/test_kafka_to_clickhouse_storage.py tests/integration/test_grafana_clickhouse.py`
 
-Для `edge_agent` уже подготовлен bootstrap + retained config профиль под этот стек:
+Для `wm_edge_agent` уже подготовлен bootstrap + config bundle профиль под этот стек:
 
 ```bash
-uv run --env-file .env --package edge-agent edge-agent check-config \
-  --bootstrap-config environments/demo-stand/edge_agent/bootstrap.yaml
+uv run --env-file .env --package wm-edge-agent wm-edge-agent check-config \
+  --bootstrap-config environments/demo-stand/wm_edge_agent/bootstrap.yaml
 ```
 
 Для текущего удаленного dev-сценария demo-стенда есть отдельный профиль:
 
 ```bash
-uv run --env-file .env --package edge-agent edge-agent check-config \
-  --bootstrap-config environments/demo-stand-remote/edge_agent/bootstrap.yaml
+uv run --env-file .env --package wm-edge-agent wm-edge-agent check-config \
+  --bootstrap-config environments/demo-stand-remote/wm_edge_agent/bootstrap.yaml
 ```
 
-Если нужно seed-ить retained config именно для remote-profile:
+Если нужно seed-ить config delivery records именно для remote-profile:
 
 ```bash
 uv run --env-file .env --package wm-demo-stack publish-edge-demo \
-  --bundle-config environments/demo-stand-remote/edge_agent/config.bundle.yaml
+  --bundle-config environments/demo-stand-remote/wm_edge_agent/config.bundle.yaml
 ```
 
 ClickHouse migrations выполняются из корня репозитория:

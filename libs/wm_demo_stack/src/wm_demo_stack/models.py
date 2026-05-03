@@ -11,9 +11,21 @@ class BrokerConfig:
 
 
 @dataclass(frozen=True)
+class KafkaConfig:
+    bootstrap_servers: str
+    client_id: str
+
+
+@dataclass(frozen=True)
+class ConfigRegistryConfig:
+    base_url: str
+    timeout_seconds: float = 30.0
+
+
+@dataclass(frozen=True)
 class TopicScope:
     topic_root: str
-    object_id: str
+    asset_id: str
     agent_id: str
 
     def runtime_config_topic(self) -> str:
@@ -24,19 +36,19 @@ class TopicScope:
 
     def point_topic(self, source_id: str, point_key: str, suffix: str) -> str:
         return (
-            f"{self.topic_root}/objects/{self.object_id}/agents/{self.agent_id}"
+            f"{self.topic_root}/assets/{self.asset_id}/agents/{self.agent_id}"
             f"/sources/{source_id}/points/{point_key}/{suffix}"
         )
 
     def source_status_topic(self, source_id: str) -> str:
         return (
-            f"{self.topic_root}/objects/{self.object_id}/agents/{self.agent_id}"
+            f"{self.topic_root}/assets/{self.asset_id}/agents/{self.agent_id}"
             f"/sources/{source_id}/status/connection"
         )
 
     def agent_lwt_topic(self) -> str:
         return (
-            f"{self.topic_root}/objects/{self.object_id}/agents/{self.agent_id}"
+            f"{self.topic_root}/assets/{self.asset_id}/agents/{self.agent_id}"
             f"/status/lwt"
         )
 
@@ -86,7 +98,7 @@ class BundleSource:
 @dataclass(frozen=True)
 class ConfigBundle:
     tenant_id: str
-    object_id: str
+    asset_id: str
     agent_id: str
     config_revision: str
     issued_at: str
@@ -114,6 +126,8 @@ class WaveConfig:
 @dataclass(frozen=True)
 class DemoSettings:
     broker: BrokerConfig
+    kafka: KafkaConfig
+    wm_config_registry: ConfigRegistryConfig
     username: str | None
     password: str | None
     client_id: str
@@ -123,6 +137,7 @@ class DemoSettings:
     interval_seconds: float
     count: int
     temperature: WaveConfig
+    config_delivery: str
     publish_config: bool
     publish_status: bool
     retained_refresh_seconds: float
@@ -134,3 +149,10 @@ class PublishMessage:
     payload: dict[str, Any]
     qos: int = 1
     retain: bool = False
+
+
+@dataclass(frozen=True)
+class KafkaRecord:
+    topic: str
+    key: str
+    payload: dict[str, Any]

@@ -3,9 +3,10 @@
 Дата: 2026-05-02
 Статус: working draft
 
-Этот контракт фиксирует draft физической модели `Telemetry Store` на базе
-ClickHouse. Он нужен для review, будущих миграций и проверки совместимости
-Kafka consumers. DDL не является production-validated performance schema до
+Этот контракт фиксирует начальную migration-backed физическую модель
+`Telemetry Store` на базе ClickHouse. Он нужен для review, проверки
+совместимости Kafka consumers и сопровождения уже существующих миграций.
+Физическая схема еще не считается production-validated performance schema до
 нагрузочного PoC.
 
 ## Tables
@@ -90,12 +91,12 @@ MV layer owns domain parsing from `payload_json`.
 | --- | --- | --- |
 | `tenant_id` | `String` | Клиент/tenant платформы |
 | `event_id` | `String` | Непрозрачный id события от edge, не UUID-only |
-| `idempotency_key` | `String` | `{tenant_id}|{object_id}|{agent_id}|{event_id}` |
-| `object_id` | `String` | Объект мониторинга |
+| `idempotency_key` | `String` | `{tenant_id}|{asset_id}|{agent_id}|{event_id}` |
+| `asset_id` | `String` | Объект мониторинга |
 | `agent_id` | `String` | Edge agent instance |
 | `source_id` | `String` | Source внутри agent |
 | `source_type` | `LowCardinality(String)` | Тип source: `knx`, `modbus`, `opc-ua`, ... |
-| `point_id` | `String` | Стабильный platform registry id точки; MVP fallback до Platform Registry: `{tenant_id}|{object_id}|{source_id}|{point_key}` |
+| `point_id` | `String` | Стабильный platform registry id точки; MVP fallback до Platform Registry: `{tenant_id}|{asset_id}|{source_id}|{point_key}` |
 | `point_key` | `String` | MQTT-safe key точки |
 | `point_ref` | `String` | Исходный protocol point reference |
 | `source_config_revision` | `String` | Версия source config |
@@ -119,7 +120,7 @@ CREATE TABLE telemetry_events_v1
     tenant_id String,
     event_id String,
     idempotency_key String,
-    object_id String,
+    asset_id String,
     agent_id String,
     source_id String,
     source_type LowCardinality(String),
@@ -141,7 +142,7 @@ CREATE TABLE telemetry_events_v1
 )
 ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(ts)
-ORDER BY (tenant_id, object_id, source_id, point_key, ts, idempotency_key)
+ORDER BY (tenant_id, asset_id, source_id, point_key, ts, idempotency_key)
 TTL ts + INTERVAL 180 DAY DELETE;
 ```
 
@@ -174,7 +175,7 @@ eventual-dedup storage layer, а не мгновенно уникальным st
 
 - `telemetry_events_dedup_v1` возвращает deduplicated telemetry history.
 - `telemetry_latest_v1` возвращает последнее событие по grain
-  `tenant_id + object_id + source_id + point_key`.
+  `tenant_id + asset_id + source_id + point_key`.
 - `telemetry_1m_v1` и `telemetry_1h_v1` агрегируют deduplicated события по
   минутному/часовому bucket.
 
@@ -186,58 +187,58 @@ optimization. Материализованные latest/rollup tables можно
 
 `source_config_snapshots_v1`:
 
-- key fields: `tenant_id`, `object_id`, `agent_id`, `source_id`, `source_config_revision`
+- key fields: `tenant_id`, `asset_id`, `agent_id`, `source_id`, `source_config_revision`
 - payload fields: `source_type`, `points_json`, `ts`, `ingested_at`
 - engine draft: `ReplacingMergeTree(ingested_at)`
 - partition: `toYYYYMM(ts)`
-- order key: `(tenant_id, object_id, agent_id, source_id, source_config_revision)`
+- order key: `(tenant_id, asset_id, agent_id, source_id, source_config_revision)`
 - retention: `400d`
 
 `source_connection_events_v1`:
 
-- key fields: `tenant_id`, `object_id`, `agent_id`, `source_id`
+- key fields: `tenant_id`, `asset_id`, `agent_id`, `source_id`
 - payload fields: `state`, `reason`, `ts`, `ingested_at`
 - engine draft: `MergeTree`
 - partition: `toYYYYMM(ts)`
-- order key: `(tenant_id, object_id, source_id, ts)`
+- order key: `(tenant_id, asset_id, source_id, ts)`
 - retention: `400d`
 
 `agent_status_events_v1`:
 
-- key fields: `tenant_id`, `object_id`, `agent_id`
+- key fields: `tenant_id`, `asset_id`, `agent_id`
 - payload fields: `status`, `ts`, `ingested_at`
 - engine draft: `MergeTree`
 - partition: `toYYYYMM(ts)`
-- order key: `(tenant_id, object_id, agent_id, ts)`
+- order key: `(tenant_id, asset_id, agent_id, ts)`
 - retention: `400d`
 
 ## Derived and alarm tables
 
 `derived_events_v1`:
 
-- key fields: `tenant_id`, `derived_event_id`, `idempotency_key`, `object_id`
+- key fields: `tenant_id`, `derived_event_id`, `idempotency_key`, `asset_id`
 - payload fields: `rule_or_metric_id`, `event_type`, `ts`, `produced_at`,
   typed value columns, `attributes_json`
 - engine draft: `ReplacingMergeTree(produced_at)`
 - partition: `toYYYYMM(ts)`
-- order key: `(tenant_id, object_id, event_type, ts, idempotency_key)`
+- order key: `(tenant_id, asset_id, event_type, ts, idempotency_key)`
 - retention: `180d`
 
 `alarm_history_events_v1`:
 
-- key fields: `tenant_id`, `alarm_event_id`, `alarm_id`, `object_id`
+- key fields: `tenant_id`, `alarm_event_id`, `alarm_id`, `asset_id`
 - payload fields: `event_type`, `severity`, `state`, `operator_id`,
   `reason`, `ts`, `ingested_at`, `payload_json`
 - engine draft: `ReplacingMergeTree(ingested_at)`
 - partition: `toYYYYMM(ts)`
-- order key: `(tenant_id, object_id, alarm_id, ts, alarm_event_id)`
+- order key: `(tenant_id, asset_id, alarm_id, ts, alarm_event_id)`
 - retention: `5y`
 
 ## Rollups and latest values
 
 `telemetry_1m_v1`:
 
-- grain: `tenant_id + object_id + source_id + point_key + toStartOfMinute(ts)`
+- grain: `tenant_id + asset_id + source_id + point_key + toStartOfMinute(ts)`
 - shape: query view over `telemetry_events_dedup_v1`
 - value columns: `event_count`, `good_count`, `uncertain_count`, `bad_count`,
   `number_count`, `value_min`, `value_max`, `value_avg`, `value_last`
@@ -245,7 +246,7 @@ optimization. Материализованные latest/rollup tables можно
 
 `telemetry_1h_v1`:
 
-- grain: `tenant_id + object_id + source_id + point_key + toStartOfHour(ts)`
+- grain: `tenant_id + asset_id + source_id + point_key + toStartOfHour(ts)`
 - shape: query view over `telemetry_events_dedup_v1`
 - value columns: `event_count`, `good_count`, `uncertain_count`, `bad_count`,
   `number_count`, `value_min`, `value_max`, `value_avg`, `value_last`
@@ -253,7 +254,7 @@ optimization. Материализованные latest/rollup tables можно
 
 `telemetry_latest_v1`:
 
-- grain: `tenant_id + object_id + source_id + point_key`
+- grain: `tenant_id + asset_id + source_id + point_key`
 - value columns mirror latest telemetry typed value columns
 - shape: query view over `telemetry_events_dedup_v1`
 - retention: inherited from `telemetry_events_v1`

@@ -10,20 +10,20 @@ import paho.mqtt.client as mqtt
 import pytest
 import yaml
 
-from edge_agent.application.configuration import load_runtime_config
-from edge_agent.application.delivery import DeliveryWorker
-from edge_agent.application.processing import ObservationProcessor
-from edge_agent.domain.events import Observation
-from edge_agent.infrastructure.mqtt_publisher import connect_mqtt_publisher
-from edge_agent.infrastructure.sqlite_outbox import SQLiteOutbox
 from wm_demo_stack.bundle import load_bundle
 from wm_demo_stack.models import TopicScope
 from wm_demo_stack.scenario import runtime_config_payload, source_config_payload
+from wm_edge_agent.application.configuration import load_runtime_config
+from wm_edge_agent.application.delivery import DeliveryWorker
+from wm_edge_agent.application.processing import ObservationProcessor
+from wm_edge_agent.domain.events import Observation
+from wm_edge_agent.infrastructure.mqtt_publisher import connect_mqtt_publisher
+from wm_edge_agent.infrastructure.sqlite_outbox import SQLiteOutbox
 
 pytestmark = pytest.mark.integration
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEMO_BUNDLE_PATH = REPO_ROOT / "environments" / "demo-stand" / "edge_agent" / "config.bundle.yaml"
+DEMO_BUNDLE_PATH = REPO_ROOT / "environments" / "demo-stand" / "wm_edge_agent" / "config.bundle.yaml"
 KAFKA_SCHEMAS_ROOT = REPO_ROOT / "docs" / "contracts" / "kafka" / "schemas"
 
 
@@ -44,11 +44,11 @@ def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
         agent_id=bundle.agent_id,
         broker=f"mqtt://127.0.0.1:{local_storage_stack.mqtt_port}",
     )
-    _seed_retained_config(local_stack=local_storage_stack, bundle=bundle)
+    _seed_config_delivery_records(local_stack=local_storage_stack, bundle=bundle)
 
     point = bundle.source("knx_main").points[2]
     topic = (
-        f"wm/v1/objects/{bundle.object_id}/agents/{bundle.agent_id}"
+        f"wm/v1/assets/{bundle.asset_id}/agents/{bundle.agent_id}"
         f"/sources/knx_main/points/{point.point_key}/event"
     )
     connected = threading.Event()
@@ -145,16 +145,16 @@ def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
             kafka_payload,
             KAFKA_SCHEMAS_ROOT / "wm.platform.telemetry.event.v1.schema.json",
         )
-        assert kafka_key == f"{bundle.tenant_id}|{bundle.object_id}|knx_main|{point.point_key}"
+        assert kafka_key == f"{bundle.tenant_id}|{bundle.asset_id}|knx_main|{point.point_key}"
         assert kafka_payload["message_type"] == "wm.platform.telemetry.event.v1"
         assert kafka_payload["tenant_id"] == bundle.tenant_id
-        assert kafka_payload["object_id"] == bundle.object_id
+        assert kafka_payload["asset_id"] == bundle.asset_id
         assert kafka_payload["agent_id"] == bundle.agent_id
         assert kafka_payload["source_id"] == "knx_main"
         assert kafka_payload["source_type"] == "knx"
         assert kafka_payload["source_config_revision"] == "rev-demo-stand-knx-main-001"
         assert kafka_payload["point_id"] == (
-            f"{bundle.tenant_id}|{bundle.object_id}|knx_main|{point.point_key}"
+            f"{bundle.tenant_id}|{bundle.asset_id}|knx_main|{point.point_key}"
         )
         assert kafka_payload["point_ref"] == point.point_ref
         assert kafka_payload["value"] == 24.8
@@ -162,14 +162,14 @@ def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
 
         clickhouse_row = local_storage_stack.wait_for_clickhouse_value(
             f"""
-            SELECT tenant_id, object_id, agent_id, source_id, point_key, value_type, value_float
+            SELECT tenant_id, asset_id, agent_id, source_id, point_key, value_type, value_float
             FROM telemetry_events_v1
             WHERE event_id = '{kafka_payload["event_id"]}'
             FORMAT TabSeparatedRaw
             """.strip()
         )
         assert clickhouse_row == (
-            f"{bundle.tenant_id}\t{bundle.object_id}\t{bundle.agent_id}"
+            f"{bundle.tenant_id}\t{bundle.asset_id}\t{bundle.agent_id}"
             f"\tknx_main\t{point.point_key}\tnumber\t24.8"
         )
     finally:
@@ -187,12 +187,12 @@ def test_mqtt_to_kafka_ingestion_routes_unresolved_telemetry_to_error_topic(
     monkeypatch.setenv("KNX_LOCAL_ROUTE_BACK", "false")
 
     bundle = load_bundle(DEMO_BUNDLE_PATH)
-    _seed_retained_config(local_stack=local_platform_stack, bundle=bundle)
+    _seed_config_delivery_records(local_stack=local_platform_stack, bundle=bundle)
 
     point = bundle.source("knx_main").points[2]
     scope = TopicScope(
         topic_root="wm/v1",
-        object_id=bundle.object_id,
+        asset_id=bundle.asset_id,
         agent_id=bundle.agent_id,
     )
     publish_json_message(
@@ -224,7 +224,7 @@ def test_mqtt_to_kafka_ingestion_routes_unresolved_telemetry_to_error_topic(
         KAFKA_SCHEMAS_ROOT / "wm.platform.ingestion.error.v1.schema.json",
     )
     assert kafka_key == (
-        f"{bundle.object_id}|{bundle.agent_id}|knx_main|wm.telemetry.event.v1"
+        f"{bundle.asset_id}|{bundle.agent_id}|knx_main|wm.telemetry.event.v1"
     )
     assert kafka_payload["message_type"] == "wm.platform.ingestion.error.v1"
     assert kafka_payload["reason_code"] == "source_config_revision_missing"
@@ -232,7 +232,7 @@ def test_mqtt_to_kafka_ingestion_routes_unresolved_telemetry_to_error_topic(
         "knx_main", point.point_key, "event"
     )
     assert kafka_payload["message_type_in"] == "wm.telemetry.event.v1"
-    assert kafka_payload["object_id"] == bundle.object_id
+    assert kafka_payload["asset_id"] == bundle.asset_id
     assert kafka_payload["agent_id"] == bundle.agent_id
     assert kafka_payload["source_id"] == "knx_main"
     assert kafka_payload["point_key"] == point.point_key
@@ -243,7 +243,7 @@ def test_mqtt_to_kafka_status_ingestion_does_not_require_config_cache(
 ) -> None:
     scope = TopicScope(
         topic_root="wm/v1",
-        object_id="demo-stand-01",
+        asset_id="demo-stand-01",
         agent_id="demo-stand-local",
     )
 
@@ -377,32 +377,91 @@ def _matches_json_type(value: object, expected_type: object) -> bool:
             raise AssertionError(f"Unsupported schema type {expected_type!r}")
 
 
-def _seed_retained_config(*, local_stack, bundle) -> None:
+def _seed_config_delivery_records(*, local_stack, bundle) -> None:
     settings = type("BundleSettings", (), {"bundle": bundle})()
     scope = TopicScope(
         topic_root="wm/v1",
-        object_id=bundle.object_id,
+        asset_id=bundle.asset_id,
         agent_id=bundle.agent_id,
     )
-    publish_json_message(
-        host="127.0.0.1",
-        port=local_stack.mqtt_port,
-        username=local_stack.mqtt_username,
-        password=local_stack.mqtt_password,
-        topic=scope.runtime_config_topic(),
-        payload=runtime_config_payload(settings),
-        retain=True,
+    runtime_payload = runtime_config_payload(settings)
+    runtime_record = _config_delivery_record(
+        bundle=bundle,
+        config_scope="runtime",
+        source_id=None,
+        source_config_revision=None,
+        target_mqtt_topic=scope.runtime_config_topic(),
+        payload_message_type="wm.edge.runtime-config.v1",
+        payload=runtime_payload,
     )
+    local_stack.produce_kafka_text(
+        "wm.platform.edge.configs.v1",
+        json.dumps(runtime_record, ensure_ascii=True, separators=(",", ":")),
+        key=f"{bundle.tenant_id}|{bundle.asset_id}|{bundle.agent_id}|runtime",
+    )
+    runtime_message = local_stack.wait_for_mqtt_json(scope.runtime_config_topic())
+    assert runtime_message.retained is True
+    assert runtime_message.payload["config_revision"] == bundle.config_revision
+
     for source in bundle.sources:
-        publish_json_message(
-            host="127.0.0.1",
-            port=local_stack.mqtt_port,
-            username=local_stack.mqtt_username,
-            password=local_stack.mqtt_password,
-            topic=scope.source_config_topic(source.source_id),
-            payload=source_config_payload(settings, source=source),
-            retain=True,
+        source_payload = source_config_payload(settings, source=source)
+        source_topic = scope.source_config_topic(source.source_id)
+        source_record = _config_delivery_record(
+            bundle=bundle,
+            config_scope=f"source:{source.source_id}",
+            source_id=source.source_id,
+            source_config_revision=source.source_config_revision,
+            target_mqtt_topic=source_topic,
+            payload_message_type="wm.edge.source-config.v1",
+            payload=source_payload,
         )
+        local_stack.produce_kafka_text(
+            "wm.platform.edge.configs.v1",
+            json.dumps(source_record, ensure_ascii=True, separators=(",", ":")),
+            key=(
+                f"{bundle.tenant_id}|{bundle.asset_id}|{bundle.agent_id}"
+                f"|source:{source.source_id}"
+            ),
+        )
+        source_message = local_stack.wait_for_mqtt_json(source_topic)
+        assert source_message.retained is True
+        assert source_message.payload["source_config_revision"] == (
+            source.source_config_revision
+        )
+
+
+def _config_delivery_record(
+    *,
+    bundle,
+    config_scope: str,
+    source_id: str | None,
+    source_config_revision: str | None,
+    target_mqtt_topic: str,
+    payload_message_type: str,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    idempotency_scope = config_scope.replace(":", "|")
+    return {
+        "message_type": "wm.platform.edge.config.delivery.v1",
+        "tenant_id": bundle.tenant_id,
+        "asset_id": bundle.asset_id,
+        "agent_id": bundle.agent_id,
+        "config_revision": bundle.config_revision,
+        "config_scope": config_scope,
+        "source_id": source_id,
+        "source_config_revision": source_config_revision,
+        "target_mqtt_topic": target_mqtt_topic,
+        "mqtt_retain": True,
+        "mqtt_qos": 1,
+        "operation": "upsert",
+        "payload_message_type": payload_message_type,
+        "payload": payload,
+        "idempotency_key": (
+            f"{bundle.tenant_id}|{bundle.asset_id}|{bundle.agent_id}|"
+            f"{bundle.config_revision}|{idempotency_scope}"
+        ),
+        "issued_at": bundle.issued_at,
+    }
 
 
 def publish_json_message(
@@ -447,7 +506,7 @@ def _write_bootstrap_config(
                 "version": "5.0",
                 "broker": broker,
                 "topic_root": "wm/v1",
-                "client_id_prefix": "edge-agent-it",
+                "client_id_prefix": "wm-edge-agent-it",
                 "username_env": "MQTT_USERNAME",
                 "password_env": "MQTT_PASSWORD",
                 "qos": 1,

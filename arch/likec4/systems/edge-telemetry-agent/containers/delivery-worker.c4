@@ -5,7 +5,7 @@ model {
             technology 'Python worker / MQTT publisher'
 
             -> bootstrap-configuration 'Загружает настройки MQTT, topic contract и retry-политики'
-            -> runtime-config-cache 'Читает tenant_id, object_id и source_config_revision для публикации telemetry payload'
+            -> runtime-config-cache 'Читает tenant_id, asset_id и source_config_revision для публикации telemetry payload'
             -> local-state-store 'Читает edge.sqlite-outbox-record.v1, обновляет attempts/status и выполняет recovery зависших inflight records'
             -> monitoring-alarm-platform.mqtt-ingestion-gateway 'Публикует реализованный wm.telemetry.event.v1 с tenant_id claim по MQTT 5.0'
         }

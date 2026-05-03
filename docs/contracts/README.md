@@ -23,10 +23,10 @@
 
 ## Разделы
 
-- `edge-agent/` — контракты, которыми владеет `Edge Telemetry Agent`: bootstrap config, retained runtime/source configs, локальное SQLite-состояние, MQTT messages и MQTT topic tree.
+- `wm-edge-agent/` — контракты, которыми владеет `Edge Telemetry Agent`: bootstrap config, retained runtime/source configs, локальное SQLite-состояние, MQTT messages и MQTT topic tree.
 - `platform-ingestion/` — mapping `MQTT -> canonical Kafka record`, tenant/point enrichment и ingestion errors.
 - `kafka/` — Kafka topic names, keys, retention, value schemas и consumer group conventions.
-- `clickhouse/` — ClickHouse table names, DDL draft, partition/order keys, rollups и retention policies.
+- `clickhouse/` — ClickHouse contract tables, migration-backed physical model, partition/order keys, rollups и retention policies.
 
 ## Правила версионирования
 

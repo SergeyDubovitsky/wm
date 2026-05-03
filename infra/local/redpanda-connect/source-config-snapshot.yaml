@@ -1,0 +1,60 @@
+http:
+  address: 0.0.0.0:4195
+  enabled: true
+
+input:
+  redpanda:
+    seed_brokers:
+      - kafka:19092
+    topics:
+      - wm.platform.edge.configs.v1
+    consumer_group: source-config-snapshot-projector.v1
+    client_id: wm-local-source-config-snapshot-projector
+    start_offset: earliest
+
+pipeline:
+  threads: 1
+  processors:
+    - mapping: |
+        let should_project = this.message_type == "wm.platform.edge.config.delivery.v1" && this.payload_message_type == "wm.edge.source-config.v1" && this.operation == "upsert"
+        let payload = if !$should_project || this.payload != null { this.payload } else { throw("payload_missing") }
+        let ingested_at = now()
+
+        root = if $should_project {
+          {
+            "message_type": "wm.platform.source.config.v1",
+            "tenant_id": this.tenant_id,
+            "asset_id": this.asset_id,
+            "agent_id": this.agent_id,
+            "source_id": this.source_id,
+            "source_type": $payload.source_type,
+            "source_config_revision": this.source_config_revision,
+            "ts": this.issued_at,
+            "ingested_at": $ingested_at,
+            "points": $payload.points.map_each(point -> {
+              "point_id": "%s|%s|%s|%s".format(this.tenant_id, this.asset_id, this.source_id, point.point_key),
+              "point_key": point.point_key,
+              "point_ref": point.point_ref,
+              "name": point.name,
+              "description": point.description | null,
+              "signal_type": point.signal_type,
+              "value_type": point.value_type,
+              "value_model": point.value_model,
+              "unit": point.unit | null,
+              "tags": point.tags | {},
+            }),
+          }
+        } else {
+          deleted()
+        }
+        meta kafka_key = "%s|%s|%s|%s".format(this.tenant_id, this.asset_id, this.agent_id, this.source_id)
+
+output:
+  redpanda:
+    seed_brokers:
+      - kafka:19092
+    topic: wm.platform.source.configs.v1
+    key: '${! meta("kafka_key") }'
+
+logger:
+  level: INFO

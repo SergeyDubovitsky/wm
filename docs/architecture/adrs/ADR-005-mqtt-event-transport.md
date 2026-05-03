@@ -61,7 +61,7 @@
 
 Telemetry topic:
 
-- `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event`
+- `wm/v1/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event`
 
 Config topics:
 
@@ -71,12 +71,12 @@ Config topics:
 Status topics:
 
 - `wm/v1/agents/{agent_id}/status/config`
-- `wm/v1/objects/{object_id}/agents/{agent_id}/sources/{source_id}/status/connection`
-- `wm/v1/objects/{object_id}/agents/{agent_id}/status/lwt`
+- `wm/v1/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/status/connection`
+- `wm/v1/assets/{asset_id}/agents/{agent_id}/status/lwt`
 
 Правила:
 
-- `object_id`, `agent_id`, `source_id` должны соответствовать MQTT-safe path-id contract
+- `asset_id`, `agent_id`, `source_id` должны соответствовать MQTT-safe path-id contract
 - `point_key` не должен использовать raw protocol reference напрямую, если он содержит `/` или другие неудобные символы
 - для `point_key` используется обратимо-кодируемое safe representation, например percent-encoding от `point_ref`
 
@@ -86,7 +86,7 @@ Payload contract зависит от типа topic.
 
 Telemetry payload principles:
 
-- не повторяет `object_id`
+- не повторяет `asset_id`
 - не повторяет `agent_id`
 - не повторяет `source_id`
 - не повторяет `point_key`
@@ -98,7 +98,7 @@ Telemetry payload principles:
 - complex protocol values вроде массивов, структур или `ByteString` не входят в текущую версию wire contract
 
 Полная схема telemetry payload является контрактом `wm.telemetry.event.v1` и
-зафиксирована в `docs/contracts/edge-agent/`.
+зафиксирована в `docs/contracts/wm-edge-agent/`.
 
 Source config payload:
 
@@ -107,7 +107,7 @@ Source config payload:
 - позволяет consumer-у сделать одну retained subscription на source вместо `N` per-point metadata subscriptions
 
 Полная схема source config payload является контрактом
-`wm.edge.source-config.v1` и зафиксирована в `docs/contracts/edge-agent/`.
+`wm.edge.source-config.v1` и зафиксирована в `docs/contracts/wm-edge-agent/`.
 
 ### 6. QoS и свойства публикации
 
@@ -117,7 +117,7 @@ Source config payload:
 - `Content Type` для JSON payload: `application/json`
 - status topics могут использовать `retain = true`
 - `lwt` публикуется как retained `offline`, а после успешного connect агент публикует retained `online`
-- source config публикуется config publisher tool-ом при выпуске новой revision
+- source config материализуется в retained MQTT topic из Kafka config delivery record при выпуске новой revision
 - publisher должен использовать `Topic Alias`, если broker вернул ненулевой `Topic Alias Maximum`, потому что telemetry topics длинные и часто повторяются
 
 ### 7. Session policy
@@ -153,7 +153,7 @@ Source config payload:
 Положительные:
 
 - MQTT становится primary transport уже в MVP
-- subscriber может избирательно подписываться по `object/source/point`
+- subscriber может избирательно подписываться по `asset/source/point`
 - event stream остается компактным и без дублирования topic identity и стабильной point metadata в payload
 - один source config на source уменьшает число retained records и metadata subscriptions
 - monitoring backend строит текущее состояние в одном месте, в БД
@@ -168,7 +168,7 @@ Source config payload:
 
 ## Source of truth контрактов
 
-Полные MQTT topic templates и payload schemas вынесены в `docs/contracts/edge-agent/`.
+Полные MQTT topic templates и payload schemas вынесены в `docs/contracts/wm-edge-agent/`.
 
 ## Отклоненные альтернативы
 

@@ -10,7 +10,7 @@
         "tenant_id",
         "derived_event_id",
         "idempotency_key",
-        "object_id",
+        "asset_id",
         "event_type",
         "ts",
         "produced_at",
@@ -33,7 +33,7 @@
             "type": "string",
             "minLength": 1
         },
-        "object_id": {
+        "asset_id": {
             "type": "string",
             "minLength": 1
         },

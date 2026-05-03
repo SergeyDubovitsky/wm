@@ -10,6 +10,7 @@ from config_registry.infrastructure.backoffice import (
     AgentBackofficeView,
     AssetBackofficeView,
     PointBackofficeView,
+    RuntimeConfigRevisionBackofficeView,
     SourceBackofficeView,
     TenantBackofficeView,
 )
@@ -189,6 +190,72 @@ async def test_backoffice_create_source_uses_application_use_case() -> None:
     assert sources[0]["connection_json"] == {}
 
 
+@pytest.mark.asyncio
+async def test_backoffice_create_point_uses_application_use_case() -> None:
+    app = create_app()
+    request = SimpleNamespace(app=app)
+    await TenantBackofficeView().insert_model(
+        request,
+        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
+    )
+    await AssetBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "name": "Asset Backoffice",
+        },
+    )
+    await AgentBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+        },
+    )
+    await SourceBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+            "source_id": "source-backoffice",
+            "source_type": "knx",
+        },
+    )
+
+    created = await PointBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+            "source_id": "source-backoffice",
+            "point_id": "point-backoffice",
+            "point_key": "1%2F2%2F3",
+            "point_ref": "1/2/3",
+            "name": "Point Backoffice",
+            "value_type": "number",
+            "value_model": "knx.dpt.9.001",
+            "signal_type": "sensor",
+            "unit": "C",
+            "enabled": "true",
+        },
+    )
+
+    with TestClient(app) as client:
+        points = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice"
+            "/agents/agent-backoffice/sources/source-backoffice/points"
+        ).json()
+
+    assert created.point_id == "point-backoffice"
+    assert created.value_type == "number"
+    assert points[0]["point_key"] == "1%2F2%2F3"
+    assert points[0]["acquisition_json"] == {}
+
+
 def test_only_tenant_backoffice_view_is_create_enabled_for_now() -> None:
     for view in BACKOFFICE_VIEWS:
         assert view.can_create is (
@@ -198,6 +265,7 @@ def test_only_tenant_backoffice_view_is_create_enabled_for_now() -> None:
                 AssetBackofficeView,
                 AgentBackofficeView,
                 SourceBackofficeView,
+                PointBackofficeView,
             }
         )
 
@@ -205,10 +273,10 @@ def test_only_tenant_backoffice_view_is_create_enabled_for_now() -> None:
 @pytest.mark.asyncio
 async def test_backoffice_views_reject_unsupported_programmatic_writes() -> None:
     tenant_view = TenantBackofficeView()
-    point_view = PointBackofficeView()
+    revision_view = RuntimeConfigRevisionBackofficeView()
 
     with pytest.raises(PermissionError, match="read-only"):
-        await point_view.insert_model(object(), {})
+        await revision_view.insert_model(object(), {})
     with pytest.raises(PermissionError, match="read-only"):
         await tenant_view.update_model(object(), "tenant-a", {})
     with pytest.raises(PermissionError, match="read-only"):

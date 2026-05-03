@@ -13,6 +13,10 @@ from config_registry.application.use_cases.assets import (
     CreateAsset,
     CreateAssetCommand,
 )
+from config_registry.application.use_cases.points import (
+    CreatePoint,
+    CreatePointCommand,
+)
 from config_registry.application.use_cases.sources import (
     CreateSource,
     CreateSourceCommand,
@@ -21,6 +25,7 @@ from config_registry.application.use_cases.tenants import (
     CreateTenant,
     CreateTenantCommand,
 )
+from config_registry.domain.value_objects import SignalType, ValueType
 from config_registry.infrastructure.postgres.models import (
     AgentModel,
     AssetModel,
@@ -227,10 +232,25 @@ class SourceBackofficeView(CreateOnlyModelView, model=SourceModel):
         )
 
 
-class PointBackofficeView(ReadOnlyModelView, model=PointModel):
+class PointBackofficeView(CreateOnlyModelView, model=PointModel):
     name = "Point"
     name_plural = "Points"
     category = "Registry"
+    form_columns = [
+        PointModel.tenant_id,
+        PointModel.asset_id,
+        PointModel.agent_id,
+        PointModel.source_id,
+        PointModel.point_id,
+        PointModel.point_key,
+        PointModel.point_ref,
+        PointModel.name,
+        PointModel.value_type,
+        PointModel.value_model,
+        PointModel.signal_type,
+        PointModel.unit,
+        PointModel.enabled,
+    ]
     column_list = [
         PointModel.tenant_id,
         PointModel.asset_id,
@@ -242,6 +262,46 @@ class PointBackofficeView(ReadOnlyModelView, model=PointModel):
         PointModel.enabled,
         PointModel.updated_at,
     ]
+
+    async def insert_model(self, request: Request, data: dict[str, object]) -> object:
+        point = await CreatePoint(request.app.state.unit_of_work_factory()).execute(
+            CreatePointCommand(
+                tenant_id=str(data["tenant_id"]),
+                asset_id=str(data["asset_id"]),
+                agent_id=str(data["agent_id"]),
+                source_id=str(data["source_id"]),
+                point_id=str(data["point_id"]),
+                point_key=str(data["point_key"]),
+                point_ref=str(data["point_ref"]),
+                name=str(data["name"]),
+                value_type=ValueType(str(data["value_type"])),
+                value_model=str(data["value_model"]),
+                signal_type=SignalType(str(data["signal_type"])),
+                unit=_optional_string(data.get("unit")),
+                enabled=_optional_bool(data.get("enabled"), default=True),
+            )
+        )
+        return PointModel(
+            tenant_id=point.tenant_id,
+            asset_id=point.asset_id,
+            agent_id=point.agent_id,
+            source_id=point.source_id,
+            point_id=point.point_id,
+            point_key=point.point_key,
+            point_ref=point.point_ref,
+            name=point.name,
+            description=point.description,
+            value_type=point.value_type.value,
+            value_model=point.value_model,
+            signal_type=point.signal_type.value,
+            unit=point.unit,
+            enabled=point.enabled,
+            acquisition_json=dict(point.acquisition_json),
+            publish_json=dict(point.publish_json),
+            tags_json=dict(point.tags_json),
+            created_at=point.created_at,
+            updated_at=point.updated_at,
+        )
 
 
 class RuntimeConfigRevisionBackofficeView(
@@ -330,4 +390,12 @@ def _optional_string(value: object) -> str | None:
 def _optional_bool(value: object, *, default: bool) -> bool:
     if value is None or value == "":
         return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"false", "0", "off", "no"}:
+            return False
+        if normalized in {"true", "1", "on", "yes"}:
+            return True
     return bool(value)

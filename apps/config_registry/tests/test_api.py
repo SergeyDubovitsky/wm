@@ -242,6 +242,37 @@ def test_create_and_list_points() -> None:
     assert [point["point_key"] for point in list_response.json()] == ["lights.main"]
 
 
+def test_render_config_endpoint_stores_revision_and_outbox_records() -> None:
+    client = TestClient(create_app())
+    _create_renderable_graph(client)
+
+    response = client.post(
+        "/tenants/tenant-a/assets/asset-a/agents/agent-a/render-config",
+        json={
+            "config_revision": "rev-api-001",
+            "issued_at": "2026-05-03T10:00:00Z",
+            "source_config_revisions": {"knx-main": "rev-api-001-knx-main"},
+        },
+    )
+    duplicate_response = client.post(
+        "/tenants/tenant-a/assets/asset-a/agents/agent-a/render-config",
+        json={
+            "config_revision": "rev-api-001",
+            "issued_at": "2026-05-03T10:00:00Z",
+            "source_config_revisions": {"knx-main": "rev-api-001-knx-main"},
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["tenant_id"] == "tenant-a"
+    assert payload["config_revision"] == "rev-api-001"
+    assert payload["runtime_payload"]["message_type"] == "wm.edge.runtime-config.v1"
+    assert payload["source_payloads"][0]["source_id"] == "knx-main"
+    assert payload["outbox_record_count"] == 2
+    assert duplicate_response.status_code == 409
+
+
 def test_create_point_rejects_missing_source() -> None:
     client = TestClient(create_app())
 
@@ -368,3 +399,48 @@ def test_create_tenant_rejects_domain_invalid_payload() -> None:
     )
 
     assert response.status_code == 422
+
+
+def _create_renderable_graph(client: TestClient) -> None:
+    client.post("/tenants", json={"tenant_id": "tenant-a", "name": "Tenant A"})
+    client.post(
+        "/tenants/tenant-a/assets",
+        json={"asset_id": "asset-a", "name": "Asset A"},
+    )
+    client.post(
+        "/tenants/tenant-a/assets/asset-a/agents",
+        json={"agent_id": "agent-a"},
+    )
+    client.post(
+        "/tenants/tenant-a/assets/asset-a/agents/agent-a/sources",
+        json={
+            "source_id": "knx-main",
+            "source_type": "knx",
+            "connection_json": {"gateway_ip": "127.0.0.1"},
+            "acquisition_defaults_json": {
+                "listen": True,
+                "read_on_start": False,
+                "periodic_interval_seconds": None,
+            },
+            "publish_defaults_json": {
+                "enabled": True,
+                "change_threshold": None,
+            },
+        },
+    )
+    client.post(
+        "/tenants/tenant-a/assets/asset-a/agents/agent-a"
+        "/sources/knx-main/points",
+        json={
+            "point_id": "tenant-a|asset-a|knx-main|temperature",
+            "point_key": "temperature",
+            "point_ref": "2/0/0",
+            "name": "Temperature",
+            "value_type": "number",
+            "value_model": "knx.dpt.9.001",
+            "signal_type": "sensor",
+            "acquisition_json": {"read_on_start": True},
+            "publish_json": {"change_threshold": 1.0},
+            "tags_json": {"room": "demo"},
+        },
+    )

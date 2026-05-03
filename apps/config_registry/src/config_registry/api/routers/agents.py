@@ -4,14 +4,32 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from config_registry.api.dependencies import (
     UnitOfWorkFactory,
+    get_config_payload_validator,
     get_unit_of_work_factory,
 )
 from config_registry.api.schemas.agents import AgentCreateRequest, AgentResponse
-from config_registry.application.errors import AssetNotFoundError, DuplicateAgentError
+from config_registry.api.schemas.config_revisions import (
+    RenderAgentConfigRequest,
+    RenderAgentConfigResponse,
+)
+from config_registry.application.errors import (
+    AgentNotFoundError,
+    AssetNotFoundError,
+    ConfigRenderError,
+    DuplicateAgentError,
+    DuplicateConfigOutboxRecordError,
+    DuplicateConfigRevisionError,
+)
+from config_registry.application.ports.config_validation import ConfigPayloadValidator
 from config_registry.application.use_cases.agents import (
     CreateAgent,
     CreateAgentCommand,
     ListAgents,
+)
+from config_registry.application.use_cases.render_config import (
+    RenderAgentConfig,
+    RenderAgentConfigCommand,
+    StoreRenderedAgentConfig,
 )
 from config_registry.domain.value_objects import DomainValidationError
 
@@ -75,3 +93,49 @@ async def list_agents(
             detail=str(exc),
         ) from exc
     return [AgentResponse.from_domain(agent) for agent in agents]
+
+
+@router.post(
+    "/{agent_id}/render-config",
+    response_model=RenderAgentConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def render_agent_config(
+    tenant_id: str,
+    asset_id: str,
+    agent_id: str,
+    request: RenderAgentConfigRequest,
+    unit_of_work_factory: UnitOfWorkFactory = Depends(get_unit_of_work_factory),
+    validator: ConfigPayloadValidator = Depends(get_config_payload_validator),
+) -> RenderAgentConfigResponse:
+    try:
+        rendered = await RenderAgentConfig(unit_of_work_factory(), validator).execute(
+            RenderAgentConfigCommand(
+                tenant_id=tenant_id,
+                asset_id=asset_id,
+                agent_id=agent_id,
+                config_revision=request.config_revision,
+                issued_at=request.issued_at,
+                source_config_revisions=request.source_config_revisions,
+            )
+        )
+        await StoreRenderedAgentConfig(unit_of_work_factory(), validator).execute(
+            rendered
+        )
+    except AgentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (DuplicateConfigRevisionError, DuplicateConfigOutboxRecordError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except ConfigRenderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
+
+    return RenderAgentConfigResponse.from_rendered(rendered)

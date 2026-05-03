@@ -172,34 +172,22 @@ async def test_config_registry_cli_publishes_outbox_batch_to_kafka(
     assert runtime_payload["config_scope"] == "runtime"
 
 
-@pytest.mark.asyncio
-async def test_config_outbox_worker_container_publishes_records_to_kafka_and_mqtt(
+def test_config_outbox_worker_container_publishes_records_to_kafka_and_mqtt(
     local_config_delivery_stack,
 ) -> None:
-    settings = ConfigRegistrySettings(
-        database_url=local_config_delivery_stack.database_url
+    _create_renderable_agent_graph_via_api(
+        local_config_delivery_stack,
+        tenant_id="tenant-worker",
     )
-    with TestClient(create_app(settings=settings)) as client:
-        _create_renderable_agent_graph(client, tenant_id="tenant-worker")
-
-    unit_of_work_factory = PostgresUnitOfWorkFactory.from_url(settings.database_url)
-    validator = JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR)
-    try:
-        rendered = await RenderAgentConfig(unit_of_work_factory(), validator).execute(
-            RenderAgentConfigCommand(
-                tenant_id="tenant-worker",
-                asset_id="asset-a",
-                agent_id="agent-a",
-                config_revision="rev-worker-001",
-                issued_at=datetime(2026, 5, 3, 10, 0, tzinfo=UTC),
-                source_config_revisions={"knx-main": "rev-worker-001-knx-main"},
-            )
-        )
-        await StoreRenderedAgentConfig(unit_of_work_factory(), validator).execute(
-            rendered
-        )
-    finally:
-        await unit_of_work_factory.dispose()
+    rendered = local_config_delivery_stack.config_registry_json(
+        "POST",
+        "/tenants/tenant-worker/assets/asset-a/agents/agent-a/render-config",
+        {
+            "config_revision": "rev-worker-001",
+            "issued_at": "2026-05-03T10:00:00Z",
+            "source_config_revisions": {"knx-main": "rev-worker-001-knx-main"},
+        },
+    )
 
     runtime_key, runtime_payload = local_config_delivery_stack.consume_kafka_json(
         "wm.platform.edge.configs.v1",
@@ -216,6 +204,7 @@ async def test_config_outbox_worker_container_publishes_records_to_kafka_and_mqt
         )
     )
 
+    assert rendered["outbox_record_count"] == 2
     assert runtime_key == "tenant-worker|asset-a|agent-a|runtime"
     assert runtime_payload["message_type"] == "wm.platform.edge.config.delivery.v1"
     assert runtime_payload["config_scope"] == "runtime"
@@ -500,6 +489,63 @@ def _create_renderable_agent_graph(
         f"/tenants/{tenant_id}/assets/asset-a/agents/agent-a"
         "/sources/knx-main/points",
         json={
+            "point_id": f"{tenant_id}|asset-a|knx-main|temperature",
+            "point_key": "temperature",
+            "point_ref": "2/0/0",
+            "name": "Temperature",
+            "value_type": "number",
+            "value_model": "knx.dpt.9.001",
+            "signal_type": "sensor",
+            "acquisition_json": {"read_on_start": True},
+            "publish_json": {"change_threshold": 1.0},
+            "tags_json": {"room": "demo"},
+        },
+    )
+
+
+def _create_renderable_agent_graph_via_api(
+    stack,
+    *,
+    tenant_id: str,
+) -> None:
+    stack.config_registry_json(
+        "POST",
+        "/tenants",
+        {"tenant_id": tenant_id, "name": "Tenant Worker"},
+    )
+    stack.config_registry_json(
+        "POST",
+        f"/tenants/{tenant_id}/assets",
+        {"asset_id": "asset-a", "name": "Asset A"},
+    )
+    stack.config_registry_json(
+        "POST",
+        f"/tenants/{tenant_id}/assets/asset-a/agents",
+        {"agent_id": "agent-a"},
+    )
+    stack.config_registry_json(
+        "POST",
+        f"/tenants/{tenant_id}/assets/asset-a/agents/agent-a/sources",
+        {
+            "source_id": "knx-main",
+            "source_type": "knx",
+            "connection_json": {"gateway_ip": "127.0.0.1"},
+            "acquisition_defaults_json": {
+                "listen": True,
+                "read_on_start": False,
+                "periodic_interval_seconds": None,
+            },
+            "publish_defaults_json": {
+                "enabled": True,
+                "change_threshold": None,
+            },
+        },
+    )
+    stack.config_registry_json(
+        "POST",
+        f"/tenants/{tenant_id}/assets/asset-a/agents/agent-a"
+        "/sources/knx-main/points",
+        {
             "point_id": f"{tenant_id}|asset-a|knx-main|temperature",
             "point_key": "temperature",
             "point_ref": "2/0/0",

@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 
 from config_registry.api.routers import agents, assets, health, points, sources, tenants
 from config_registry.application.ports.unit_of_work import UnitOfWork
+from config_registry.infrastructure.json_schema_validator import (
+    JsonSchemaConfigPayloadValidator,
+)
 from config_registry.infrastructure.memory.unit_of_work import (
     InMemoryUnitOfWorkFactory,
 )
@@ -46,6 +50,11 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.unit_of_work_factory = resolved_unit_of_work_factory
+    app.state.config_payload_validator = (
+        JsonSchemaConfigPayloadValidator.from_contract_dir(
+            Path.cwd() / "docs" / "contracts" / "edge-agent" / "schemas"
+        )
+    )
     app.include_router(health.router)
     app.include_router(tenants.router)
     app.include_router(assets.router)

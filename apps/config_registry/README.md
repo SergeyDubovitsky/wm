@@ -34,6 +34,7 @@
   `POST /tenants/{tenant_id}/assets`, `GET /tenants/{tenant_id}/assets`,
   `POST /tenants/{tenant_id}/assets/{asset_id}/agents`,
   `GET /tenants/{tenant_id}/assets/{asset_id}/agents`,
+  `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/render-config`,
   `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources`,
   `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources`,
   `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`,

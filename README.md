@@ -34,11 +34,22 @@
 - `apps/config_registry/` — первый backend-срез Config Registry
 - `libs/knx_parser/` — библиотека для разбора ETS `.knxproj`
 - `libs/wm_demo_stack/` — библиотека demo/scenario потока `config bundle -> retained MQTT config -> telemetry`
+- `tools/clickhouse_migrations/` — repo-native operational tooling и migration CLI
 - `environments/` — versioned edge profiles конкретных стендов и окружений
 - `infra/` — локальная инфраструктура разработки и будущие `compose`-артефакты
 - `docs/architecture/` — архитектурные документы и ADR верхнего уровня
 - `docs/future-ideas.md` — идеи и возможные следующие инкременты, не текущий backlog
 - `arch/` — LikeC4-модель и связанные материалы
+
+Правило именования верхнего уровня:
+
+- `apps/` — deployable или operator-facing сервисы и приложения
+- `libs/` — импортируемые Python-пакеты, которые используются как библиотеки из кода или тестов
+- `tools/` — repo-native tooling, migration CLI, one-off operational helpers и automation packages
+
+По этой причине `knx_parser` и `wm_demo_stack` остаются в `libs/`: оба уже живут как
+workspace packages с `src/`, тестами и импортируемым API, а `wm_demo_stack`
+используется в integration-тестах как библиотека, а не только как CLI.
 
 ## Task Tracking
 

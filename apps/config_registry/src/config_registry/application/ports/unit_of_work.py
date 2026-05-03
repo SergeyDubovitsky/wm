@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol, Self
 
-from config_registry.domain.entities import Tenant
+from config_registry.domain.entities import Agent, Asset, Tenant
 
 
 class TenantRepository(Protocol):
@@ -14,8 +14,26 @@ class TenantRepository(Protocol):
     async def list(self) -> list[Tenant]: ...
 
 
+class AssetRepository(Protocol):
+    async def add(self, asset: Asset) -> None: ...
+
+    async def get(self, tenant_id: str, asset_id: str) -> Asset | None: ...
+
+    async def list_for_tenant(self, tenant_id: str) -> list[Asset]: ...
+
+
+class AgentRepository(Protocol):
+    async def add(self, agent: Agent) -> None: ...
+
+    async def get(self, tenant_id: str, asset_id: str, agent_id: str) -> Agent | None: ...
+
+    async def list_for_asset(self, tenant_id: str, asset_id: str) -> list[Agent]: ...
+
+
 class UnitOfWork(Protocol):
     tenants: TenantRepository
+    assets: AssetRepository
+    agents: AgentRepository
 
     async def __aenter__(self) -> Self: ...
 

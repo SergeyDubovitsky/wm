@@ -22,7 +22,8 @@ uv run --env-file .env --package wm-demo-stack publish-edge-demo \
 
 По умолчанию config seed идет через Kafka topic `wm.platform.edge.configs.v1`.
 Retained MQTT runtime/source config должны появиться через локальный
-`redpanda-connect-config-projection`.
+`redpanda-connect-config-projection`. CLI ждет retained projection перед
+публикацией telemetry, чтобы локальный smoke не зависел от гонки Kafka/MQTT.
 
 Полезные варианты:
 
@@ -38,6 +39,9 @@ uv run --env-file .env --package wm-demo-stack \
 
 uv run --env-file .env --package wm-demo-stack \
   publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml --config-delivery mqtt
+
+uv run --env-file .env --package wm-demo-stack \
+  publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml --config-projection-timeout-seconds 30
 ```
 
 Совместимый shim через `infra/local/scripts` тоже поддерживается:

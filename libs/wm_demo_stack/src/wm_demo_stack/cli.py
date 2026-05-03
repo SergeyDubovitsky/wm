@@ -16,6 +16,7 @@ from wm_demo_stack.models import (
     WaveConfig,
 )
 from wm_demo_stack.publisher import connect_publisher
+from wm_demo_stack.retained_config import wait_for_retained_config_projection
 from wm_demo_stack.runtime import SystemRuntime
 from wm_demo_stack.scenario import config_delivery_records, run_demo
 
@@ -130,6 +131,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--config-projection-timeout-seconds",
+        type=float,
+        default=15.0,
+        help=(
+            "When --config-delivery kafka is used, wait this long for retained "
+            "runtime/source configs to appear in MQTT before telemetry starts. "
+            "0 disables waiting."
+        ),
+    )
+    parser.add_argument(
         "--no-config",
         action="store_true",
         help="Deprecated shortcut for --config-delivery none.",
@@ -172,6 +183,8 @@ def settings_from_args(args: argparse.Namespace) -> DemoSettings:
         raise ValueError("--count must be non-negative")
     if args.retained_refresh_seconds < 0:
         raise ValueError("--retained-refresh-seconds must be non-negative")
+    if args.config_projection_timeout_seconds < 0:
+        raise ValueError("--config-projection-timeout-seconds must be non-negative")
     config_delivery = "none" if args.no_config else args.config_delivery
 
     bundle = load_bundle(args.bundle_config)
@@ -228,6 +241,10 @@ def main() -> int:
             )
         finally:
             kafka_publisher.close()
+        wait_for_retained_config_projection(
+            settings,
+            timeout_seconds=args.config_projection_timeout_seconds,
+        )
         settings = replace(settings, publish_config=False)
 
     publisher = connect_publisher(settings=settings)

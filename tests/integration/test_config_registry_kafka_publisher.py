@@ -356,6 +356,7 @@ def test_publish_edge_demo_cli_seeds_config_through_kafka_by_default(
 
     assert result.returncode == 0, result.stderr
     assert "PUBLISHED_CONFIG_DELIVERY records=2" in result.stdout
+    assert "RETAINED_CONFIG_READY topics=2" in result.stdout
     assert "PUBLISHED_KAFKA topic=wm.platform.edge.configs.v1" in result.stdout
     runtime_message = local_platform_stack.wait_for_mqtt_json(
         "wm/v1/agents/demo-stand-local/config/runtime",

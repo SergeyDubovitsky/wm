@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
-from config_registry.infrastructure.backoffice import BACKOFFICE_VIEWS
+from config_registry.infrastructure.backoffice import (
+    BACKOFFICE_VIEWS,
+    TenantBackofficeView,
+)
 from config_registry.main import create_app
 from config_registry.settings import ConfigRegistrySettings
 
@@ -38,6 +42,18 @@ def test_backoffice_model_views_are_read_only_until_use_case_adapters_exist() ->
         assert view.can_edit is False
         assert view.can_delete is False
         assert view.can_view_details is True
+
+
+@pytest.mark.asyncio
+async def test_backoffice_read_only_base_rejects_programmatic_writes() -> None:
+    view = TenantBackofficeView()
+
+    with pytest.raises(PermissionError, match="read-only"):
+        await view.insert_model(object(), {})
+    with pytest.raises(PermissionError, match="read-only"):
+        await view.update_model(object(), "tenant-a", {})
+    with pytest.raises(PermissionError, match="read-only"):
+        await view.delete_model(object(), "tenant-a")
 
 
 def _settings(*, internal_mode: bool) -> ConfigRegistrySettings:

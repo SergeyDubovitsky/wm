@@ -25,6 +25,20 @@ class ReadOnlyModelView(ModelView):
     page_size = 50
     page_size_options = [25, 50, 100]
 
+    async def insert_model(self, request: object, data: dict[str, object]) -> object:
+        raise PermissionError("Backoffice model views are read-only")
+
+    async def update_model(
+        self,
+        request: object,
+        pk: object,
+        data: dict[str, object],
+    ) -> object:
+        raise PermissionError("Backoffice model views are read-only")
+
+    async def delete_model(self, request: object, pk: object) -> object:
+        raise PermissionError("Backoffice model views are read-only")
+
 
 class TenantBackofficeView(ReadOnlyModelView, model=TenantModel):
     name = "Tenant"

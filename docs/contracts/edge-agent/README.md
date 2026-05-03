@@ -76,6 +76,6 @@ Observation
 - SQLite на edge хранит техническое состояние агента, а не исторический архив телеметрии.
 - `SQLite Point State Cache` поддерживает warm restart, фильтрацию изменений и восстановление sequence.
 - `SQLite Delivery Outbox` нужен для надежной retry-доставки telemetry events.
-- Runtime/source config публикуется config publisher tool как retained MQTT messages.
+- Runtime/source config приходит в retained MQTT topics как platform projection из Kafka config delivery records.
 - В текущей реализации edge-agent публикует telemetry; config status и operational status остаются следующей фазой runtime.
-- YAML config bundle является authoring source of truth первого этапа; после появления Platform API source of truth переедет в Platform Store без изменения wire contracts.
+- YAML config bundle является временным authoring/import path до внедрения `Platform Config API`; после `ADR-010` source of truth переезжает в `Platform Store` без изменения wire contracts.

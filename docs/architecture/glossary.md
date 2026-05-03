@@ -32,6 +32,13 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `Telemetry Consumers` — backend workers, которые читают Kafka topics и записывают canonical telemetry events, source config snapshots, source connection history, agent status history и derived events в `Telemetry Store`.
 - `Streaming Analytics` — потоковая обработка telemetry stream для агрегатов, rollups, производных признаков и derived events для `Alarm Rule Engine`; результаты пишет в `Telemetry Store`.
 - `Grafana` — слой визуализации внутри `Monitoring & Alarm Platform`; в production-контуре читает подготовленные данные из `Telemetry Store`.
+- `Platform API` — общий контейнер backend API платформы в LikeC4.
+- `Platform Config API` — первый backend-срез внутри `Platform API`: хранит tenants, objects, agents, sources, points и config revisions в PostgreSQL.
+- `Backoffice Admin UI` — внутренний operational UI на базе `SQLAdmin` для команды платформы; не доступен tenant/client users, а write operations обязаны идти через application use cases и transactional outbox.
+- `Platform Frontend` — отдельное browser-приложение, которое аутентифицируется через Keycloak и работает с платформой через `Platform API`.
+- `Keycloak` — IAM-компонент платформы: пользователи, группы, роли, OIDC clients, sessions и JWT issuance.
+- `JWT` — access token, выпускаемый Keycloak и валидируемый `Platform API` локально по OIDC discovery/JWKS.
+- `API Gateway` — application-level gateway перед несколькими backend API; решение по нему выносится в отдельный ADR.
 - `southbound-адаптеры` — адаптеры и драйверы, через которые `Edge Telemetry Agent` подключается вниз по стеку к полевым протоколам и локальным источникам данных, например `KNX`, `Modbus`, `OPC UA`, `SCADA`.
 - `northbound delivery` — доставка данных вверх по стеку из `Edge Telemetry Agent` в `Monitoring & Alarm Platform` через внешний transport, например `MQTT`.
 
@@ -41,10 +48,14 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `server-issued config` — конфигурация runtime, выданная платформенным контуром через retained MQTT topics.
 - `runtime config` — retained root config агента `wm.edge.runtime-config.v1`: `tenant_id`, `object_id`, `agent_id`, `config_revision` и список активных sources.
 - `source config` — retained config конкретного `source_id` `wm.edge.source-config.v1`: connection settings, points, acquisition/publish policies и metadata точек.
-- `config revision` — стабильная версия root runtime config, публикуемая config publisher tool и применяемая edge-agent.
+- `config revision` — стабильная версия root runtime config, выпускаемая через Kafka-first delivery log и применяемая edge-agent после материализации в MQTT retained topics.
 - `source_config_revision` — стабильная версия source config, которую telemetry event указывает как metadata context.
-- `config publisher` — временный operations/tooling компонент, который читает versioned YAML config bundle, валидирует его и публикует retained runtime/source configs в MQTT.
-- `YAML config bundle` — временный authoring source of truth первого этапа до появления server UI/API и хранения edge config в `Platform Store`.
+- `config event publisher` — backend/tooling компонент, который читает PostgreSQL `config_outbox` или временный YAML bundle и публикует `wm.platform.edge.config.delivery.v1` records в Kafka topic `wm.platform.edge.configs.v1`.
+- `source config snapshot projector` — consumer, который читает `wm.platform.edge.configs.v1` и публикует canonical `wm.platform.source.config.v1` records в `wm.platform.source.configs.v1`.
+- `edge config MQTT projector` — Redpanda Connect pipeline, который читает `wm.platform.edge.configs.v1` и материализует retained MQTT topics для edge-agent.
+- `config delivery projection` — materialized MQTT retained topics, которые Redpanda Connect строит из Kafka config delivery records для edge-agent.
+- `transactional outbox` — паттерн надежной интеграции PostgreSQL и Kafka: domain change и outbox record записываются атомарно в PostgreSQL, а отдельный publisher доставляет запись во внешний broker с retry и idempotency.
+- `YAML config bundle` — временный authoring/import path до внедрения `Platform Config API`; после `ADR-010` не конкурирует с `Platform Store` как source of truth.
 - `source` — логическое подключение агента к конкретному источнику данных, идентифицируемое `source_id`.
 - `point` — точка мониторинга внутри `source`, идентифицируемая `point_ref`.
 - `point_ref` — технический идентификатор точки внутри источника, например group address, node id или register reference.

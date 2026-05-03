@@ -117,7 +117,7 @@ Source config payload:
 - `Content Type` для JSON payload: `application/json`
 - status topics могут использовать `retain = true`
 - `lwt` публикуется как retained `offline`, а после успешного connect агент публикует retained `online`
-- source config публикуется config publisher tool-ом при выпуске новой revision
+- source config материализуется в retained MQTT topic из Kafka config delivery record при выпуске новой revision
 - publisher должен использовать `Topic Alias`, если broker вернул ненулевой `Topic Alias Maximum`, потому что telemetry topics длинные и часто повторяются
 
 ### 7. Session policy

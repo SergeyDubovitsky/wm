@@ -23,8 +23,8 @@
 - В коде и `infra/local/` уже зафиксирован рабочий локальный dev-контур:
   `MQTT broker`, `Apache Kafka` и `Redpanda Connect` pipeline для integration flow.
 - Для целевой configuration-модели принят `ADR-008`: edge-agent получает
-  retained runtime/source configs из MQTT; на первом этапе эти configs
-  публикуются из versioned YAML bundle config publisher tool-ом, без server UI/API.
+  retained runtime/source configs из MQTT; delivery path уточнен в `ADR-010`
+  как PostgreSQL config outbox -> Kafka -> MQTT retained projection.
 - Текущий проект уже достиг `MVP baseline`: `KNX/edge_agent -> MQTT -> Kafka`
   ingestion slice работает в репозитории и покрыт integration-тестами.
 - Полная `Monitoring & Alarm Platform` как `MQTT Ingestion Gateway`,
@@ -67,13 +67,13 @@
 
 | Вопрос | Почему это важно | Степень блокировки |
 | --- | --- | --- |
-| Какой следующий production-ready срез платформы нужен поверх уже достигнутого `MVP`: поток `MQTT -> Redpanda Connect -> Redpanda -> Kafka Event Log -> Telemetry Store`, `Grafana` поверх `Telemetry Store`, или уже обязательны `Platform Frontend`, `Platform API` и `Keycloak`? | В репозитории уже есть `MVP baseline` с MQTT/Kafka ingestion. Нужно зафиксировать ближайшее расширение платформы, чтобы не смешивать текущий baseline и post-MVP scope | Критично |
+| Какой минимальный implementation scope `Platform Config API` нужен для первого инкремента: только tenants/objects/agents/sources/points или сразу render config revisions? | `ADR-010` зафиксировал backend хранения настроек, но backlog первого кода нужно ограничить | Высокая |
 | Где фиксируется `Redpanda Connect` pipeline config: в platform repository, IaC, Redpanda Cloud-managed pipeline или отдельном operations bundle? | MQTT input, mapping/transform и redpanda output становятся частью production data path, поэтому конфигурация pipeline должна быть версионирована и управляться так же строго, как edge source config | Высокая |
 | Нужно ли менять draft Kafka topics, retention и consumer groups после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/kafka/topics.v1.md`, но реальные partition counts и retention могут потребовать корректировки после измерений | Средняя |
 | Нужно ли менять draft ClickHouse DDL, rollups и TTL после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/clickhouse/telemetry-store.v1.md`, но production performance schema должна быть подтверждена на данных целевого масштаба | Средняя |
 | Какой минимальный lifecycle `alarm` нужен в первом релизе: severity, acknowledge, clear, mute, escalation? | Это определяет границу между просто monitoring dashboard и реальной alarm-platform | Высокая |
 | Какие notification channels требуются в первом production-срезе: email, Telegram, SMS, webhook или только in-app/Grafana? | В LikeC4 есть `Notification Service`, но без выбора каналов нельзя стабилизировать scope backend и интеграций | Средняя |
-| Является ли `Keycloak` действительно целевым IAM-компонентом, и если да, какие нужны realm/client/role boundaries? | `Keycloak` уже есть в архитектурной модели, но его границы владения и интеграции пока не зафиксированы вне схем | Средняя |
+| Когда принимать отдельный ADR по Keycloak/auth/JWT/users/roles? | Аутентификация специально исключена из `ADR-010`, чтобы не смешивать хранение настроек и IAM | Средняя |
 
 ## MQTT delivery и безопасность
 
@@ -90,7 +90,7 @@
 | --- | --- | --- |
 | Какой максимальный размер одного retained `wm.edge.source-config.v1` допустим для production MQTT broker? | Runtime config делится по `source_id`, но один source все равно может содержать десятки тысяч points. Нужно понять, когда потребуется chunking | Высокая |
 | Как формировать deterministic `config_revision` и `source_config_revision`: human version, content hash или оба поля? | AI-agent должен давать воспроизводимый diff и publish summary, а edge/ingestion должны однозначно валидировать примененную версию | Высокая |
-| Как config publisher tool должен публиковать rollback или отключение source: новый retained payload с `enabled=false` или retained tombstone? | Это влияет на MQTT retained lifecycle и на безопасное удаление/отключение источников | Средняя |
+| Как Redpanda Connect projection должен публиковать rollback или отключение source: новый retained payload с `enabled=false` или retained tombstone? | Это влияет на MQTT retained lifecycle и на безопасное удаление/отключение источников | Средняя |
 | Когда YAML config bundle мигрирует в `Platform Store` и `Platform API`? | На первом этапе server UI/API не делаем, но нужно заранее не сломать будущую модель authoring через API | Средняя |
 
 ## Observability и эксплуатация
@@ -106,6 +106,6 @@
 
 - подтвердить, что текущий `demo-stand` конфиг и ETS-derived артефакты являются каноническим source of truth для первого `KNX`-среза
 - зафиксировать production MQTT broker, требования по `TLS`/`ACL` и способ хранения секретов
-- зафиксировать contract и limits для config publisher tool: bundle layout, revision generation, retained publish order и rollback semantics
-- определить следующий production-ready срез платформы поверх текущего `MVP`: `Telemetry Store`, `Grafana` поверх `Telemetry Store` или уже `Platform Frontend + API + Keycloak`
+- зафиксировать contract и limits для config delivery: bundle layout, revision generation, Kafka delivery record, retained projection order и rollback semantics
+- определить первый implementation scope для `Platform Config API` поверх `ADR-010`
 - зафиксировать Kafka topic contract, retention/rollup/deduplication contract для ClickHouse и минимальный lifecycle `alarm`

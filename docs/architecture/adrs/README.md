@@ -27,8 +27,10 @@ ADR остаются журналом архитектурных решений.
 | `ADR-005-mqtt-event-transport.md` | accepted | Фиксирует MQTT 5 как edge transport, telemetry/status/config topics, QoS/retain policy и topic-derived routing. Детальные schemas в `docs/contracts/edge-agent/`. |
 | `ADR-006-mvp-monorepo-structure.md` | accepted | Фиксирует monorepo для текущего этапа: apps, libs, architecture docs, contracts и infra меняются согласованно. |
 | `ADR-007-monitoring-platform-data-stores.md` | принято | Фиксирует целевые хранилища платформы: `ClickHouse` для telemetry/analytics и `PostgreSQL` для mutable platform state/IAM. |
-| `ADR-008-server-issued-edge-runtime-configuration.md` | accepted | Фиксирует текущий production runtime config path: локальный bootstrap + retained MQTT runtime/source configs; YAML bundle временно остается authoring source. |
+| `ADR-008-server-issued-edge-runtime-configuration.md` | accepted | Фиксирует production runtime config path: локальный bootstrap + retained MQTT runtime/source configs; YAML bundle остается временным authoring/import path до `ADR-010`. |
 | `ADR-009-kafka-to-clickhouse-ingestion.md` | accepted | Фиксирует `ClickHouse Kafka Connect Sink` как baseline путь сохранения Kafka records в `ClickHouse` через raw landing tables и materialized views. |
+| `ADR-010-platform-configuration-backend.md` | accepted | Фиксирует первый backend-срез настроек: `Platform Config API` на FastAPI async + SQLAlchemy + PostgreSQL, clean architecture и модель данных по edge config contracts. |
+| `ADR-011-internal-backoffice-admin-ui.md` | accepted | Фиксирует внутреннюю backoffice-админку на SQLAdmin для Platform Config API; write operations обязаны идти через application use cases и transactional outbox. |
 
 ## Быстрый выбор ADR
 
@@ -41,6 +43,8 @@ ADR остаются журналом архитектурных решений.
 | Зачем SQLite на edge? | `ADR-003`, затем `docs/contracts/edge-agent/sqlite-storage.v1.md` |
 | Какие БД у платформы? | `ADR-007`, затем `docs/contracts/clickhouse/telemetry-store.v1.md` |
 | Как Kafka records сохраняются в ClickHouse? | `ADR-009`, затем `docs/contracts/kafka/` и `docs/contracts/clickhouse/` |
+| Как проектировать backend хранения настроек платформы? | `ADR-010` |
+| Как быстро дать внутреннюю админку для настроек? | `ADR-011` |
 | Почему monorepo? | `ADR-006` |
 
 ## Поддержка

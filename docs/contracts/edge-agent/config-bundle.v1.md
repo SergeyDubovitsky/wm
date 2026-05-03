@@ -1,16 +1,21 @@
-# `wm.edge.config-publisher-bundle.v1`
+# `wm.edge.config-bundle.v1`
 
 Дата: 2026-05-03
 Статус: working draft
 
-Этот контракт фиксирует временный authoring path для edge runtime config до
-появления server UI/API.
+Этот контракт фиксирует временный authoring/import path для edge runtime config
+до внедрения `Platform Config API` из `ADR-010`.
 
 ## Назначение
 
-Versioned YAML config bundle является source of truth первого этапа. Его читает
-config publisher tool, валидирует данные, строит retained MQTT payloads и
-публикует их в broker.
+Versioned YAML config bundle является authoring source of truth только до
+перехода на PostgreSQL-backed `Platform Config API`. После внедрения `ADR-010`
+он остается import/bootstrap tooling и не конкурирует с `Platform Store` как
+runtime source of truth.
+
+Config delivery pipeline валидирует bundle, строит runtime/source payloads,
+публикует config delivery records `wm.platform.edge.config.delivery.v1` в Kafka
+и материализует retained MQTT topics через Redpanda Connect projection.
 
 Edge-agent не читает этот bundle напрямую. Его runtime boundary — retained MQTT
 topics `wm.edge.runtime-config.v1` и `wm.edge.source-config.v1`.
@@ -58,33 +63,41 @@ sources:
           room: demo
 ```
 
-## Publisher output
+## Delivery output
 
-Для каждого bundle tool публикует:
+Для каждого bundle delivery pipeline выпускает:
 
-- один retained `wm.edge.runtime-config.v1` в
+- один Kafka delivery record `wm.platform.edge.config.delivery.v1` с
+  `config_scope=runtime` для root `wm.edge.runtime-config.v1`
+- один Kafka delivery record `wm.platform.edge.config.delivery.v1` с
+  `config_scope=source:{source_id}` на каждый `wm.edge.source-config.v1`
+- retained MQTT projection root config в
   `wm/v1/agents/{agent_id}/config/runtime`
-- один retained `wm.edge.source-config.v1` на каждый `source_id` в
+- retained MQTT projection source config на каждый `source_id` в
   `wm/v1/agents/{agent_id}/sources/{source_id}/config`
 
-Tool должен печатать publish summary:
+Tool/pipeline должен печатать publish summary:
 
 - `agent_id`
 - `tenant_id`
 - `object_id`
 - `config_revision`
 - список опубликованных `source_id`
+- Kafka delivery status
+- MQTT projection status, если projection выполняется синхронно в dev-flow
 - validation status
 
 ## AI-agent rules
 
-- AI-agent редактирует только versioned YAML bundle.
+- До внедрения `Platform Config API` AI-agent редактирует только versioned YAML
+  bundle.
 - AI-agent не публикует произвольные MQTT payloads вручную.
+- AI-agent не обходит Kafka delivery log при выпуске edge config.
 - Любое изменение должно проходить schema validation и давать deterministic
   `config_revision`.
 - AI-agent должен учитывать, что `Monitoring & Alarm Platform` поддерживает
   `self-hosted` и `cloud` deployment modes, и не должен вводить bundle,
   contracts или workflow, которые форкают baseline между ними без отдельного
   ADR.
-- Когда появится Platform API, AI-agent должен перейти на API calls без
+- После внедрения `Platform Config API` AI-agent должен перейти на API calls без
   изменения retained MQTT contracts.

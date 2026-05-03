@@ -1,14 +1,11 @@
 model {
     extend monitoring-alarm-platform {
         platform-api = container 'Platform API' {
-            description 'Backend API для состояния alarm, истории событий, конфигурации правил и политик уведомлений.'
-            technology 'HTTP API / backend service'
+            description 'Первый backend-срез как Platform Config API: хранит tenants, objects, agents, sources, points и runtime/source config revisions в PostgreSQL. Auth, alarm, telemetry read API и frontend boundary фиксируются отдельными ADR.'
+            technology 'FastAPI async / SQLAlchemy / PostgreSQL'
             icon bootstrap:server
 
-            -> keycloak 'Проверяет токены, роли и client configuration'
-            -> telemetry-store 'Читает историческую телеметрию, графики, агрегаты и alarm history из ClickHouse'
-            -> platform-store 'Читает и изменяет конфигурации, правила, current alarm state и audit в PostgreSQL'
-            -> alarm-rule-engine 'Передает команды rule management и lifecycle actions'
+            -> platform-store 'Читает и изменяет tenants, objects, agents, sources, points и config revisions в PostgreSQL'
         }
     }
 }

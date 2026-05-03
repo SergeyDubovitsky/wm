@@ -185,7 +185,7 @@ compose-проекте.
 Примеры:
 
 - `apps/edge_agent/config/examples/bootstrap.example.yaml`
-- `docs/contracts/edge-agent/config-publisher-bundle.v1.md`
+- `docs/contracts/edge-agent/config-bundle.v1.md`
 - `infra/local/mosquitto/mosquitto.conf`
 
 Правила:
@@ -214,8 +214,9 @@ environments/
 - каталог группируется по окружению или стенду, а не по технологии
 - такие конфиги можно коммитить только если в них нет секретов и чувствительных
   endpoint-данных
-- config publisher tool читает bundle, валидирует его и публикует retained MQTT
-  runtime/source configs
+- config delivery pipeline читает bundle или Platform Store, валидирует
+  revision, пишет Kafka delivery record и материализует retained MQTT
+  runtime/source configs через Redpanda Connect projection
 
 Для `edge_agent` это особенно важно: runtime boundary агента — retained MQTT
 configs, а authoring boundary первого этапа — versioned YAML config bundle.

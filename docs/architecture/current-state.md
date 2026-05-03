@@ -67,9 +67,14 @@
   slice через `Redpanda Connect`, но без consumers/storage/UI.
 - Production persistence: `ClickHouse` как `Telemetry Store` и `PostgreSQL`
   как `Platform Store`.
-- Server UI/API для редактирования runtime/source config. На текущем этапе
-  authoring source of truth остается versioned YAML config bundle, который
-  публикуется retained MQTT config publisher tool-ом.
+- Backend foundation для настроек платформы: `Platform Config API` как FastAPI
+  async service на clean architecture, SQLAlchemy и PostgreSQL. Scope первого
+  backend-среза ограничен tenants/objects/agents/sources/points и
+  runtime/source config revisions.
+- Server UI для редактирования runtime/source config. До внедрения
+  `Platform Config API` authoring path остается versioned YAML config bundle;
+  после `ADR-010` source of truth переезжает в PostgreSQL, а delivery path
+  остается Kafka config delivery log -> MQTT retained projection.
 - Полные southbound-адаптеры для `Modbus`, `OPC UA`, `DB` и других источников.
   Текущий практический срез остается `KNX-first`.
 - Production security hardening: TLS/certificates/ACL/secrets lifecycle,
@@ -125,7 +130,8 @@
 5. Для storage/platform design: `ADR-007`, затем `docs/contracts/clickhouse/`
    и `docs/contracts/kafka/`.
 6. Для deployment parity `self-hosted`/`cloud`: `ADR-009`.
-7. Для KNX-first MVP behavior: `ADR-001`, `ADR-002`, `ADR-003`.
+7. Для backend хранения настроек платформы: `ADR-010`.
+8. Для KNX-first MVP behavior: `ADR-001`, `ADR-002`, `ADR-003`.
 
 Если ADR и `docs/contracts/` расходятся по полям сообщения, topic/table names
 или schema details, приоритет у `docs/contracts/`. ADR объясняет решение, но не
@@ -137,7 +143,7 @@
 темы сейчас:
 
 - production MQTT broker, TLS, ACL и secrets handling;
-- следующий production-срез `Monitoring & Alarm Platform` поверх текущего `MVP`;
+- первый implementation scope `Platform Config API` поверх `ADR-010`;
 - limits и lifecycle для retained runtime/source config;
 - миграция YAML config bundle в будущий `Platform Store/API`;
 - production host/deployment model для edge runtime.

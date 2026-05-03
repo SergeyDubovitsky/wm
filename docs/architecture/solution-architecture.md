@@ -65,7 +65,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 
 - Edge-first. Сборщик работает в сети объекта и не зависит от постоянной доступности внешнего контура.
 - Read-only by default. В production data path web-monitoring контура сервис читает и наблюдает сигналы, но не управляет ими.
-- Server-issued config. Все известные точки, `value_model`, параметры чтения и правила публикации приходят в edge-agent как retained runtime/source configs; на первом этапе эти configs публикует tool из versioned YAML bundle.
+- Server-issued config. Все известные точки, `value_model`, параметры чтения и правила публикации приходят в edge-agent как retained runtime/source configs; целевой поток доставки: PostgreSQL config revisions -> config outbox -> Kafka -> Redpanda Connect -> MQTT retained topics.
 - Hybrid acquisition. Основной поток данных приходит из event/listen режима там, где он поддерживается; активное чтение включается только для whitelist endpoints.
 - Loose coupling. Протокольная интеграция, правила фильтрации и доставка во внешний контур разделены по компонентам.
 - Fail-safe degradation. При потере backend события не теряются сразу, а уходят в локальный Delivery Outbox.
@@ -81,7 +81,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 - публиковать аналоговые сигналы по достижению порога изменения
 - логировать события связи, декодирования и доставки
 - буферизовать неотправленные события локально
-- принимать `MQTT` telemetry events, retained source configs и status topics в центральной платформе
+- принимать `MQTT` telemetry events и status topics в центральной платформе; retained runtime/source configs являются delivery projection для edge-agent
 - хранить телеметрию, source config snapshots и историю `alarm`
 - выполнять правила `alarm` и маршрутизировать уведомления
 - предоставлять операторский UI и backend API для мониторинга и работы с `alarm`
@@ -102,22 +102,25 @@ Source of truth для `C1/C2` и следующих уровней декомп
 На уровне `C2` сейчас зафиксированы:
 
 - `Edge Telemetry Agent`: `Bootstrap Configuration`, `Collector Runtime`, `Local State Store`, `Delivery Worker`
-- `Monitoring & Alarm Platform`: `MQTT Ingestion Gateway`, `Redpanda Connect`, `Redpanda`, `Kafka Event Log`, `Telemetry Consumers`, `Streaming Analytics`, `Telemetry Store`, `Platform Store`, `Alarm Rule Engine`, `Platform API`, `Platform Frontend`, `Keycloak`, `Grafana`, `Notification Service`
+- `Monitoring & Alarm Platform`: `MQTT Ingestion Gateway`, `Redpanda Connect`, `Redpanda`, `Kafka Event Log`, `Source Config Snapshot Projector`, `Telemetry Consumers`, `Streaming Analytics`, `Telemetry Store`, `Platform Store`, `Alarm Rule Engine`, `Platform API`, `Platform Frontend`, `Keycloak`, `Grafana`, `Notification Service`
 
 ### Поток данных в Monitoring & Alarm Platform
 
 Целевой production-поток следующего этапа поверх текущего `MVP`:
 
-1. `Edge Config Publisher` публикует retained runtime/source configs из versioned YAML bundle; edge-agent получает `tenant_id`, `object_id`, `sources` и `points` из этих retained configs.
-2. `Edge Telemetry Agent` в текущем runtime baseline публикует telemetry events по `MQTT 5.0`; source connection status, config status и agent LWT/status остаются target contracts следующей runtime-фазы.
-3. `MQTT Ingestion Gateway` принимает MQTT-поток, валидирует payload и восстанавливает routing context.
-4. `Redpanda Connect` подписывается на MQTT topics через `mqtt` input.
-5. `Redpanda Connect` применяет mapping/transform pipeline по контракту `wm.platform-ingestion.mqtt-to-kafka.v1`, валидирует `tenant_id` claim и пишет canonical records в `Redpanda` через `redpanda` output.
-6. `Redpanda` хранит и обслуживает `Kafka Event Log` по контракту `wm.kafka.topics.v1`.
-7. `Telemetry Consumers` читают Kafka topics и записывают raw/canonical telemetry events, source config snapshots, source connection history и agent status history в `Telemetry Store` на базе `ClickHouse` по контракту `wm.clickhouse.telemetry-store.v1`.
-8. `Streaming Analytics` читает Kafka topics, при необходимости читает исторический контекст из `Telemetry Store`, рассчитывает агрегаты и производные признаки, записывает результаты в `Telemetry Store` и передает derived events в `Alarm Rule Engine`.
-9. `Alarm Rule Engine` обрабатывает telemetry и derived events по правилам, пишет immutable alarm history в `Telemetry Store`, хранит current alarm state и operator workflow state в `Platform Store` на базе `PostgreSQL` и инициирует уведомления.
-10. `Grafana` читает dashboards из `Telemetry Store`; `Platform API` читает `Telemetry Store` для истории/графиков и `Platform Store` для конфигурации, правил и текущего состояния; `Platform Frontend` работает через `Platform API`.
+1. `Platform Config API` хранит rendered runtime/source config revisions в PostgreSQL и создает `config_outbox` record.
+2. `Config Event Publisher` публикует `wm.platform.edge.config.delivery.v1` records в Kafka topic `wm.platform.edge.configs.v1`.
+3. `Redpanda Connect` материализует config delivery records в retained MQTT runtime/source topics; edge-agent получает `tenant_id`, `object_id`, `sources` и `points` из этих retained configs.
+4. `Source Config Snapshot Projector` строит `wm.platform.source.configs.v1` из `wm.platform.edge.configs.v1`; retained MQTT source configs не являются authoritative Kafka ingress для source config snapshots.
+5. `Edge Telemetry Agent` в текущем runtime baseline публикует telemetry events по `MQTT 5.0`; source connection status, config status и agent LWT/status остаются target contracts следующей runtime-фазы.
+6. `MQTT Ingestion Gateway` принимает MQTT-поток, валидирует payload и восстанавливает routing context.
+7. `Redpanda Connect` подписывается на MQTT topics через `mqtt` input.
+8. `Redpanda Connect` применяет mapping/transform pipeline по контракту `wm.platform-ingestion.mqtt-to-kafka.v1`, валидирует `tenant_id` claim и пишет canonical records в `Redpanda` через `redpanda` output.
+9. `Redpanda` хранит и обслуживает `Kafka Event Log` по контракту `wm.kafka.topics.v1`.
+10. `Telemetry Consumers` читают Kafka topics и записывают raw/canonical telemetry events, source config snapshots, source connection history и agent status history в `Telemetry Store` на базе `ClickHouse` по контракту `wm.clickhouse.telemetry-store.v1`.
+11. `Streaming Analytics` читает Kafka topics, при необходимости читает исторический контекст из `Telemetry Store`, рассчитывает агрегаты и производные признаки, записывает результаты в `Telemetry Store` и передает derived events в `Alarm Rule Engine`.
+12. `Alarm Rule Engine` обрабатывает telemetry и derived events по правилам, пишет immutable alarm history в `Telemetry Store`, хранит current alarm state и operator workflow state в `Platform Store` на базе `PostgreSQL` и инициирует уведомления.
+13. `Grafana` читает dashboards из `Telemetry Store`; `Platform API` читает `Telemetry Store` для истории/графиков и `Platform Store` для конфигурации, правил и текущего состояния; `Platform Frontend` работает через `Platform API`.
 
 ### Хранилища данных Monitoring & Alarm Platform
 
@@ -333,4 +336,4 @@ production-контуре как слой визуализации.
 - `docs/architecture/adrs/ADR-005-mqtt-event-transport.md`
 - `docs/architecture/adrs/ADR-007-monitoring-platform-data-stores.md`
 - `docs/architecture/adrs/ADR-008-server-issued-edge-runtime-configuration.md`
-- `docs/contracts/edge-agent/config-publisher-bundle.v1.md`
+- `docs/contracts/edge-agent/config-bundle.v1.md`

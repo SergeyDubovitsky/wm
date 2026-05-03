@@ -43,6 +43,6 @@ wm/v1
 - Batch payload на уровне source не используется.
 - Per-point retained `state` topic не используется.
 - Per-point retained `meta` topics не используются.
-- Runtime config не публикуется edge-agent-ом: его публикует config publisher tool из versioned YAML bundle.
+- Runtime config не публикуется edge-agent-ом: retained MQTT topics строятся platform projection pipeline из Kafka config delivery records.
 - Publisher уже использует MQTT 5 `Content Type = application/json`.
 - `Topic Alias` остается planned optimization: контракт его рекомендует, но текущий publisher еще не использует alias negotiation.

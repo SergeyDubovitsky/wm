@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from config_registry_api.api.dependencies import (
+from config_registry.api.dependencies import (
     UnitOfWorkFactory,
     get_unit_of_work_factory,
 )
-from config_registry_api.api.schemas.tenants import TenantCreateRequest, TenantResponse
-from config_registry_api.application.errors import DuplicateTenantError
-from config_registry_api.application.use_cases.tenants import (
+from config_registry.api.schemas.tenants import TenantCreateRequest, TenantResponse
+from config_registry.application.errors import DuplicateTenantError
+from config_registry.application.use_cases.tenants import (
     CreateTenant,
     CreateTenantCommand,
     ListTenants,
 )
-from config_registry_api.domain.value_objects import DomainValidationError
+from config_registry.domain.value_objects import DomainValidationError
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 

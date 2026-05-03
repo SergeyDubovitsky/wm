@@ -4,12 +4,12 @@
 Статус: working draft
 
 Этот контракт фиксирует временный authoring/import path для edge runtime config
-до внедрения `Config Registry API` из `ADR-010`.
+до внедрения `Config Registry` из `ADR-010`.
 
 ## Назначение
 
 Versioned YAML config bundle является authoring source of truth только до
-перехода на PostgreSQL-backed `Config Registry API`. После внедрения `ADR-010`
+перехода на PostgreSQL-backed `Config Registry`. После внедрения `ADR-010`
 он остается import/bootstrap tooling и не конкурирует с `Platform Store` как
 runtime source of truth.
 
@@ -89,7 +89,7 @@ Tool/pipeline должен печатать publish summary:
 
 ## AI-agent rules
 
-- До внедрения `Config Registry API` AI-agent редактирует только versioned YAML
+- До внедрения `Config Registry` AI-agent редактирует только versioned YAML
   bundle.
 - AI-agent не публикует произвольные MQTT payloads вручную.
 - AI-agent не обходит Kafka delivery log при выпуске edge config.
@@ -99,5 +99,5 @@ Tool/pipeline должен печатать publish summary:
   `self-hosted` и `cloud` deployment modes, и не должен вводить bundle,
   contracts или workflow, которые форкают baseline между ними без отдельного
   ADR.
-- После внедрения `Config Registry API` AI-agent должен перейти на API calls без
+- После внедрения `Config Registry` AI-agent должен перейти на API calls без
   изменения retained MQTT contracts.

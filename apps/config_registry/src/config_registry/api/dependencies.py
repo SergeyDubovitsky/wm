@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from fastapi import Request
 
-from config_registry_api.application.ports.unit_of_work import UnitOfWork
+from config_registry.application.ports.unit_of_work import UnitOfWork
 
 UnitOfWorkFactory = Callable[[], UnitOfWork]
 

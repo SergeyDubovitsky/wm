@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from config_registry_api.domain.value_objects import (
+from config_registry.domain.value_objects import (
     AgentStatus,
     ObjectStatus,
     SignalType,

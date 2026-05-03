@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import uvicorn
 
-from config_registry_api.settings import ConfigRegistryApiSettings
+from config_registry.settings import ConfigRegistrySettings
 
 
 def main() -> None:
-    settings = ConfigRegistryApiSettings.from_env()
+    settings = ConfigRegistrySettings.from_env()
     uvicorn.run(
-        "config_registry_api.main:create_app",
+        "config_registry.main:create_app",
         factory=True,
         host=settings.host,
         port=settings.port,

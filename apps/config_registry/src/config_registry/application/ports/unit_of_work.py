@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol, Self
 
-from config_registry_api.domain.entities import Tenant
+from config_registry.domain.entities import Tenant
 
 
 class TenantRepository(Protocol):

@@ -1,7 +1,7 @@
 model {
     extend monitoring-alarm-platform {
         edge-config-publisher = container 'Edge Config Publisher' {
-            description 'Config Event Publisher: до ADR-010 может читать versioned YAML bundle; после внедрения Config Registry API читает PostgreSQL config_outbox и публикует wm.platform.edge.config.delivery.v1 records в Kafka topic wm.platform.edge.configs.v1. MQTT retained topics строит Redpanda Connect projection.'
+            description 'Config Event Publisher: до ADR-010 может читать versioned YAML bundle; после внедрения Config Registry читает PostgreSQL config_outbox и публикует wm.platform.edge.config.delivery.v1 records в Kafka topic wm.platform.edge.configs.v1. MQTT retained topics строит Redpanda Connect projection.'
             technology 'Config event publisher / Kafka producer'
             icon bootstrap:cloud-upload
 

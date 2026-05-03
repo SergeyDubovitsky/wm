@@ -64,8 +64,8 @@ jobs:
                       test_path: apps/edge_agent/tests
                     - package: knx-demo
                       test_path: apps/knx_demo/tests
-                    - package: config-registry-api
-                      test_path: apps/config_registry_api/tests
+                    - package: config-registry
+                      test_path: apps/config_registry/tests
                     - package: knx-parser
                       test_path: libs/knx_parser/tests
                     - package: wm-demo-stack

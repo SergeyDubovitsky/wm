@@ -46,7 +46,7 @@ YAML config bundle в репозитории или operations bundle. Config de
 в Kafka и материализует retained MQTT topics через Redpanda Connect projection.
 
 После внедрения `ADR-010` authoring source of truth для новых конфигураций
-переезжает в `Platform Store` и `Config Registry API`. YAML bundle остается
+переезжает в `Platform Store` и `Config Registry`. YAML bundle остается
 только временным import/bootstrap tooling и не должен конкурировать с
 PostgreSQL как runtime source of truth.
 

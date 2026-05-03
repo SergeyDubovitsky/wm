@@ -1,6 +1,6 @@
-# config-registry-api
+# config-registry
 
-Первый backend-срез `Monitoring & Alarm Platform`: internal `Config Registry API`
+Первый backend-срез `Monitoring & Alarm Platform`: internal `Config Registry`
 для tenants/objects/agents/sources/points и будущего Kafka-first config delivery
 flow.
 
@@ -16,6 +16,6 @@ PostgreSQL, SQLAlchemy adapters, Alembic migrations, render-config и outbox
 будут добавляться следующими инкрементами по `ADR-010`.
 
 ```bash
-uv run --package config-registry-api pytest apps/config_registry_api/tests
-uv run --package config-registry-api config-registry-api
+uv run --package config-registry pytest apps/config_registry/tests
+uv run --package config-registry config-registry
 ```

@@ -4,9 +4,9 @@ from collections.abc import Callable
 
 from fastapi import FastAPI
 
-from config_registry_api.api.routers import health, tenants
-from config_registry_api.application.ports.unit_of_work import UnitOfWork
-from config_registry_api.infrastructure.memory.unit_of_work import (
+from config_registry.api.routers import health, tenants
+from config_registry.application.ports.unit_of_work import UnitOfWork
+from config_registry.infrastructure.memory.unit_of_work import (
     InMemoryUnitOfWorkFactory,
 )
 
@@ -15,7 +15,7 @@ def create_app(
     unit_of_work_factory: Callable[[], UnitOfWork] | None = None,
 ) -> FastAPI:
     app = FastAPI(
-        title="Web Monitoring Config Registry API",
+        title="Web Monitoring Config Registry",
         version="0.1.0",
         docs_url="/docs",
         redoc_url="/redoc",

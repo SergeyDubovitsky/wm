@@ -5,14 +5,14 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class ConfigRegistryApiSettings:
+class ConfigRegistrySettings:
     host: str = "127.0.0.1"
     port: int = 8000
     internal_mode: bool = True
     database_url: str | None = None
 
     @classmethod
-    def from_env(cls) -> ConfigRegistryApiSettings:
+    def from_env(cls) -> ConfigRegistrySettings:
         return cls(
             host=os.getenv("PLATFORM_API_HOST", "127.0.0.1"),
             port=int(os.getenv("PLATFORM_API_PORT", "8000")),

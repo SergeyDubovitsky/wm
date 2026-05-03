@@ -1,7 +1,7 @@
 model {
     extend monitoring-alarm-platform {
         platform-api = container 'Platform API' {
-            description 'Первый backend-срез как Config Registry API: хранит tenants, objects, agents, sources, points и runtime/source config revisions в PostgreSQL. Auth, alarm, telemetry read API и frontend boundary фиксируются отдельными ADR.'
+            description 'Первый backend-срез как Config Registry: хранит tenants, objects, agents, sources, points и runtime/source config revisions в PostgreSQL. Auth, alarm, telemetry read API и frontend boundary фиксируются отдельными ADR.'
             technology 'FastAPI async / SQLAlchemy / PostgreSQL'
             icon bootstrap:server
 

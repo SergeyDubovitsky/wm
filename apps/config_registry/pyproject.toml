@@ -1,5 +1,5 @@
 [project]
-name = "config-registry-api"
+name = "config-registry"
 version = "0.1.0"
 description = "Configuration registry API for web-monitoring"
 readme = "README.md"
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-config-registry-api = "config_registry_api.__main__:main"
+config-registry = "config_registry.__main__:main"
 
 
 [tool.pytest.ini_options]

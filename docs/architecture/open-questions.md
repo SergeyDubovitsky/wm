@@ -67,7 +67,7 @@
 
 | Вопрос | Почему это важно | Степень блокировки |
 | --- | --- | --- |
-| Какой минимальный implementation scope `Config Registry API` нужен для первого инкремента: только tenants/objects/agents/sources/points или сразу render config revisions? | `ADR-010` зафиксировал backend хранения настроек, но backlog первого кода нужно ограничить | Высокая |
+| Какой минимальный implementation scope `Config Registry` нужен для первого инкремента: только tenants/objects/agents/sources/points или сразу render config revisions? | `ADR-010` зафиксировал backend хранения настроек, но backlog первого кода нужно ограничить | Высокая |
 | Где фиксируется `Redpanda Connect` pipeline config: в platform repository, IaC, Redpanda Cloud-managed pipeline или отдельном operations bundle? | MQTT input, mapping/transform и redpanda output становятся частью production data path, поэтому конфигурация pipeline должна быть версионирована и управляться так же строго, как edge source config | Высокая |
 | Нужно ли менять draft Kafka topics, retention и consumer groups после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/kafka/topics.v1.md`, но реальные partition counts и retention могут потребовать корректировки после измерений | Средняя |
 | Нужно ли менять draft ClickHouse DDL, rollups и TTL после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/clickhouse/telemetry-store.v1.md`, но production performance schema должна быть подтверждена на данных целевого масштаба | Средняя |
@@ -107,5 +107,5 @@
 - подтвердить, что текущий `demo-stand` конфиг и ETS-derived артефакты являются каноническим source of truth для первого `KNX`-среза
 - зафиксировать production MQTT broker, требования по `TLS`/`ACL` и способ хранения секретов
 - зафиксировать contract и limits для config delivery: bundle layout, revision generation, Kafka delivery record, retained projection order и rollback semantics
-- определить первый implementation scope для `Config Registry API` поверх `ADR-010`
+- определить первый implementation scope для `Config Registry` поверх `ADR-010`
 - зафиксировать Kafka topic contract, retention/rollup/deduplication contract для ClickHouse и минимальный lifecycle `alarm`

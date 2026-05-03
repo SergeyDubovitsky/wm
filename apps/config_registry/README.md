@@ -11,10 +11,13 @@ flow.
 - application use cases и repository/unit-of-work protocols
 - render use case для `wm.edge.runtime-config.v1` и
   `wm.edge.source-config.v1` с JSON Schema validation
+- persistence для rendered `runtime_config_revisions` и
+  `source_config_revisions`
 - временный in-memory adapter для unit/API smoke-тестов
 - PostgreSQL adapter для `tenants`, `assets`, `agents`, `sources` и `points`
-- Alembic migration для core registry tables:
+- Alembic migrations для registry tables:
   `tenants`, `assets`, `agents`, `sources`, `points`
+- `runtime_config_revisions`, `source_config_revisions`
 - endpoints `GET /health`, `GET /ready`, `POST /tenants`, `GET /tenants`,
   `POST /tenants/{tenant_id}/assets`, `GET /tenants/{tenant_id}/assets`,
   `POST /tenants/{tenant_id}/assets/{asset_id}/agents`,
@@ -24,8 +27,7 @@ flow.
   `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`,
   `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`
 
-Rendered config persistence, config revisions и transactional outbox будут
-добавляться следующими инкрементами по `ADR-010`.
+Transactional outbox будет добавляться следующим инкрементом по `ADR-010`.
 
 ```bash
 uv run --package config-registry pytest apps/config_registry/tests

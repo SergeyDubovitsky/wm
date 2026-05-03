@@ -37,6 +37,14 @@ class SignalType(StrEnum):
     SENSOR = "sensor"
 
 
+class ConfigRevisionStatus(StrEnum):
+    DRAFT = "draft"
+    RENDERED = "rendered"
+    ACTIVE = "active"
+    SUPERSEDED = "superseded"
+    FAILED = "failed"
+
+
 _PATH_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,127}$")
 _POINT_KEY_PATTERN = re.compile(r"^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$")
 

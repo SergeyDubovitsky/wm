@@ -110,3 +110,15 @@ class ConfigPayloadValidationError(ConfigRenderError):
         super().__init__(message)
         self.message_type = message_type
         self.errors = errors
+
+
+class DuplicateConfigRevisionError(ApplicationError):
+    def __init__(self, tenant_id: str, asset_id: str, agent_id: str, revision: str) -> None:
+        super().__init__(
+            f"Config revision {revision!r} already exists for agent {agent_id!r} "
+            f"in asset {asset_id!r} and tenant {tenant_id!r}"
+        )
+        self.tenant_id = tenant_id
+        self.asset_id = asset_id
+        self.agent_id = agent_id
+        self.revision = revision

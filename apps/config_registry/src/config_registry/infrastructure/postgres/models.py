@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -262,3 +263,100 @@ class PointModel(Base):
         DateTime(timezone=True),
         nullable=False,
     )
+
+
+class RuntimeConfigRevisionModel(Base):
+    __tablename__ = "runtime_config_revisions"
+    __table_args__ = (
+        PrimaryKeyConstraint(
+            "tenant_id",
+            "asset_id",
+            "agent_id",
+            "config_revision",
+            name="pk_runtime_config_revisions",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "asset_id", "agent_id"],
+            ["agents.tenant_id", "agents.asset_id", "agents.agent_id"],
+            name="fk_runtime_config_revisions_agent",
+        ),
+        CheckConstraint(
+            "status in ('draft', 'rendered', 'active', 'superseded', 'failed')",
+            name="ck_runtime_config_revisions_status",
+        ),
+        Index(
+            "uq_runtime_config_revisions_active",
+            "tenant_id",
+            "asset_id",
+            "agent_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),
+    )
+
+    tenant_id: Mapped[str] = mapped_column(Text, nullable=False)
+    asset_id: Mapped[str] = mapped_column(Text, nullable=False)
+    agent_id: Mapped[str] = mapped_column(Text, nullable=False)
+    config_revision: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    runtime_payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class SourceConfigRevisionModel(Base):
+    __tablename__ = "source_config_revisions"
+    __table_args__ = (
+        PrimaryKeyConstraint(
+            "tenant_id",
+            "asset_id",
+            "agent_id",
+            "source_id",
+            "source_config_revision",
+            name="pk_source_config_revisions",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "asset_id", "agent_id", "source_id"],
+            [
+                "sources.tenant_id",
+                "sources.asset_id",
+                "sources.agent_id",
+                "sources.source_id",
+            ],
+            name="fk_source_config_revisions_source",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "asset_id", "agent_id", "config_revision"],
+            [
+                "runtime_config_revisions.tenant_id",
+                "runtime_config_revisions.asset_id",
+                "runtime_config_revisions.agent_id",
+                "runtime_config_revisions.config_revision",
+            ],
+            name="fk_source_config_revisions_runtime",
+        ),
+        CheckConstraint(
+            "status in ('draft', 'rendered', 'active', 'superseded', 'failed')",
+            name="ck_source_config_revisions_status",
+        ),
+        Index(
+            "uq_source_config_revisions_active",
+            "tenant_id",
+            "asset_id",
+            "agent_id",
+            "source_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),
+    )
+
+    tenant_id: Mapped[str] = mapped_column(Text, nullable=False)
+    asset_id: Mapped[str] = mapped_column(Text, nullable=False)
+    agent_id: Mapped[str] = mapped_column(Text, nullable=False)
+    source_id: Mapped[str] = mapped_column(Text, nullable=False)
+    source_config_revision: Mapped[str] = mapped_column(Text, nullable=False)
+    config_revision: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

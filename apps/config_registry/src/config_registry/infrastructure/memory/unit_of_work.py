@@ -3,7 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from types import TracebackType
 
-from config_registry.domain.entities import Agent, Asset, Point, Source, Tenant
+from config_registry.domain.entities import (
+    Agent,
+    Asset,
+    Point,
+    RuntimeConfigRevision,
+    Source,
+    SourceConfigRevision,
+    Tenant,
+)
 
 
 @dataclass
@@ -177,12 +185,89 @@ class InMemoryPointRepository:
 
 
 @dataclass
+class InMemoryRuntimeConfigRevisionRepository:
+    _items: dict[tuple[str, str, str, str], RuntimeConfigRevision] = field(
+        default_factory=dict
+    )
+
+    async def add(self, revision: RuntimeConfigRevision) -> None:
+        self._items[
+            (
+                revision.tenant_id,
+                revision.asset_id,
+                revision.agent_id,
+                revision.config_revision,
+            )
+        ] = revision
+
+    async def get(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        config_revision: str,
+    ) -> RuntimeConfigRevision | None:
+        return self._items.get((tenant_id, asset_id, agent_id, config_revision))
+
+
+@dataclass
+class InMemorySourceConfigRevisionRepository:
+    _items: dict[tuple[str, str, str, str, str], SourceConfigRevision] = field(
+        default_factory=dict
+    )
+
+    async def add(self, revision: SourceConfigRevision) -> None:
+        self._items[
+            (
+                revision.tenant_id,
+                revision.asset_id,
+                revision.agent_id,
+                revision.source_id,
+                revision.source_config_revision,
+            )
+        ] = revision
+
+    async def get(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+        source_config_revision: str,
+    ) -> SourceConfigRevision | None:
+        return self._items.get(
+            (tenant_id, asset_id, agent_id, source_id, source_config_revision)
+        )
+
+    async def list_for_runtime_revision(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        config_revision: str,
+    ) -> list[SourceConfigRevision]:
+        return sorted(
+            (
+                revision
+                for revision in self._items.values()
+                if revision.tenant_id == tenant_id
+                and revision.asset_id == asset_id
+                and revision.agent_id == agent_id
+                and revision.config_revision == config_revision
+            ),
+            key=lambda revision: revision.source_id,
+        )
+
+
+@dataclass
 class InMemoryUnitOfWork:
     tenants: InMemoryTenantRepository
     assets: InMemoryAssetRepository
     agents: InMemoryAgentRepository
     sources: InMemorySourceRepository
     points: InMemoryPointRepository
+    runtime_config_revisions: InMemoryRuntimeConfigRevisionRepository
+    source_config_revisions: InMemorySourceConfigRevisionRepository
     committed: bool = False
 
     async def __aenter__(self) -> InMemoryUnitOfWork:
@@ -207,6 +292,12 @@ class InMemoryUnitOfWorkFactory:
     agents: InMemoryAgentRepository = field(default_factory=InMemoryAgentRepository)
     sources: InMemorySourceRepository = field(default_factory=InMemorySourceRepository)
     points: InMemoryPointRepository = field(default_factory=InMemoryPointRepository)
+    runtime_config_revisions: InMemoryRuntimeConfigRevisionRepository = field(
+        default_factory=InMemoryRuntimeConfigRevisionRepository
+    )
+    source_config_revisions: InMemorySourceConfigRevisionRepository = field(
+        default_factory=InMemorySourceConfigRevisionRepository
+    )
 
     def __call__(self) -> InMemoryUnitOfWork:
         return InMemoryUnitOfWork(
@@ -215,4 +306,6 @@ class InMemoryUnitOfWorkFactory:
             agents=self.agents,
             sources=self.sources,
             points=self.points,
+            runtime_config_revisions=self.runtime_config_revisions,
+            source_config_revisions=self.source_config_revisions,
         )

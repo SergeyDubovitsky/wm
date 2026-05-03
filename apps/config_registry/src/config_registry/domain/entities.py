@@ -7,6 +7,7 @@ from typing import Any
 from config_registry.domain.value_objects import (
     AgentStatus,
     AssetStatus,
+    ConfigRevisionStatus,
     SignalType,
     TenantStatus,
     ValueType,
@@ -205,4 +206,87 @@ class Point:
             self,
             "value_model",
             require_non_empty(self.value_model, field_name="value_model"),
+        )
+
+
+@dataclass(frozen=True)
+class RuntimeConfigRevision:
+    tenant_id: str
+    asset_id: str
+    agent_id: str
+    config_revision: str
+    issued_at: datetime
+    runtime_payload_json: dict[str, Any]
+    status: ConfigRevisionStatus = ConfigRevisionStatus.RENDERED
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "tenant_id",
+            require_non_empty(self.tenant_id, field_name="tenant_id"),
+        )
+        object.__setattr__(
+            self,
+            "asset_id",
+            require_path_id(self.asset_id, field_name="asset_id"),
+        )
+        object.__setattr__(
+            self,
+            "agent_id",
+            require_path_id(self.agent_id, field_name="agent_id"),
+        )
+        object.__setattr__(
+            self,
+            "config_revision",
+            require_non_empty(self.config_revision, field_name="config_revision"),
+        )
+
+
+@dataclass(frozen=True)
+class SourceConfigRevision:
+    tenant_id: str
+    asset_id: str
+    agent_id: str
+    source_id: str
+    source_config_revision: str
+    config_revision: str
+    issued_at: datetime
+    source_payload_json: dict[str, Any]
+    status: ConfigRevisionStatus = ConfigRevisionStatus.RENDERED
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "tenant_id",
+            require_non_empty(self.tenant_id, field_name="tenant_id"),
+        )
+        object.__setattr__(
+            self,
+            "asset_id",
+            require_path_id(self.asset_id, field_name="asset_id"),
+        )
+        object.__setattr__(
+            self,
+            "agent_id",
+            require_path_id(self.agent_id, field_name="agent_id"),
+        )
+        object.__setattr__(
+            self,
+            "source_id",
+            require_path_id(self.source_id, field_name="source_id"),
+        )
+        object.__setattr__(
+            self,
+            "source_config_revision",
+            require_non_empty(
+                self.source_config_revision,
+                field_name="source_config_revision",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "config_revision",
+            require_non_empty(self.config_revision, field_name="config_revision"),
         )

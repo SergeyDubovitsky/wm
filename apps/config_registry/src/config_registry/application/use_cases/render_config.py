@@ -4,10 +4,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from config_registry.application.errors import AgentNotFoundError, ConfigRenderError
+from config_registry.application.errors import (
+    AgentNotFoundError,
+    ConfigRenderError,
+    DuplicateConfigRevisionError,
+)
 from config_registry.application.ports.config_validation import ConfigPayloadValidator
 from config_registry.application.ports.unit_of_work import UnitOfWork
-from config_registry.domain.entities import Point, Source
+from config_registry.domain.entities import (
+    Point,
+    RuntimeConfigRevision,
+    Source,
+    SourceConfigRevision,
+)
 
 
 @dataclass(frozen=True)
@@ -190,3 +199,85 @@ def _format_datetime(value: datetime) -> str:
         utc_value = utc_value.replace(tzinfo=UTC)
     utc_value = utc_value.astimezone(UTC).replace(microsecond=0)
     return utc_value.isoformat().replace("+00:00", "Z")
+
+
+class StoreRenderedAgentConfig:
+    def __init__(
+        self,
+        unit_of_work: UnitOfWork,
+        validator: ConfigPayloadValidator,
+    ) -> None:
+        self._unit_of_work = unit_of_work
+        self._validator = validator
+
+    async def execute(self, rendered: RenderedAgentConfig) -> RuntimeConfigRevision:
+        runtime_payload = rendered.runtime_payload
+        self._validator.validate_runtime_config(runtime_payload)
+        for source in rendered.source_payloads:
+            self._validator.validate_source_config(source.payload)
+
+        runtime_revision = _runtime_revision_from_payload(runtime_payload)
+        source_revisions = [
+            _source_revision_from_payload(
+                source.payload,
+                issued_at=runtime_revision.issued_at,
+            )
+            for source in rendered.source_payloads
+        ]
+
+        async with self._unit_of_work as unit_of_work:
+            if (
+                await unit_of_work.runtime_config_revisions.get(
+                    runtime_revision.tenant_id,
+                    runtime_revision.asset_id,
+                    runtime_revision.agent_id,
+                    runtime_revision.config_revision,
+                )
+                is not None
+            ):
+                raise DuplicateConfigRevisionError(
+                    runtime_revision.tenant_id,
+                    runtime_revision.asset_id,
+                    runtime_revision.agent_id,
+                    runtime_revision.config_revision,
+                )
+            await unit_of_work.runtime_config_revisions.add(runtime_revision)
+            for source_revision in source_revisions:
+                await unit_of_work.source_config_revisions.add(source_revision)
+            await unit_of_work.commit()
+
+        return runtime_revision
+
+
+def _runtime_revision_from_payload(
+    payload: dict[str, Any],
+) -> RuntimeConfigRevision:
+    return RuntimeConfigRevision(
+        tenant_id=str(payload["tenant_id"]),
+        asset_id=str(payload["asset_id"]),
+        agent_id=str(payload["agent_id"]),
+        config_revision=str(payload["config_revision"]),
+        issued_at=_parse_datetime(str(payload["issued_at"])),
+        runtime_payload_json=dict(payload),
+    )
+
+
+def _source_revision_from_payload(
+    payload: dict[str, Any],
+    *,
+    issued_at: datetime,
+) -> SourceConfigRevision:
+    return SourceConfigRevision(
+        tenant_id=str(payload["tenant_id"]),
+        asset_id=str(payload["asset_id"]),
+        agent_id=str(payload["agent_id"]),
+        source_id=str(payload["source_id"]),
+        source_config_revision=str(payload["source_config_revision"]),
+        config_revision=str(payload["config_revision"]),
+        issued_at=issued_at,
+        source_payload_json=dict(payload),
+    )
+
+
+def _parse_datetime(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))

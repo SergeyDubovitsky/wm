@@ -9,6 +9,7 @@ from config_registry.application.errors import (
     AgentNotFoundError,
     ConfigPayloadValidationError,
     ConfigRenderError,
+    DuplicateConfigRevisionError,
 )
 from config_registry.application.use_cases.agents import (
     CreateAgent,
@@ -25,6 +26,7 @@ from config_registry.application.use_cases.points import (
 from config_registry.application.use_cases.render_config import (
     RenderAgentConfig,
     RenderAgentConfigCommand,
+    StoreRenderedAgentConfig,
 )
 from config_registry.application.use_cases.sources import (
     CreateSource,
@@ -161,6 +163,70 @@ async def test_render_agent_config_rejects_contract_invalid_source_payload() -> 
                 issued_at=datetime(2026, 5, 3, tzinfo=UTC),
             )
         )
+
+
+async def test_store_rendered_agent_config_persists_runtime_and_source_revisions() -> None:
+    unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _create_registry_graph(unit_of_work_factory)
+    validator = JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR)
+    rendered = await RenderAgentConfig(unit_of_work_factory(), validator).execute(
+        RenderAgentConfigCommand(
+            tenant_id="tenant-a",
+            asset_id="asset-a",
+            agent_id="agent-a",
+            config_revision="rev-2026-05-03-001",
+            issued_at=datetime(2026, 5, 3, 10, 15, 0, tzinfo=UTC),
+            source_config_revisions={"knx-main": "rev-2026-05-03-001-knx-main"},
+        )
+    )
+
+    runtime_revision = await StoreRenderedAgentConfig(
+        unit_of_work_factory(),
+        validator,
+    ).execute(rendered)
+    async with unit_of_work_factory() as unit_of_work:
+        stored_runtime = await unit_of_work.runtime_config_revisions.get(
+            "tenant-a",
+            "asset-a",
+            "agent-a",
+            "rev-2026-05-03-001",
+        )
+        stored_sources = (
+            await unit_of_work.source_config_revisions.list_for_runtime_revision(
+                "tenant-a",
+                "asset-a",
+                "agent-a",
+                "rev-2026-05-03-001",
+            )
+        )
+
+    assert runtime_revision.config_revision == "rev-2026-05-03-001"
+    assert stored_runtime is not None
+    assert stored_runtime.runtime_payload_json == rendered.runtime_payload
+    assert [revision.source_id for revision in stored_sources] == ["knx-main"]
+    assert stored_sources[0].source_payload_json == rendered.source_payloads[0].payload
+
+
+async def test_store_rendered_agent_config_rejects_duplicate_revision() -> None:
+    unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _create_registry_graph(unit_of_work_factory)
+    validator = JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR)
+    rendered = await RenderAgentConfig(unit_of_work_factory(), validator).execute(
+        RenderAgentConfigCommand(
+            tenant_id="tenant-a",
+            asset_id="asset-a",
+            agent_id="agent-a",
+            config_revision="rev-2026-05-03-001",
+            issued_at=datetime(2026, 5, 3, 10, 15, 0, tzinfo=UTC),
+        )
+    )
+
+    await StoreRenderedAgentConfig(unit_of_work_factory(), validator).execute(rendered)
+    with pytest.raises(DuplicateConfigRevisionError):
+        await StoreRenderedAgentConfig(
+            unit_of_work_factory(),
+            validator,
+        ).execute(rendered)
 
 
 async def _create_registry_graph(

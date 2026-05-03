@@ -3,7 +3,15 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol, Self
 
-from config_registry.domain.entities import Agent, Asset, Point, Source, Tenant
+from config_registry.domain.entities import (
+    Agent,
+    Asset,
+    Point,
+    RuntimeConfigRevision,
+    Source,
+    SourceConfigRevision,
+    Tenant,
+)
 
 
 class TenantRepository(Protocol):
@@ -81,12 +89,47 @@ class PointRepository(Protocol):
     ) -> list[Point]: ...
 
 
+class RuntimeConfigRevisionRepository(Protocol):
+    async def add(self, revision: RuntimeConfigRevision) -> None: ...
+
+    async def get(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        config_revision: str,
+    ) -> RuntimeConfigRevision | None: ...
+
+
+class SourceConfigRevisionRepository(Protocol):
+    async def add(self, revision: SourceConfigRevision) -> None: ...
+
+    async def get(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+        source_config_revision: str,
+    ) -> SourceConfigRevision | None: ...
+
+    async def list_for_runtime_revision(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        config_revision: str,
+    ) -> list[SourceConfigRevision]: ...
+
+
 class UnitOfWork(Protocol):
     tenants: TenantRepository
     assets: AssetRepository
     agents: AgentRepository
     sources: SourceRepository
     points: PointRepository
+    runtime_config_revisions: RuntimeConfigRevisionRepository
+    source_config_revisions: SourceConfigRevisionRepository
 
     async def __aenter__(self) -> Self: ...
 

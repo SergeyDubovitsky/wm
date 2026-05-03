@@ -82,6 +82,7 @@ services:
             "$$@"
         }
         create_topic wm.platform.telemetry.events.v1 --config retention.ms=604800000
+        create_topic wm.platform.edge.configs.v1 --config cleanup.policy=compact
         create_topic wm.platform.source.configs.v1 --config cleanup.policy=compact
         create_topic wm.platform.source.connections.v1 --config cleanup.policy=compact
         create_topic wm.platform.agent.status.v1 --config cleanup.policy=compact

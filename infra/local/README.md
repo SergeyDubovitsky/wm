@@ -82,6 +82,7 @@ docker compose --env-file ../../.env up -d \
 
 В `Kafka UI` откройте cluster `local` и topics:
 
+- `wm.platform.edge.configs.v1`
 - `wm.platform.telemetry.events.v1`
 - `wm.platform.source.configs.v1`
 - `wm.platform.source.connections.v1`

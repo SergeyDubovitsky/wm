@@ -17,6 +17,8 @@ flow.
   delivery
 - outbox lease workflow и `Config Event Publisher` boundary:
   `reserve -> publish -> mark_published/mark_retry/mark_dead_letter`
+- `confluent-kafka` adapter для записи config delivery records в
+  `wm.platform.edge.configs.v1`
 - временный in-memory adapter для unit/API smoke-тестов
 - PostgreSQL adapter для `tenants`, `assets`, `agents`, `sources` и `points`
 - Alembic migrations для registry tables:
@@ -32,9 +34,8 @@ flow.
   `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`,
   `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`
 
-Реальный Kafka producer adapter, CLI/runtime упаковка publisher-а и
-Redpanda Connect Kafka -> MQTT retained projection будут добавляться следующими
-инкрементами по `ADR-010`.
+CLI/runtime упаковка publisher-а и Redpanda Connect Kafka -> MQTT retained
+projection будут добавляться следующими инкрементами по `ADR-010`.
 
 ```bash
 uv run --package config-registry pytest apps/config_registry/tests
@@ -54,3 +55,6 @@ uv run --env-file .env --package config-registry alembic \
 CONFIG_REGISTRY_DATABASE_URL=postgresql+asyncpg://wm:change-me-local-postgres@localhost:5432/wm_config_registry \
   uv run --package config-registry config-registry
 ```
+
+Для локальной доставки config records в Kafka используется
+`KAFKA_BOOTSTRAP_SERVERS` и `CONFIG_REGISTRY_KAFKA_CLIENT_ID`.

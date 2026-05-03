@@ -1,0 +1,34 @@
+[project]
+name = "platform-api"
+version = "0.1.0"
+description = "Platform configuration API for web-monitoring"
+readme = "README.md"
+authors = [
+    { name = "srgi0", email = "dss181@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.18.4",
+    "asyncpg>=0.31.0",
+    "fastapi>=0.136.1",
+    "pydantic>=2.12.5",
+    "sqlalchemy>=2.0.49",
+    "uvicorn>=0.46.0",
+]
+
+[project.scripts]
+platform-api = "platform_api.__main__:main"
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["uv_build>=0.11.2,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.0.2",
+]

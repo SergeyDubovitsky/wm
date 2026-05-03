@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "edge-agent",
+    "platform-api",
     "wm-demo-stack",
     "wm-clickhouse",
 ]
@@ -23,6 +24,7 @@ package = false
 
 [tool.uv.sources]
 edge-agent = { workspace = true }
+platform-api = { workspace = true }
 wm-demo-stack = { workspace = true }
 wm-clickhouse = { workspace = true }
 
@@ -45,6 +47,7 @@ target-version = "py312"
 src = [
     "apps/edge_agent/src",
     "apps/knx_demo/src",
+    "apps/platform_api/src",
     "libs/knx_parser/src",
     "libs/wm_demo_stack/src",
     "tools/clickhouse_migrations/src",

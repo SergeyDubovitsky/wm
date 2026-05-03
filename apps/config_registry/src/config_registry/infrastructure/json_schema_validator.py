@@ -15,9 +15,11 @@ class JsonSchemaConfigPayloadValidator:
         *,
         runtime_schema: dict[str, Any],
         source_schema: dict[str, Any],
+        config_delivery_schema: dict[str, Any],
     ) -> None:
         Draft202012Validator.check_schema(runtime_schema)
         Draft202012Validator.check_schema(source_schema)
+        Draft202012Validator.check_schema(config_delivery_schema)
         format_checker = FormatChecker()
         self._runtime_validator = Draft202012Validator(
             runtime_schema,
@@ -27,16 +29,35 @@ class JsonSchemaConfigPayloadValidator:
             source_schema,
             format_checker=format_checker,
         )
+        self._config_delivery_validator = Draft202012Validator(
+            config_delivery_schema,
+            format_checker=format_checker,
+        )
+
+    @classmethod
+    def from_contract_dirs(
+        cls,
+        *,
+        edge_contract_dir: Path,
+        kafka_contract_dir: Path,
+    ) -> JsonSchemaConfigPayloadValidator:
+        return cls(
+            runtime_schema=_load_schema(
+                edge_contract_dir / "wm.edge.runtime-config.v1.schema.json"
+            ),
+            source_schema=_load_schema(
+                edge_contract_dir / "wm.edge.source-config.v1.schema.json"
+            ),
+            config_delivery_schema=_load_schema(
+                kafka_contract_dir / "wm.platform.edge.config.delivery.v1.schema.json"
+            ),
+        )
 
     @classmethod
     def from_contract_dir(cls, contract_dir: Path) -> JsonSchemaConfigPayloadValidator:
-        return cls(
-            runtime_schema=_load_schema(
-                contract_dir / "wm.edge.runtime-config.v1.schema.json"
-            ),
-            source_schema=_load_schema(
-                contract_dir / "wm.edge.source-config.v1.schema.json"
-            ),
+        return cls.from_contract_dirs(
+            edge_contract_dir=contract_dir,
+            kafka_contract_dir=contract_dir.parents[1] / "kafka" / "schemas",
         )
 
     def validate_runtime_config(self, payload: dict[str, Any]) -> None:
@@ -50,6 +71,13 @@ class JsonSchemaConfigPayloadValidator:
         _raise_if_invalid(
             message_type="wm.edge.source-config.v1",
             validator=self._source_validator,
+            payload=payload,
+        )
+
+    def validate_config_delivery(self, payload: dict[str, Any]) -> None:
+        _raise_if_invalid(
+            message_type="wm.platform.edge.config.delivery.v1",
+            validator=self._config_delivery_validator,
             payload=payload,
         )
 

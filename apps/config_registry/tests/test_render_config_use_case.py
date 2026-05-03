@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -243,6 +244,81 @@ async def test_store_rendered_agent_config_rejects_duplicate_revision() -> None:
             unit_of_work_factory(),
             validator,
         ).execute(rendered)
+
+
+async def test_store_rendered_agent_config_rejects_invalid_delivery_payload() -> None:
+    unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _create_registry_graph(unit_of_work_factory)
+    validator = JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR)
+    rendered = await RenderAgentConfig(unit_of_work_factory(), validator).execute(
+        RenderAgentConfigCommand(
+            tenant_id="tenant-a",
+            asset_id="asset-a",
+            agent_id="agent-a",
+            config_revision="rev-2026-05-03-001",
+            issued_at=datetime(2026, 5, 3, 10, 15, 0, tzinfo=UTC),
+        )
+    )
+
+    with pytest.raises(ConfigPayloadValidationError, match="delivery rejected"):
+        await StoreRenderedAgentConfig(
+            unit_of_work_factory(),
+            RejectDeliveryValidator(),
+        ).execute(rendered)
+    async with unit_of_work_factory() as unit_of_work:
+        stored_runtime = await unit_of_work.runtime_config_revisions.get(
+            "tenant-a",
+            "asset-a",
+            "agent-a",
+            "rev-2026-05-03-001",
+        )
+        outbox_records = await unit_of_work.config_outbox.list_for_config_revision(
+            "tenant-a",
+            "asset-a",
+            "agent-a",
+            "rev-2026-05-03-001",
+        )
+
+    assert stored_runtime is None
+    assert outbox_records == []
+
+
+async def test_json_schema_validator_rejects_invalid_config_delivery_payload() -> None:
+    validator = JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR)
+
+    with pytest.raises(ConfigPayloadValidationError, match="config_scope"):
+        validator.validate_config_delivery(
+            {
+                "message_type": "wm.platform.edge.config.delivery.v1",
+                "tenant_id": "tenant-a",
+                "asset_id": "asset-a",
+                "agent_id": "agent-a",
+                "config_revision": "rev-001",
+                "config_scope": "not-a-valid-scope",
+                "target_mqtt_topic": "wm/v1/agents/agent-a/config/runtime",
+                "mqtt_retain": True,
+                "mqtt_qos": 1,
+                "operation": "upsert",
+                "payload_message_type": "wm.edge.runtime-config.v1",
+                "payload": {},
+                "idempotency_key": "tenant-a|asset-a|agent-a|rev-001|runtime",
+                "issued_at": "2026-05-03T10:00:00Z",
+            }
+        )
+
+
+class RejectDeliveryValidator:
+    def validate_runtime_config(self, payload: dict[str, Any]) -> None:
+        return None
+
+    def validate_source_config(self, payload: dict[str, Any]) -> None:
+        return None
+
+    def validate_config_delivery(self, payload: dict[str, Any]) -> None:
+        raise ConfigPayloadValidationError(
+            "wm.platform.edge.config.delivery.v1",
+            ["delivery rejected"],
+        )
 
 
 async def _create_registry_graph(

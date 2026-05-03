@@ -227,6 +227,8 @@ class StoreRenderedAgentConfig:
             for source in rendered.source_payloads
         ]
         outbox_records = _outbox_records_for_rendered_config(rendered)
+        for outbox_record in outbox_records:
+            self._validator.validate_config_delivery(outbox_record.payload_json)
 
         async with self._unit_of_work as unit_of_work:
             if (

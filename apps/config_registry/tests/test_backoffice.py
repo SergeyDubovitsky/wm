@@ -9,6 +9,7 @@ from config_registry.infrastructure.backoffice import (
     BACKOFFICE_VIEWS,
     AgentBackofficeView,
     AssetBackofficeView,
+    SourceBackofficeView,
     TenantBackofficeView,
 )
 from config_registry.main import create_app
@@ -99,18 +100,58 @@ async def test_backoffice_create_asset_uses_application_use_case() -> None:
     assert assets[0]["description"] == "Created through backoffice use case"
 
 
+@pytest.mark.asyncio
+async def test_backoffice_create_agent_uses_application_use_case() -> None:
+    app = create_app()
+    request = SimpleNamespace(app=app)
+    await TenantBackofficeView().insert_model(
+        request,
+        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
+    )
+    await AssetBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "name": "Asset Backoffice",
+        },
+    )
+
+    created = await AgentBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+            "name": "Agent Backoffice",
+        },
+    )
+
+    with TestClient(app) as client:
+        agents = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice/agents"
+        ).json()
+
+    assert created.agent_id == "agent-backoffice"
+    assert created.status == "active"
+    assert agents[0]["agent_id"] == "agent-backoffice"
+    assert agents[0]["bootstrap_hint_json"] == {}
+
+
 def test_only_tenant_backoffice_view_is_create_enabled_for_now() -> None:
     for view in BACKOFFICE_VIEWS:
-        assert view.can_create is (view in {TenantBackofficeView, AssetBackofficeView})
+        assert view.can_create is (
+            view in {TenantBackofficeView, AssetBackofficeView, AgentBackofficeView}
+        )
 
 
 @pytest.mark.asyncio
 async def test_backoffice_views_reject_unsupported_programmatic_writes() -> None:
     tenant_view = TenantBackofficeView()
-    agent_view = AgentBackofficeView()
+    source_view = SourceBackofficeView()
 
     with pytest.raises(PermissionError, match="read-only"):
-        await agent_view.insert_model(object(), {})
+        await source_view.insert_model(object(), {})
     with pytest.raises(PermissionError, match="read-only"):
         await tenant_view.update_model(object(), "tenant-a", {})
     with pytest.raises(PermissionError, match="read-only"):

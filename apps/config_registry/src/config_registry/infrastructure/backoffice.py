@@ -5,6 +5,10 @@ from sqladmin import Admin, ModelView
 from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.requests import Request
 
+from config_registry.application.use_cases.agents import (
+    CreateAgent,
+    CreateAgentCommand,
+)
 from config_registry.application.use_cases.assets import (
     CreateAsset,
     CreateAssetCommand,
@@ -126,10 +130,16 @@ class AssetBackofficeView(CreateOnlyModelView, model=AssetModel):
         )
 
 
-class AgentBackofficeView(ReadOnlyModelView, model=AgentModel):
+class AgentBackofficeView(CreateOnlyModelView, model=AgentModel):
     name = "Agent"
     name_plural = "Agents"
     category = "Registry"
+    form_columns = [
+        AgentModel.tenant_id,
+        AgentModel.asset_id,
+        AgentModel.agent_id,
+        AgentModel.name,
+    ]
     column_list = [
         AgentModel.tenant_id,
         AgentModel.asset_id,
@@ -137,6 +147,26 @@ class AgentBackofficeView(ReadOnlyModelView, model=AgentModel):
         AgentModel.status,
         AgentModel.updated_at,
     ]
+
+    async def insert_model(self, request: Request, data: dict[str, object]) -> object:
+        agent = await CreateAgent(request.app.state.unit_of_work_factory()).execute(
+            CreateAgentCommand(
+                tenant_id=str(data["tenant_id"]),
+                asset_id=str(data["asset_id"]),
+                agent_id=str(data["agent_id"]),
+                name=_optional_string(data.get("name")),
+            )
+        )
+        return AgentModel(
+            tenant_id=agent.tenant_id,
+            asset_id=agent.asset_id,
+            agent_id=agent.agent_id,
+            name=agent.name,
+            status=agent.status.value,
+            bootstrap_hint_json=dict(agent.bootstrap_hint_json),
+            created_at=agent.created_at,
+            updated_at=agent.updated_at,
+        )
 
 
 class SourceBackofficeView(ReadOnlyModelView, model=SourceModel):

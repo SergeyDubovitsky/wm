@@ -7,7 +7,7 @@ import pytest
 
 from wm_demo_stack.cli import settings_from_args
 from wm_demo_stack.models import DemoSettings
-from wm_demo_stack.scenario import DemoScenario, run_demo
+from wm_demo_stack.scenario import DemoScenario, config_delivery_records, run_demo
 
 
 class FakeRuntime:
@@ -108,6 +108,9 @@ def make_settings(tmp_path: Path, **overrides: object) -> DemoSettings:
     class Args:
         bundle_config = _write_bundle(tmp_path)
         broker = "mqtt://localhost:1883"
+        kafka_bootstrap_servers = "localhost:19092"
+        kafka_client_id = "demo-kafka-client"
+        config_delivery = "mqtt"
         username = "demo-user"
         password = "demo-pass"
         topic_root = "wm/v1"
@@ -191,10 +194,40 @@ def test_cycle_messages_publish_tenant_and_source_config_revision(tmp_path: Path
     assert messages[0].payload["source_config_revision"] == "rev-2026-05-02-001-knx-main"
 
 
+def test_config_delivery_records_are_derived_from_bundle(tmp_path: Path) -> None:
+    settings = make_settings(tmp_path, config_delivery="kafka", publish_config=False)
+
+    records = config_delivery_records(settings)
+
+    assert [record.key for record in records] == [
+        "tenant-001|demo-stand-01|manual-edge-demo|runtime",
+        "tenant-001|demo-stand-01|manual-edge-demo|source:knx_main",
+    ]
+    assert records[0].topic == "wm.platform.edge.configs.v1"
+    assert records[0].payload["message_type"] == (
+        "wm.platform.edge.config.delivery.v1"
+    )
+    assert records[0].payload["config_scope"] == "runtime"
+    assert records[0].payload["payload_message_type"] == "wm.edge.runtime-config.v1"
+    assert records[0].payload["target_mqtt_topic"] == (
+        "wm/v1/agents/manual-edge-demo/config/runtime"
+    )
+    assert records[1].payload["config_scope"] == "source:knx_main"
+    assert records[1].payload["source_config_revision"] == (
+        "rev-2026-05-02-001-knx-main"
+    )
+    assert records[1].payload["payload"]["message_type"] == (
+        "wm.edge.source-config.v1"
+    )
+
+
 def test_settings_from_args_rejects_username_without_password(tmp_path: Path) -> None:
     class Args:
         bundle_config = _write_bundle(tmp_path)
         broker = "mqtt://localhost:1883"
+        kafka_bootstrap_servers = "localhost:19092"
+        kafka_client_id = "demo-kafka-client"
+        config_delivery = "mqtt"
         username = "demo-user"
         password = None
         topic_root = "wm/v1"

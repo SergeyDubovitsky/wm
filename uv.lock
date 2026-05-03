@@ -1081,6 +1081,7 @@ name = "wm-demo-stack"
 version = "0.1.0"
 source = { editable = "libs/wm_demo_stack" }
 dependencies = [
+    { name = "confluent-kafka" },
     { name = "paho-mqtt" },
     { name = "pyyaml" },
 ]
@@ -1092,6 +1093,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "confluent-kafka", specifier = "==2.14.0" },
     { name = "paho-mqtt", specifier = ">=2.1.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
 ]

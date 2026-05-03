@@ -11,6 +11,12 @@ class BrokerConfig:
 
 
 @dataclass(frozen=True)
+class KafkaConfig:
+    bootstrap_servers: str
+    client_id: str
+
+
+@dataclass(frozen=True)
 class TopicScope:
     topic_root: str
     asset_id: str
@@ -114,6 +120,7 @@ class WaveConfig:
 @dataclass(frozen=True)
 class DemoSettings:
     broker: BrokerConfig
+    kafka: KafkaConfig
     username: str | None
     password: str | None
     client_id: str
@@ -123,6 +130,7 @@ class DemoSettings:
     interval_seconds: float
     count: int
     temperature: WaveConfig
+    config_delivery: str
     publish_config: bool
     publish_status: bool
     retained_refresh_seconds: float
@@ -134,3 +142,10 @@ class PublishMessage:
     payload: dict[str, Any]
     qos: int = 1
     retain: bool = False
+
+
+@dataclass(frozen=True)
+class KafkaRecord:
+    topic: str
+    key: str
+    payload: dict[str, Any]

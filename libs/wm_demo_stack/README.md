@@ -1,12 +1,14 @@
 # wm-demo-stack
 
-Внутренняя библиотека для локального demo/scenario потока `config bundle -> retained MQTT config -> telemetry`.
+Внутренняя библиотека для локального demo/scenario потока
+`config bundle -> Kafka config delivery -> retained MQTT config -> telemetry`.
 
 Содержит:
 
 - модели и topic scope для demo-данных
-- генерацию bootstrap/status/telemetry сообщений
+- генерацию Kafka config delivery records и MQTT status/telemetry сообщений
 - тонкий `paho-mqtt` publisher adapter
+- тонкий `confluent-kafka` publisher adapter для config delivery records
 - CLI для публикации demo-потока
 
 ## Запуск CLI
@@ -17,6 +19,10 @@
 uv run --env-file .env --package wm-demo-stack publish-edge-demo \
   --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml
 ```
+
+По умолчанию config seed идет через Kafka topic `wm.platform.edge.configs.v1`.
+Retained MQTT runtime/source config должны появиться через локальный
+`redpanda-connect-config-projection`.
 
 Полезные варианты:
 
@@ -29,6 +35,9 @@ uv run --env-file .env --package wm-demo-stack \
 
 uv run --env-file .env --package wm-demo-stack \
   publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml --retained-refresh-seconds 15
+
+uv run --env-file .env --package wm-demo-stack \
+  publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml --config-delivery mqtt
 ```
 
 Совместимый shim через `infra/local/scripts` тоже поддерживается:

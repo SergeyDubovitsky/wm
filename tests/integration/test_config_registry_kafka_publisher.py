@@ -29,6 +29,9 @@ from config_registry.settings import ConfigRegistrySettings
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_DIR = REPO_ROOT / "docs" / "contracts" / "edge-agent" / "schemas"
+DEMO_BUNDLE_PATH = (
+    REPO_ROOT / "environments" / "demo-stand" / "edge_agent" / "config.bundle.yaml"
+)
 
 
 @pytest.mark.asyncio
@@ -306,6 +309,79 @@ def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
     assert source_snapshot["source_config_revision"] == "rev-projection-001-knx-main"
     assert source_snapshot["points"][0]["point_id"] == (
         "tenant-projection|asset-a|knx-main|temperature"
+    )
+
+
+def test_publish_edge_demo_cli_seeds_config_through_kafka_by_default(
+    local_platform_stack,
+) -> None:
+    env = os.environ.copy()
+    env.update(
+        {
+            "MQTT_BROKER": f"mqtt://127.0.0.1:{local_platform_stack.mqtt_port}",
+            "MQTT_USERNAME": local_platform_stack.mqtt_username,
+            "MQTT_PASSWORD": local_platform_stack.mqtt_password,
+            "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{local_platform_stack.kafka_port}",
+            "KNX_LOCAL_GATEWAY_IP": "127.0.0.1",
+            "KNX_LOCAL_GATEWAY_PORT": "3671",
+            "KNX_LOCAL_ROUTE_BACK": "false",
+        }
+    )
+
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--frozen",
+            "--package",
+            "wm-demo-stack",
+            "publish-edge-demo",
+            "--bundle-config",
+            str(DEMO_BUNDLE_PATH),
+            "--count",
+            "1",
+            "--interval-seconds",
+            "0",
+            "--retained-refresh-seconds",
+            "0",
+            "--no-status",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=90,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "PUBLISHED_CONFIG_DELIVERY records=2" in result.stdout
+    assert "PUBLISHED_KAFKA topic=wm.platform.edge.configs.v1" in result.stdout
+    runtime_message = local_platform_stack.wait_for_mqtt_json(
+        "wm/v1/agents/demo-stand-local/config/runtime",
+        timeout=45,
+    )
+    source_message = local_platform_stack.wait_for_mqtt_json(
+        "wm/v1/agents/demo-stand-local/sources/knx_main/config",
+        timeout=45,
+    )
+    if not runtime_message.retained:
+        runtime_message = local_platform_stack.wait_for_mqtt_json(
+            "wm/v1/agents/demo-stand-local/config/runtime",
+            timeout=10,
+        )
+    if not source_message.retained:
+        source_message = local_platform_stack.wait_for_mqtt_json(
+            "wm/v1/agents/demo-stand-local/sources/knx_main/config",
+            timeout=10,
+        )
+
+    assert runtime_message.retained is True
+    assert runtime_message.payload["message_type"] == "wm.edge.runtime-config.v1"
+    assert runtime_message.payload["config_revision"] == "rev-demo-stand-001"
+    assert source_message.retained is True
+    assert source_message.payload["source_config_revision"] == (
+        "rev-demo-stand-knx-main-001"
     )
 
 

@@ -227,8 +227,10 @@ uv run --env-file .env --package wm-demo-stack publish-edge-demo \
 
 CLI:
 
-- публикует retained `wm.edge.runtime-config.v1`
-- публикует retained `wm.edge.source-config.v1`
+- по умолчанию публикует Kafka config delivery records в
+  `wm.platform.edge.configs.v1`
+- retained `wm.edge.runtime-config.v1` и `wm.edge.source-config.v1`
+  материализуются через `redpanda-connect-config-projection`
 - публикует demo telemetry events
 - публикует retained source connection status и agent LWT
 

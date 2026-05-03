@@ -18,6 +18,8 @@
   `reserve -> publish -> mark_published/mark_retry/mark_dead_letter`
 - `confluent-kafka` adapter для записи config delivery records в
   `wm.platform.edge.configs.v1`
+- long-running CLI worker `publish-config-outbox-worker` для отдельного
+  контейнера outbox publisher-а
 - local Redpanda Connect projection
   `wm.platform.edge.configs.v1 -> MQTT retained runtime/source config topics`
 - временный in-memory adapter для unit/API smoke-тестов
@@ -66,3 +68,14 @@ CONFIG_REGISTRY_DATABASE_URL=postgresql+asyncpg://wm:change-me-local-postgres@lo
 ```bash
 uv run --package config-registry config-registry publish-config-outbox-once
 ```
+
+Production-like local worker запускается отдельным процессом/контейнером:
+
+```bash
+uv run --package config-registry config-registry publish-config-outbox-worker
+```
+
+Worker опрашивает `config_outbox` с периодом
+`CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS` (`2.0` секунды по умолчанию),
+публикует batch в Kafka и использует lease/retry/dead-letter настройки из
+`CONFIG_REGISTRY_OUTBOX_*`.

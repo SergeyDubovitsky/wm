@@ -6,9 +6,11 @@ from datetime import UTC, datetime, timedelta
 
 import uvicorn
 
+from config_registry.application.ports.config_delivery import ConfigRecordPublisher
 from config_registry.application.use_cases.config_event_publisher import (
     PublishConfigOutboxBatch,
     PublishConfigOutboxBatchCommand,
+    PublishConfigOutboxBatchResult,
 )
 from config_registry.infrastructure.kafka.config_delivery import (
     ConfluentKafkaConfigRecordPublisher,
@@ -28,6 +30,9 @@ def main() -> None:
         return
     if command == "publish-config-outbox-once":
         asyncio.run(_publish_config_outbox_once(args))
+        return
+    if command == "publish-config-outbox-worker":
+        asyncio.run(_publish_config_outbox_worker(args))
         return
     parser.error(f"Unknown command {command!r}")
 
@@ -54,16 +59,89 @@ def _build_parser() -> argparse.ArgumentParser:
     publish_parser.add_argument("--lease-seconds", type=int)
     publish_parser.add_argument("--retry-delay-seconds", type=int)
     publish_parser.add_argument("--max-attempts", type=int)
+    worker_parser = subparsers.add_parser(
+        "publish-config-outbox-worker",
+        help="Continuously publish pending config outbox records to Kafka",
+    )
+    worker_parser.add_argument("--limit", type=int)
+    worker_parser.add_argument("--lease-seconds", type=int)
+    worker_parser.add_argument("--retry-delay-seconds", type=int)
+    worker_parser.add_argument("--max-attempts", type=int)
+    worker_parser.add_argument("--poll-interval-seconds", type=float)
     return parser
 
 
 async def _publish_config_outbox_once(args: argparse.Namespace) -> None:
+    result = await _publish_config_outbox_batch(args)
+
+    print(
+        "Config outbox publish batch: "
+        f"reserved={result.reserved} "
+        f"published={result.published} "
+        f"retried={result.retried} "
+        f"dead_lettered={result.dead_lettered}"
+    )
+
+
+async def _publish_config_outbox_worker(args: argparse.Namespace) -> None:
     settings = ConfigRegistrySettings.from_env()
     if settings.database_url is None:
         raise SystemExit("CONFIG_REGISTRY_DATABASE_URL must be set")
-
+    poll_interval_seconds = (
+        args.poll_interval_seconds or settings.outbox_poll_interval_seconds
+    )
     unit_of_work_factory = PostgresUnitOfWorkFactory.from_url(settings.database_url)
     publisher = ConfluentKafkaConfigRecordPublisher.from_bootstrap_servers(
+        settings.kafka_bootstrap_servers,
+        client_id=settings.kafka_client_id,
+    )
+    print(
+        "Config outbox publisher worker started: "
+        f"poll_interval_seconds={poll_interval_seconds} "
+        f"batch_limit={args.limit or settings.outbox_batch_limit}"
+    )
+    try:
+        while True:
+            result = await _publish_config_outbox_batch(
+                args,
+                settings=settings,
+                unit_of_work_factory=unit_of_work_factory,
+                publisher=publisher,
+            )
+            if (
+                result.reserved
+                or result.published
+                or result.retried
+                or result.dead_lettered
+            ):
+                print(
+                    "Config outbox publish batch: "
+                    f"reserved={result.reserved} "
+                    f"published={result.published} "
+                    f"retried={result.retried} "
+                    f"dead_lettered={result.dead_lettered}"
+                )
+            await asyncio.sleep(poll_interval_seconds)
+    finally:
+        await unit_of_work_factory.dispose()
+
+
+async def _publish_config_outbox_batch(
+    args: argparse.Namespace,
+    *,
+    settings: ConfigRegistrySettings | None = None,
+    unit_of_work_factory: PostgresUnitOfWorkFactory | None = None,
+    publisher: ConfigRecordPublisher | None = None,
+) -> PublishConfigOutboxBatchResult:
+    settings = settings or ConfigRegistrySettings.from_env()
+    if settings.database_url is None:
+        raise SystemExit("CONFIG_REGISTRY_DATABASE_URL must be set")
+
+    owns_unit_of_work_factory = unit_of_work_factory is None
+    unit_of_work_factory = unit_of_work_factory or PostgresUnitOfWorkFactory.from_url(
+        settings.database_url
+    )
+    publisher = publisher or ConfluentKafkaConfigRecordPublisher.from_bootstrap_servers(
         settings.kafka_bootstrap_servers,
         client_id=settings.kafka_client_id,
     )
@@ -88,15 +166,10 @@ async def _publish_config_outbox_once(args: argparse.Namespace) -> None:
             )
         )
     finally:
-        await unit_of_work_factory.dispose()
+        if owns_unit_of_work_factory:
+            await unit_of_work_factory.dispose()
 
-    print(
-        "Config outbox publish batch: "
-        f"reserved={result.reserved} "
-        f"published={result.published} "
-        f"retried={result.retried} "
-        f"dead_lettered={result.dead_lettered}"
-    )
+    return result
 
 
 if __name__ == "__main__":

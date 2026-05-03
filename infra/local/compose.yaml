@@ -140,6 +140,33 @@ services:
       retries: 10
       start_period: 20s
 
+  config-registry-outbox-publisher:
+    build:
+      context: ../..
+      dockerfile: infra/local/config-registry/Dockerfile
+    image: ${CONFIG_REGISTRY_IMAGE:-web-monitoring/config-registry:local}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    command:
+      [
+        "sh",
+        "-c",
+        "alembic -c apps/config_registry/alembic.ini upgrade head && config-registry publish-config-outbox-worker",
+      ]
+    environment:
+      CONFIG_REGISTRY_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wm}:${POSTGRES_PASSWORD:-change-me-local-postgres}@postgres:5432/${POSTGRES_DB:-wm_config_registry}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      CONFIG_REGISTRY_KAFKA_CLIENT_ID: ${CONFIG_REGISTRY_KAFKA_CLIENT_ID:-config-registry-outbox-publisher}
+      CONFIG_REGISTRY_OUTBOX_BATCH_LIMIT: ${CONFIG_REGISTRY_OUTBOX_BATCH_LIMIT:-100}
+      CONFIG_REGISTRY_OUTBOX_LEASE_SECONDS: ${CONFIG_REGISTRY_OUTBOX_LEASE_SECONDS:-30}
+      CONFIG_REGISTRY_OUTBOX_RETRY_DELAY_SECONDS: ${CONFIG_REGISTRY_OUTBOX_RETRY_DELAY_SECONDS:-30}
+      CONFIG_REGISTRY_OUTBOX_MAX_ATTEMPTS: ${CONFIG_REGISTRY_OUTBOX_MAX_ATTEMPTS:-5}
+      CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS: ${CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS:-2.0}
+
   grafana:
     build:
       context: ./grafana

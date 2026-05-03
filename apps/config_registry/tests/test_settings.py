@@ -10,6 +10,7 @@ def test_config_registry_settings_reads_kafka_and_outbox_env(monkeypatch) -> Non
     monkeypatch.setenv("CONFIG_REGISTRY_OUTBOX_LEASE_SECONDS", "45")
     monkeypatch.setenv("CONFIG_REGISTRY_OUTBOX_RETRY_DELAY_SECONDS", "60")
     monkeypatch.setenv("CONFIG_REGISTRY_OUTBOX_MAX_ATTEMPTS", "7")
+    monkeypatch.setenv("CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS", "2.5")
 
     settings = ConfigRegistrySettings.from_env()
 
@@ -19,3 +20,4 @@ def test_config_registry_settings_reads_kafka_and_outbox_env(monkeypatch) -> Non
     assert settings.outbox_lease_seconds == 45
     assert settings.outbox_retry_delay_seconds == 60
     assert settings.outbox_max_attempts == 7
+    assert settings.outbox_poll_interval_seconds == 2.5

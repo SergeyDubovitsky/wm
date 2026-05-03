@@ -15,6 +15,7 @@
 - поднять `ClickHouse` как локальный `Telemetry Store` foundation
 - поднять `PostgreSQL` как локальный `Platform Store` foundation для
   `Config Registry`
+- поднять `Config Registry Outbox Publisher` как отдельный worker-контейнер
 - поднять `Kafka Connect` с `ClickHouse Kafka Connect Sink`
 - поднять `Grafana` с provisioned ClickHouse datasource/dashboard
 - запаблишить config delivery records из `config.bundle.yaml` в Kafka
@@ -38,6 +39,9 @@
 - `clickhouse` — локальный `ClickHouse` для пути
   `Kafka -> Kafka Connect -> ClickHouse` и read models для Grafana
 - `postgres` — локальный `PostgreSQL` для `Config Registry`
+- `config-registry-outbox-publisher` — отдельный worker-контейнер, который
+  применяет Alembic migrations и непрерывно публикует `config_outbox` records в
+  `wm.platform.edge.configs.v1`
 - `kafka-connect` — distributed Kafka Connect worker с установленным
   `ClickHouse Kafka Connect Sink`
 - `kafka-ui` — web UI для просмотра Kafka topics/messages
@@ -59,8 +63,8 @@ docker compose --env-file ../../.env up -d mqtt-broker
 cd infra/local
 docker compose --env-file ../../.env up -d \
   mqtt-broker kafka kafka-init redpanda-connect redpanda-connect-config-projection \
-  redpanda-connect-source-config-snapshot clickhouse postgres kafka-connect \
-  kafka-ui mqttx-web grafana
+  redpanda-connect-source-config-snapshot clickhouse postgres \
+  config-registry-outbox-publisher kafka-connect kafka-ui mqttx-web grafana
 ```
 
 После старта:
@@ -190,6 +194,28 @@ uv run --env-file .env --package config-registry alembic \
 - `agents`
 - `sources`
 - `points`
+
+## Config Registry Outbox Publisher
+
+`config-registry-outbox-publisher` запускается отдельным контейнером и является
+runtime worker-ом для transactional outbox:
+
+```text
+PostgreSQL config_outbox -> Config Event Publisher -> Kafka wm.platform.edge.configs.v1
+```
+
+Контейнер перед стартом применяет Alembic migrations, затем запускает:
+
+```bash
+config-registry publish-config-outbox-worker
+```
+
+По умолчанию worker опрашивает outbox раз в
+`CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS=2.0`, берет batch до
+`CONFIG_REGISTRY_OUTBOX_BATCH_LIMIT=100`, ставит lease на
+`CONFIG_REGISTRY_OUTBOX_LEASE_SECONDS=30` и повторяет неуспешные записи через
+`CONFIG_REGISTRY_OUTBOX_RETRY_DELAY_SECONDS=30` до
+`CONFIG_REGISTRY_OUTBOX_MAX_ATTEMPTS=5`.
 
 ## Kafka Connect -> ClickHouse connector
 

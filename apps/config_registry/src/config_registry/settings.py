@@ -16,6 +16,7 @@ class ConfigRegistrySettings:
     outbox_lease_seconds: int = 30
     outbox_retry_delay_seconds: int = 30
     outbox_max_attempts: int = 5
+    outbox_poll_interval_seconds: float = 2.0
 
     @classmethod
     def from_env(cls) -> ConfigRegistrySettings:
@@ -44,5 +45,8 @@ class ConfigRegistrySettings:
             ),
             outbox_max_attempts=int(
                 os.getenv("CONFIG_REGISTRY_OUTBOX_MAX_ATTEMPTS", "5")
+            ),
+            outbox_poll_interval_seconds=float(
+                os.getenv("CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS", "2.0")
             ),
         )

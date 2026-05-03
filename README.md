@@ -165,7 +165,9 @@ docker compose --env-file ../../.env up -d mqtt-broker
 ```bash
 cd infra/local
 docker compose --env-file ../../.env up -d \
-  mqtt-broker kafka kafka-init redpanda-connect clickhouse kafka-connect kafka-ui mqttx-web grafana
+  mqtt-broker kafka kafka-init redpanda-connect redpanda-connect-config-projection \
+  redpanda-connect-source-config-snapshot clickhouse postgres \
+  config-registry-outbox-publisher kafka-connect kafka-ui mqttx-web grafana
 ```
 
 После старта:

@@ -98,3 +98,15 @@ class DuplicatePointError(ApplicationError):
         self.tenant_id = tenant_id
         self.field_name = field_name
         self.field_value = field_value
+
+
+class ConfigRenderError(ApplicationError):
+    """Raised when registry state cannot be rendered to edge config contracts."""
+
+
+class ConfigPayloadValidationError(ConfigRenderError):
+    def __init__(self, message_type: str, errors: list[str]) -> None:
+        message = f"{message_type} payload violates contract: " + "; ".join(errors)
+        super().__init__(message)
+        self.message_type = message_type
+        self.errors = errors

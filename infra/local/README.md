@@ -15,6 +15,7 @@
 - поднять `ClickHouse` как локальный `Telemetry Store` foundation
 - поднять `PostgreSQL` как локальный `Platform Store` foundation для
   `Config Registry`
+- поднять `Config Registry API` как отдельный backend-контейнер
 - поднять `Config Registry Outbox Publisher` как отдельный worker-контейнер
 - поднять `Kafka Connect` с `ClickHouse Kafka Connect Sink`
 - поднять `Grafana` с provisioned ClickHouse datasource/dashboard
@@ -39,8 +40,11 @@
 - `clickhouse` — локальный `ClickHouse` для пути
   `Kafka -> Kafka Connect -> ClickHouse` и read models для Grafana
 - `postgres` — локальный `PostgreSQL` для `Config Registry`
+- `config-registry-migrate` — one-shot Alembic migration job для
+  `Config Registry`
+- `config-registry-api` — FastAPI backend контейнер для registry write/read API
 - `config-registry-outbox-publisher` — отдельный worker-контейнер, который
-  применяет Alembic migrations и непрерывно публикует `config_outbox` records в
+  непрерывно публикует `config_outbox` records в
   `wm.platform.edge.configs.v1`
 - `kafka-connect` — distributed Kafka Connect worker с установленным
   `ClickHouse Kafka Connect Sink`
@@ -64,7 +68,8 @@ cd infra/local
 docker compose --env-file ../../.env up -d \
   mqtt-broker kafka kafka-init redpanda-connect redpanda-connect-config-projection \
   redpanda-connect-source-config-snapshot clickhouse postgres \
-  config-registry-outbox-publisher kafka-connect kafka-ui mqttx-web grafana
+  config-registry-migrate config-registry-api config-registry-outbox-publisher \
+  kafka-connect kafka-ui mqttx-web grafana
 ```
 
 После старта:
@@ -82,6 +87,7 @@ docker compose --env-file ../../.env up -d \
 - `ClickHouse HTTP` доступен на `localhost:8123`
 - `ClickHouse native` доступен на `localhost:9000`
 - `PostgreSQL` доступен на `localhost:5432`
+- `Config Registry API` доступен на `http://localhost:8000`
 - `Kafka UI` доступен на `http://localhost:8080`
 - `MQTTX Web` доступен на `http://localhost:8081`
 - `Grafana` доступна на `http://localhost:3000`
@@ -204,7 +210,9 @@ runtime worker-ом для transactional outbox:
 PostgreSQL config_outbox -> Config Event Publisher -> Kafka wm.platform.edge.configs.v1
 ```
 
-Контейнер перед стартом применяет Alembic migrations, затем запускает:
+Alembic migrations выполняет отдельный one-shot контейнер
+`config-registry-migrate`; API и worker зависят от его успешного завершения.
+Worker запускает:
 
 ```bash
 config-registry publish-config-outbox-worker

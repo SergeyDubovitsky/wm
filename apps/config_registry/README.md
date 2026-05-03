@@ -24,6 +24,8 @@
   `wm.platform.edge.configs.v1 -> MQTT retained runtime/source config topics`
 - временный in-memory adapter для unit/API smoke-тестов
 - PostgreSQL adapter для `tenants`, `assets`, `agents`, `sources` и `points`
+- local Docker image для `config-registry-api`, `config-registry-migrate` и
+  `config-registry-outbox-publisher`
 - Alembic migrations для registry tables:
   `tenants`, `assets`, `agents`, `sources`, `points`
 - `runtime_config_revisions`, `source_config_revisions`

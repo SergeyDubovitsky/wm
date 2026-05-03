@@ -228,6 +228,26 @@ async def test_config_outbox_worker_container_publishes_records_to_kafka_and_mqt
     assert source_snapshot["source_config_revision"] == "rev-worker-001-knx-main"
 
 
+def test_config_registry_api_container_uses_local_postgres(
+    local_config_delivery_stack,
+) -> None:
+    health = local_config_delivery_stack.config_registry_json("GET", "/health")
+    created = local_config_delivery_stack.config_registry_json(
+        "POST",
+        "/tenants",
+        {"tenant_id": "tenant-api-container", "name": "Tenant API Container"},
+    )
+    tenants = local_config_delivery_stack.config_registry_json("GET", "/tenants")
+
+    assert health == {"status": "ok"}
+    assert created["tenant_id"] == "tenant-api-container"
+    assert any(
+        tenant["tenant_id"] == "tenant-api-container"
+        for tenant in tenants
+        if isinstance(tenant, dict)
+    )
+
+
 def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
     local_platform_stack,
 ) -> None:

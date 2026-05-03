@@ -147,16 +147,11 @@ services:
     image: ${CONFIG_REGISTRY_IMAGE:-web-monitoring/config-registry:local}
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      config-registry-migrate:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
-    command:
-      [
-        "sh",
-        "-c",
-        "alembic -c apps/config_registry/alembic.ini upgrade head && config-registry publish-config-outbox-worker",
-      ]
+    command: ["config-registry", "publish-config-outbox-worker"]
     environment:
       CONFIG_REGISTRY_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wm}:${POSTGRES_PASSWORD:-change-me-local-postgres}@postgres:5432/${POSTGRES_DB:-wm_config_registry}
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
@@ -166,6 +161,36 @@ services:
       CONFIG_REGISTRY_OUTBOX_RETRY_DELAY_SECONDS: ${CONFIG_REGISTRY_OUTBOX_RETRY_DELAY_SECONDS:-30}
       CONFIG_REGISTRY_OUTBOX_MAX_ATTEMPTS: ${CONFIG_REGISTRY_OUTBOX_MAX_ATTEMPTS:-5}
       CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS: ${CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS:-2.0}
+
+  config-registry-api:
+    build:
+      context: ../..
+      dockerfile: infra/local/config-registry/Dockerfile
+    image: ${CONFIG_REGISTRY_IMAGE:-web-monitoring/config-registry:local}
+    restart: unless-stopped
+    depends_on:
+      config-registry-migrate:
+        condition: service_completed_successfully
+    command: ["config-registry", "serve"]
+    ports:
+      - "${CONFIG_REGISTRY_PORT:-8000}:8000"
+    environment:
+      CONFIG_REGISTRY_HOST: 0.0.0.0
+      CONFIG_REGISTRY_PORT: 8000
+      CONFIG_REGISTRY_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wm}:${POSTGRES_PASSWORD:-change-me-local-postgres}@postgres:5432/${POSTGRES_DB:-wm_config_registry}
+
+  config-registry-migrate:
+    build:
+      context: ../..
+      dockerfile: infra/local/config-registry/Dockerfile
+    image: ${CONFIG_REGISTRY_IMAGE:-web-monitoring/config-registry:local}
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["alembic", "-c", "apps/config_registry/alembic.ini", "upgrade", "head"]
+    environment:
+      CONFIG_REGISTRY_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wm}:${POSTGRES_PASSWORD:-change-me-local-postgres}@postgres:5432/${POSTGRES_DB:-wm_config_registry}
 
   grafana:
     build:

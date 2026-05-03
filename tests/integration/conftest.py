@@ -715,6 +715,7 @@ class LocalConfigRegistryPostgresStack(LocalComposeStack):
 @dataclass(frozen=True)
 class LocalConfigDeliveryStack(LocalPlatformStack):
     postgres_port: int
+    config_registry_port: int
     database_url: str
 
     def wait_for_postgres(self, timeout: float = 90.0) -> None:
@@ -773,6 +774,45 @@ class LocalConfigDeliveryStack(LocalPlatformStack):
             "Config Registry outbox worker did not start within "
             f"{timeout:.0f}s.\n\nCompose logs:\n{last_logs or self.logs()}"
         )
+
+    def wait_for_config_registry_api(self, timeout: float = 90.0) -> None:
+        deadline = time.monotonic() + timeout
+        url = f"http://127.0.0.1:{self.config_registry_port}/ready"
+        last_error = "Config Registry API is not reachable yet."
+
+        while time.monotonic() < deadline:
+            try:
+                with urllib.request.urlopen(url, timeout=5) as response:
+                    if response.status == 200:
+                        return
+            except (OSError, urllib.error.URLError) as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+            time.sleep(1)
+
+        raise AssertionError(
+            f"Config Registry API did not become ready within {timeout:.0f}s. "
+            f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
+        )
+
+    def config_registry_json(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, object] | None = None,
+        *,
+        timeout: int = 30,
+    ) -> dict[str, object] | list[object]:
+        url = f"http://127.0.0.1:{self.config_registry_port}{path}"
+        data = None
+        if payload is not None:
+            data = json.dumps(payload).encode()
+        request = urllib.request.Request(url, data=data, method=method)
+        request.add_header("Accept", "application/json")
+        request.add_header("Content-Type", "application/json")
+
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            response_text = response.read().decode()
+        return json.loads(response_text) if response_text else {}
 
 
 def publish_json_message(
@@ -1136,6 +1176,7 @@ def local_config_delivery_stack(
     redpanda_connect_config_port = _reserve_free_port()
     redpanda_connect_source_config_port = _reserve_free_port()
     postgres_port = _reserve_free_port()
+    config_registry_port = _reserve_free_port()
     mqtt_username = f"wm_test_{uuid.uuid4().hex[:8]}"
     mqtt_password = secrets.token_urlsafe(18)
     database_url = (
@@ -1159,6 +1200,7 @@ def local_config_delivery_stack(
             ),
             "POSTGRES_HOST": "127.0.0.1",
             "POSTGRES_PORT": str(postgres_port),
+            "CONFIG_REGISTRY_PORT": str(config_registry_port),
             "CONFIG_REGISTRY_DATABASE_URL": database_url,
             "CONFIG_REGISTRY_KAFKA_CLIENT_ID": "config-registry-worker-it",
             "CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS": "0.5",
@@ -1180,6 +1222,7 @@ def local_config_delivery_stack(
         redpanda_connect_config_port=redpanda_connect_config_port,
         redpanda_connect_source_config_port=redpanda_connect_source_config_port,
         postgres_port=postgres_port,
+        config_registry_port=config_registry_port,
         database_url=database_url,
     )
 
@@ -1194,6 +1237,7 @@ def local_config_delivery_stack(
             "redpanda-connect-config-projection",
             "redpanda-connect-source-config-snapshot",
             "postgres",
+            "config-registry-api",
             "config-registry-outbox-publisher",
             timeout=900,
         )
@@ -1202,6 +1246,7 @@ def local_config_delivery_stack(
         stack.wait_for_redpanda_connect_config_projection()
         stack.wait_for_redpanda_connect_source_config_snapshot()
         stack.wait_for_postgres()
+        stack.wait_for_config_registry_api()
         stack.wait_for_config_outbox_worker()
         yield stack
     except subprocess.CalledProcessError as exc:

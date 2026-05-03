@@ -167,7 +167,8 @@ cd infra/local
 docker compose --env-file ../../.env up -d \
   mqtt-broker kafka kafka-init redpanda-connect redpanda-connect-config-projection \
   redpanda-connect-source-config-snapshot clickhouse postgres \
-  config-registry-outbox-publisher kafka-connect kafka-ui mqttx-web grafana
+  config-registry-migrate config-registry-api config-registry-outbox-publisher \
+  kafka-connect kafka-ui mqttx-web grafana
 ```
 
 После старта:
@@ -184,6 +185,7 @@ docker compose --env-file ../../.env up -d \
 - `Kafka Connect JMX` подготовлен на `localhost:9102`
 - `ClickHouse HTTP` доступен на `localhost:8123`
 - `ClickHouse native` доступен на `localhost:9000`
+- `Config Registry API` доступен на [http://localhost:8000](http://localhost:8000)
 - `Kafka UI` доступен на [http://localhost:8080](http://localhost:8080)
 - `MQTTX Web` доступен на [http://localhost:8081](http://localhost:8081)
 - `Grafana` доступна на [http://localhost:3000](http://localhost:3000)

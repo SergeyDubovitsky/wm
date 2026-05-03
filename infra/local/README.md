@@ -88,6 +88,9 @@ docker compose --env-file ../../.env up -d \
 - `ClickHouse native` доступен на `localhost:9000`
 - `PostgreSQL` доступен на `localhost:5432`
 - `Config Registry API` доступен на `http://localhost:8000`
+- internal read-only `Config Registry Backoffice` доступен на
+  `http://localhost:8000/backoffice`, когда
+  `CONFIG_REGISTRY_INTERNAL_MODE=true`
 - `Kafka UI` доступен на `http://localhost:8080`
 - `MQTTX Web` доступен на `http://localhost:8081`
 - `Grafana` доступна на `http://localhost:3000`

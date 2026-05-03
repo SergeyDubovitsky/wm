@@ -15,6 +15,7 @@ dependencies = [
     "greenlet>=3.5.0",
     "jsonschema>=4.26.0",
     "pydantic>=2.12.5",
+    "sqladmin>=0.21.0",
     "sqlalchemy>=2.0.49",
     "uvicorn>=0.46.0",
 ]

@@ -20,6 +20,7 @@
   `wm.platform.edge.configs.v1`
 - long-running CLI worker `publish-config-outbox-worker` для отдельного
   контейнера outbox publisher-а
+- internal read-only backoffice UI на `/backoffice` в `internal_mode`
 - local Redpanda Connect projection
   `wm.platform.edge.configs.v1 -> MQTT retained runtime/source config topics`
 - временный in-memory adapter для unit/API smoke-тестов
@@ -62,6 +63,12 @@ uv run --env-file .env --package config-registry alembic \
 CONFIG_REGISTRY_DATABASE_URL=postgresql+asyncpg://wm:change-me-local-postgres@localhost:5432/wm_config_registry \
   uv run --package config-registry config-registry
 ```
+
+Если `CONFIG_REGISTRY_INTERNAL_MODE=true` и API запущен с PostgreSQL-backed
+`CONFIG_REGISTRY_DATABASE_URL`, дополнительно монтируется internal
+`/backoffice`. Первый инкремент backoffice намеренно read-only: просмотр
+registry entities, rendered config revisions и `config_outbox` без прямых
+ORM-write операций.
 
 Для локальной доставки config records в Kafka используется
 `KAFKA_BOOTSTRAP_SERVERS` и `CONFIG_REGISTRY_KAFKA_CLIENT_ID`.

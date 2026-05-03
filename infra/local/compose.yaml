@@ -177,6 +177,7 @@ services:
     environment:
       CONFIG_REGISTRY_HOST: 0.0.0.0
       CONFIG_REGISTRY_PORT: 8000
+      CONFIG_REGISTRY_INTERNAL_MODE: ${CONFIG_REGISTRY_INTERNAL_MODE:-true}
       CONFIG_REGISTRY_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wm}:${POSTGRES_PASSWORD:-change-me-local-postgres}@postgres:5432/${POSTGRES_DB:-wm_config_registry}
 
   config-registry-migrate:

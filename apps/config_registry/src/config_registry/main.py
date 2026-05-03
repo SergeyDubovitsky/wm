@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from config_registry.api.routers import agents, assets, health, points, sources, tenants
 from config_registry.application.ports.unit_of_work import UnitOfWork
+from config_registry.infrastructure.backoffice import mount_backoffice
 from config_registry.infrastructure.json_schema_validator import (
     JsonSchemaConfigPayloadValidator,
 )
@@ -61,4 +62,14 @@ def create_app(
     app.include_router(agents.router)
     app.include_router(sources.router)
     app.include_router(points.router)
+    app.state.backoffice_enabled = False
+    if resolved_settings.internal_mode and isinstance(
+        resolved_unit_of_work_factory,
+        PostgresUnitOfWorkFactory,
+    ):
+        app.state.backoffice = mount_backoffice(
+            app,
+            engine=resolved_unit_of_work_factory.session_manager.engine,
+        )
+        app.state.backoffice_enabled = True
     return app

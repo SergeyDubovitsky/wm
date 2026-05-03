@@ -3,7 +3,12 @@ from __future__ import annotations
 from fastapi import FastAPI
 from sqladmin import Admin, ModelView
 from sqlalchemy.ext.asyncio import AsyncEngine
+from starlette.requests import Request
 
+from config_registry.application.use_cases.tenants import (
+    CreateTenant,
+    CreateTenantCommand,
+)
 from config_registry.infrastructure.postgres.models import (
     AgentModel,
     AssetModel,
@@ -40,10 +45,21 @@ class ReadOnlyModelView(ModelView):
         raise PermissionError("Backoffice model views are read-only")
 
 
-class TenantBackofficeView(ReadOnlyModelView, model=TenantModel):
+class CreateOnlyModelView(ReadOnlyModelView):
+    can_create = True
+
+    async def insert_model(self, request: object, data: dict[str, object]) -> object:
+        raise NotImplementedError("Create-enabled views must call application use cases")
+
+
+class TenantBackofficeView(CreateOnlyModelView, model=TenantModel):
     name = "Tenant"
     name_plural = "Tenants"
     category = "Registry"
+    form_columns = [
+        TenantModel.tenant_id,
+        TenantModel.name,
+    ]
     column_list = [
         TenantModel.tenant_id,
         TenantModel.name,
@@ -51,6 +67,21 @@ class TenantBackofficeView(ReadOnlyModelView, model=TenantModel):
         TenantModel.created_at,
         TenantModel.updated_at,
     ]
+
+    async def insert_model(self, request: Request, data: dict[str, object]) -> object:
+        tenant = await CreateTenant(request.app.state.unit_of_work_factory()).execute(
+            CreateTenantCommand(
+                tenant_id=str(data["tenant_id"]),
+                name=str(data["name"]),
+            )
+        )
+        return TenantModel(
+            tenant_id=tenant.tenant_id,
+            name=tenant.name,
+            status=tenant.status.value,
+            created_at=tenant.created_at,
+            updated_at=tenant.updated_at,
+        )
 
 
 class AssetBackofficeView(ReadOnlyModelView, model=AssetModel):

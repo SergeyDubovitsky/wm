@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from fastapi import FastAPI
 from sqladmin import Admin, BaseView, ModelView, expose
@@ -22,6 +23,12 @@ from config_registry.application.use_cases.agents import (
 from config_registry.application.use_cases.assets import (
     CreateAsset,
     CreateAssetCommand,
+)
+from config_registry.application.use_cases.config_outbox import (
+    MarkConfigOutboxDeadLetter,
+    MarkConfigOutboxDeadLetterCommand,
+    MarkConfigOutboxRetry,
+    MarkConfigOutboxRetryCommand,
 )
 from config_registry.application.use_cases.points import (
     CreatePoint,
@@ -429,7 +436,69 @@ class RenderConfigBackofficeView(BaseView):
         )
 
 
-BACKOFFICE_CUSTOM_VIEWS: tuple[type[BaseView], ...] = (RenderConfigBackofficeView,)
+class ConfigOutboxActionsBackofficeView(BaseView):
+    name = "Config Outbox Actions"
+    icon = "fa-solid fa-triangle-exclamation"
+
+    @expose("/config-outbox/retry", methods=["POST"])
+    async def retry_outbox_record(self, request: Request) -> JSONResponse:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"detail": "Request body must be a JSON object"},
+                status_code=422,
+            )
+        try:
+            now = datetime.now(UTC)
+            record = await MarkConfigOutboxRetry(
+                request.app.state.unit_of_work_factory()
+            ).execute(
+                MarkConfigOutboxRetryCommand(
+                    outbox_id=UUID(str(payload["outbox_id"])),
+                    now=now,
+                    error=_optional_string(payload.get("reason"))
+                    or "Manual backoffice retry",
+                    next_attempt_at=_parse_issued_at(
+                        payload.get("next_attempt_at") or _format_datetime(now)
+                    ),
+                )
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=422)
+        if record is None:
+            return JSONResponse({"detail": "Outbox record not found"}, status_code=404)
+        return JSONResponse(_outbox_action_payload(record), status_code=200)
+
+    @expose("/config-outbox/dead-letter", methods=["POST"])
+    async def dead_letter_outbox_record(self, request: Request) -> JSONResponse:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"detail": "Request body must be a JSON object"},
+                status_code=422,
+            )
+        try:
+            record = await MarkConfigOutboxDeadLetter(
+                request.app.state.unit_of_work_factory()
+            ).execute(
+                MarkConfigOutboxDeadLetterCommand(
+                    outbox_id=UUID(str(payload["outbox_id"])),
+                    now=datetime.now(UTC),
+                    error=_optional_string(payload.get("reason"))
+                    or "Manual backoffice dead-letter",
+                )
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=422)
+        if record is None:
+            return JSONResponse({"detail": "Outbox record not found"}, status_code=404)
+        return JSONResponse(_outbox_action_payload(record), status_code=200)
+
+
+BACKOFFICE_CUSTOM_VIEWS: tuple[type[BaseView], ...] = (
+    RenderConfigBackofficeView,
+    ConfigOutboxActionsBackofficeView,
+)
 
 
 def mount_backoffice(app: FastAPI, *, engine: AsyncEngine) -> Admin:
@@ -468,12 +537,25 @@ def _parse_issued_at(value: object) -> datetime:
     return datetime.fromisoformat(normalized)
 
 
+def _format_datetime(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
 def _source_config_revisions(value: object) -> dict[str, str] | None:
     if value is None:
         return None
     if not isinstance(value, dict):
         raise ValueError("source_config_revisions must be an object")
     return {str(source_id): str(revision) for source_id, revision in value.items()}
+
+
+def _outbox_action_payload(record: object) -> dict[str, object]:
+    return {
+        "outbox_id": str(getattr(record, "outbox_id")),
+        "status": getattr(getattr(record, "status"), "value"),
+        "attempt_count": getattr(record, "attempt_count"),
+        "last_error": getattr(record, "last_error"),
+    }
 
 
 def _optional_string(value: object) -> str | None:

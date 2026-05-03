@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -12,6 +13,7 @@ from config_registry.infrastructure.backoffice import (
     BACKOFFICE_VIEWS,
     AgentBackofficeView,
     AssetBackofficeView,
+    ConfigOutboxActionsBackofficeView,
     PointBackofficeView,
     RenderConfigBackofficeView,
     RuntimeConfigRevisionBackofficeView,
@@ -56,6 +58,7 @@ def test_backoffice_model_views_disable_edit_and_delete() -> None:
 
 def test_backoffice_registers_render_config_custom_view() -> None:
     assert RenderConfigBackofficeView in BACKOFFICE_CUSTOM_VIEWS
+    assert ConfigOutboxActionsBackofficeView in BACKOFFICE_CUSTOM_VIEWS
 
 
 @pytest.mark.asyncio
@@ -354,6 +357,51 @@ async def test_backoffice_render_config_action_uses_application_use_cases() -> N
     assert duplicate_response.status_code == 409
 
 
+@pytest.mark.asyncio
+async def test_backoffice_outbox_actions_use_application_use_cases() -> None:
+    app = create_app()
+    await _render_backoffice_config(app)
+    async with app.state.unit_of_work_factory() as unit_of_work:
+        records = await unit_of_work.config_outbox.reserve_available(
+            limit=1,
+            now=datetime.now(UTC),
+            lease_duration=timedelta(seconds=30),
+        )
+        await unit_of_work.commit()
+    outbox_id = records[0].outbox_id
+
+    retry_response = await ConfigOutboxActionsBackofficeView().retry_outbox_record(
+        FakeJsonRequest(
+            app,
+            {
+                "outbox_id": str(outbox_id),
+                "reason": "Manual retry from test",
+                "next_attempt_at": "2026-05-03T12:00:01Z",
+            },
+        )
+    )
+    dead_letter_response = await (
+        ConfigOutboxActionsBackofficeView().dead_letter_outbox_record(
+            FakeJsonRequest(
+                app,
+                {
+                    "outbox_id": str(outbox_id),
+                    "reason": "Manual dead-letter from test",
+                },
+            )
+        )
+    )
+
+    retry_body = json.loads(retry_response.body)
+    dead_letter_body = json.loads(dead_letter_response.body)
+    assert retry_response.status_code == 200
+    assert retry_body["status"] == "retry"
+    assert retry_body["last_error"] == "Manual retry from test"
+    assert dead_letter_response.status_code == 200
+    assert dead_letter_body["status"] == "dead_letter"
+    assert dead_letter_body["last_error"] == "Manual dead-letter from test"
+
+
 def test_only_tenant_backoffice_view_is_create_enabled_for_now() -> None:
     for view in BACKOFFICE_VIEWS:
         assert view.can_create is (
@@ -400,3 +448,69 @@ class FakeJsonRequest:
 
     async def json(self) -> dict[str, Any]:
         return self._payload
+
+
+async def _render_backoffice_config(app: object) -> None:
+    request = SimpleNamespace(app=app)
+    await TenantBackofficeView().insert_model(
+        request,
+        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
+    )
+    await AssetBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "name": "Asset Backoffice",
+        },
+    )
+    await AgentBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+        },
+    )
+    await SourceBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+            "source_id": "source-backoffice",
+            "source_type": "knx",
+        },
+    )
+    await PointBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+            "source_id": "source-backoffice",
+            "point_id": "point-backoffice",
+            "point_key": "1%2F2%2F3",
+            "point_ref": "1/2/3",
+            "name": "Point Backoffice",
+            "value_type": "number",
+            "value_model": "knx.dpt.9.001",
+            "signal_type": "sensor",
+            "enabled": True,
+        },
+    )
+    await RenderConfigBackofficeView().render_config(
+        FakeJsonRequest(
+            app,
+            {
+                "tenant_id": "tenant-backoffice",
+                "asset_id": "asset-backoffice",
+                "agent_id": "agent-backoffice",
+                "config_revision": "rev-backoffice-actions-001",
+                "issued_at": "2026-05-03T12:00:00Z",
+                "source_config_revisions": {
+                    "source-backoffice": "rev-backoffice-actions-001-source"
+                },
+            },
+        )
+    )

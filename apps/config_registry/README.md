@@ -73,6 +73,9 @@ ORM-write операций.
 Backoffice custom endpoint `POST /backoffice/render-config` вызывает
 `RenderAgentConfig` + `StoreRenderedAgentConfig` и создает config revisions /
 `config_outbox` тем же application path, что и HTTP API.
+Internal outbox actions `POST /backoffice/config-outbox/retry` и
+`POST /backoffice/config-outbox/dead-letter` также вызывают application use
+cases и не обновляют ORM-модели напрямую.
 
 Для локальной доставки config records в Kafka используется
 `KAFKA_BOOTSTRAP_SERVERS` и `CONFIG_REGISTRY_KAFKA_CLIENT_ID`.

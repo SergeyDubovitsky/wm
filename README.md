@@ -1,5 +1,7 @@
 # Industrial Edge Web Monitoring
 
+[![Coverage](https://raw.githubusercontent.com/SergeyDubovitsky/wm/badges/coverage.svg)](https://github.com/SergeyDubovitsky/wm/actions/workflows/python-ci.yml)
+
 Репозиторий организован как monorepo для `Edge Telemetry Agent`,
 `Monitoring & Alarm Platform`, Python-утилит и архитектурных артефактов.
 

@@ -1,0 +1,13 @@
+model {
+    extend monitoring-alarm-platform {
+        edge-config-publisher = container 'Edge Config Publisher' {
+            description 'Временный operations/tooling контейнер до появления server UI/API: читает YAML Config Bundle, валидирует JSON Schema, строит retained wm.edge.runtime-config.v1 и wm.edge.source-config.v1 и публикует их в MQTT broker.'
+            technology 'Config publisher tool / MQTT retained publisher'
+            icon bootstrap:cloud-upload
+
+            -> yaml-config-bundle 'Читает versioned YAML bundle и формирует config_revision/source_config_revision'
+            -> mqtt-ingestion-gateway 'Публикует retained runtime/source configs в MQTT topic tree'
+            -> platform-store 'Целевой будущий source of truth для конфигурации после появления Platform API'
+        }
+    }
+}

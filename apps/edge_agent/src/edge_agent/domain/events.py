@@ -45,10 +45,11 @@ class TelemetryEvent(FrozenEdgeModel):
     event_id: str
     ts: datetime
     agent_id: str
+    tenant_id: str
     object_id: str
     source_id: str
     source_type: str
-    catalog_revision: str
+    source_config_revision: str
     point_ref: str
     name: str
     description: str | None
@@ -73,10 +74,11 @@ class TelemetryEvent(FrozenEdgeModel):
         *,
         event_type: EventType,
         agent_id: str,
+        tenant_id: str,
         object_id: str,
         source_id: str,
         source_type: str,
-        catalog_revision: str,
+        source_config_revision: str,
         point_ref: str,
         name: str,
         description: str | None,
@@ -97,10 +99,11 @@ class TelemetryEvent(FrozenEdgeModel):
             event_id=uuid4().hex,
             ts=ts or utc_now(),
             agent_id=agent_id,
+            tenant_id=tenant_id,
             object_id=object_id,
             source_id=source_id,
             source_type=source_type,
-            catalog_revision=catalog_revision,
+            source_config_revision=source_config_revision,
             point_ref=point_ref,
             name=name,
             description=description,
@@ -116,36 +119,17 @@ class TelemetryEvent(FrozenEdgeModel):
             tags=tags,
         )
 
-    def topic(self, topic_root: str) -> str:
-        return (
-            f"{topic_root}/objects/{self.object_id}/agents/{self.agent_id}"
-            f"/sources/{self.source_id}/points/{self.point_key}/event"
-        )
-
-    def mqtt_payload(self) -> dict[str, object]:
-        return {
-            "message_type": "wm.telemetry.event.v1",
-            "event_id": self.event_id,
-            "event_type": self.event_type,
-            "catalog_revision": self.catalog_revision,
-            "ts": isoformat_utc(self.ts),
-            "observation_mode": self.observation_mode,
-            "value": self.value,
-            "value_raw": self.value_raw,
-            "quality": self.quality,
-            "sequence": self.sequence,
-        }
-
     def canonical_payload(self) -> dict[str, object]:
         return {
             "event_type": self.event_type,
             "event_id": self.event_id,
             "ts": isoformat_utc(self.ts),
             "agent_id": self.agent_id,
+            "tenant_id": self.tenant_id,
             "object_id": self.object_id,
             "source_id": self.source_id,
             "source_type": self.source_type,
-            "catalog_revision": self.catalog_revision,
+            "source_config_revision": self.source_config_revision,
             "point_ref": self.point_ref,
             "name": self.name,
             "description": self.description,
@@ -162,68 +146,7 @@ class TelemetryEvent(FrozenEdgeModel):
         }
 
 
-class SourceCatalogPoint(FrozenEdgeModel):
-    """Point metadata entry published inside retained source catalogs."""
-
-    point_key: str
-    point_ref: str
-    name: str
-    description: str | None
-    signal_type: str
-    value_type: str
-    value_model: str
-    unit: str | None
-    tags: dict[str, str]
-
-
-class SourceCatalog(FrozenEdgeModel):
-    """Retained metadata catalog for one source and its monitored points."""
-
-    object_id: str
-    agent_id: str
-    source_id: str
-    source_type: str
-    catalog_revision: str
-    ts: datetime
-    points: tuple[SourceCatalogPoint, ...]
-
-    def topic(self, topic_root: str) -> str:
-        """Build the MQTT topic used for the retained source catalog."""
-        return (
-            f"{topic_root}/objects/{self.object_id}/agents/{self.agent_id}"
-            f"/sources/{self.source_id}/meta/catalog"
-        )
-
-    def mqtt_payload(self) -> dict[str, object]:
-        """Serialize catalog metadata to the MQTT boundary payload contract."""
-        return {
-            "message_type": "wm.source.meta.catalog.v1",
-            "object_id": self.object_id,
-            "agent_id": self.agent_id,
-            "source_id": self.source_id,
-            "source_type": self.source_type,
-            "catalog_revision": self.catalog_revision,
-            "ts": isoformat_utc(self.ts),
-            "points": [
-                {
-                    "point_key": point.point_key,
-                    "point_ref": point.point_ref,
-                    "name": point.name,
-                    "description": point.description,
-                    "signal_type": point.signal_type,
-                    "value_type": point.value_type,
-                    "value_model": point.value_model,
-                    "unit": point.unit,
-                    "tags": point.tags,
-                }
-                for point in self.points
-            ],
-        }
-
-
 class MqttPublication(FrozenEdgeModel):
-    """Transport-ready MQTT publication produced by application services."""
-
     topic: str
     payload: dict[str, object]
     qos: int

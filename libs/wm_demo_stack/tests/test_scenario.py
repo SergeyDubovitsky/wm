@@ -1,19 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
 from wm_demo_stack.cli import settings_from_args
-from wm_demo_stack.models import (
-    SWITCH_FEEDBACK_POINT,
-    TEMPERATURE_POINT,
-    BrokerConfig,
-    DemoSettings,
-    TopicScope,
-    WaveConfig,
-)
-from wm_demo_stack.scenario import GrafanaDemoScenario, run_demo
+from wm_demo_stack.models import DemoSettings
+from wm_demo_stack.scenario import DemoScenario, run_demo
 
 
 class FakeRuntime:
@@ -45,52 +39,120 @@ class FakePublisher:
         return None
 
 
-def make_settings(**overrides: object) -> DemoSettings:
-    settings = DemoSettings(
-        broker=BrokerConfig(host="localhost", port=1883),
-        username="demo-user",
-        password="demo-pass",
-        client_id="demo-client",
-        scope=TopicScope(
-            topic_root="wm/v1",
-            object_id="demo-stand-01",
-            agent_id="manual-grafana-demo",
-            source_id="knx_main",
-        ),
-        interval_seconds=2.0,
-        count=2,
-        temperature=WaveConfig(base=23.0, amplitude=1.8, period=8.0),
-        publish_metadata=True,
-        publish_status=True,
-        retained_refresh_seconds=30.0,
+def _write_bundle(tmp_path: Path) -> Path:
+    bundle_path = tmp_path / "config.bundle.yaml"
+    bundle_path.write_text(
+        """
+tenant_id: tenant-001
+object_id: demo-stand-01
+agent_id: manual-edge-demo
+config_revision: rev-2026-05-02-001
+issued_at: "2026-05-02T00:00:00Z"
+sources:
+  - source_id: knx_main
+    source_config_revision: rev-2026-05-02-001-knx-main
+    source_type: knx
+    enabled: true
+    connection:
+      gateway_ip: 127.0.0.1
+      gateway_port: 3671
+    acquisition_defaults:
+      listen: true
+      read_on_start: false
+      periodic_interval_seconds: null
+    publish_defaults:
+      enabled: true
+      change_threshold: null
+    points:
+      - point_key: 2%2F0%2F0
+        point_ref: 2/0/0
+        name: temperature
+        description: null
+        signal_type: sensor
+        value_type: number
+        value_model: knx.dpt.9.001
+        unit: C
+        acquisition:
+          listen: true
+          read_on_start: true
+          periodic_interval_seconds: null
+        publish:
+          enabled: true
+          change_threshold: 1.0
+        tags:
+          room: demo
+      - point_key: 0%2F0%2F7
+        point_ref: 0/0/7
+        name: switch_feedback
+        description: null
+        signal_type: feedback
+        value_type: boolean
+        value_model: knx.dpt.1.001
+        unit: null
+        acquisition:
+          listen: true
+          read_on_start: false
+          periodic_interval_seconds: null
+        publish:
+          enabled: true
+          change_threshold: null
+        tags:
+          room: demo
+""".strip(),
+        encoding="utf-8",
     )
+    return bundle_path
+
+
+def make_settings(tmp_path: Path, **overrides: object) -> DemoSettings:
+    class Args:
+        bundle_config = _write_bundle(tmp_path)
+        broker = "mqtt://localhost:1883"
+        username = "demo-user"
+        password = "demo-pass"
+        topic_root = "wm/v1"
+        source_id = None
+        client_id = "demo-client"
+        interval_seconds = 2.0
+        count = 2
+        temperature_base = 23.0
+        temperature_amplitude = 1.8
+        temperature_period = 8.0
+        no_config = False
+        no_status = False
+        retained_refresh_seconds = 30.0
+
+    settings = settings_from_args(Args())
     return replace(settings, **overrides)
 
 
-def test_bootstrap_messages_are_derived_from_settings() -> None:
-    scenario = GrafanaDemoScenario(
-        settings=make_settings(),
+def test_bootstrap_messages_are_derived_from_bundle(tmp_path: Path) -> None:
+    scenario = DemoScenario(
+        settings=make_settings(tmp_path),
         runtime=FakeRuntime(),
     )
 
     messages = scenario.bootstrap_messages()
 
     assert [message.topic for message in messages] == [
-        scenario.settings.scope.source_meta_catalog_topic(),
-        scenario.settings.scope.source_status_topic(),
+        scenario.settings.scope.runtime_config_topic(),
+        scenario.settings.scope.source_config_topic("knx_main"),
+        scenario.settings.scope.source_status_topic("knx_main"),
         scenario.settings.scope.agent_lwt_topic(),
     ]
     assert all(message.retain for message in messages)
-    assert messages[0].payload["agent_id"] == scenario.settings.scope.agent_id
-    assert messages[1].payload["state"] == "connected"
-    assert "reason" not in messages[1].payload
-    assert messages[2].payload["status"] == "online"
+    assert messages[0].payload["message_type"] == "wm.edge.runtime-config.v1"
+    assert messages[1].payload["message_type"] == "wm.edge.source-config.v1"
+    assert messages[2].payload["tenant_id"] == "tenant-001"
+    assert messages[2].payload["state"] == "connected"
+    assert messages[3].payload["tenant_id"] == "tenant-001"
+    assert messages[3].payload["status"] == "online"
 
 
-def test_run_demo_republishes_retained_messages_on_schedule() -> None:
+def test_run_demo_republishes_retained_messages_on_schedule(tmp_path: Path) -> None:
     runtime = FakeRuntime()
     publisher = FakePublisher()
-    settings = make_settings(retained_refresh_seconds=1.0, count=2)
+    settings = make_settings(tmp_path, retained_refresh_seconds=1.0, count=2)
 
     result = run_demo(
         settings,
@@ -102,32 +164,48 @@ def test_run_demo_republishes_retained_messages_on_schedule() -> None:
     topics = [message.topic for message in publisher.messages]
 
     assert result == 0
-    assert topics.count(settings.scope.source_meta_catalog_topic()) == 2
-    assert topics.count(settings.scope.source_status_topic()) == 3
+    assert topics.count(settings.scope.runtime_config_topic()) == 2
+    assert topics.count(settings.scope.source_config_topic("knx_main")) == 2
+    assert topics.count(settings.scope.source_status_topic("knx_main")) == 3
     assert topics.count(settings.scope.agent_lwt_topic()) == 3
-    assert topics.count(settings.scope.point_topic(TEMPERATURE_POINT, "event")) == 2
-    assert topics.count(settings.scope.point_topic(SWITCH_FEEDBACK_POINT, "event")) == 2
     assert runtime.sleep_calls == [2.0]
+    assert publisher.messages[-2].payload["tenant_id"] == "tenant-001"
     assert publisher.messages[-2].payload["state"] == "disconnected"
+    assert publisher.messages[-1].payload["tenant_id"] == "tenant-001"
     assert publisher.messages[-1].payload["status"] == "offline"
 
 
-def test_settings_from_args_rejects_username_without_password() -> None:
+def test_cycle_messages_publish_tenant_and_source_config_revision(tmp_path: Path) -> None:
+    scenario = DemoScenario(
+        settings=make_settings(tmp_path),
+        runtime=FakeRuntime(),
+    )
+
+    messages = scenario.cycle_messages(
+        cycle=1,
+        sequence={"2/0/0": 0, "0/0/7": 0},
+    )
+
+    assert len(messages) == 2
+    assert messages[0].payload["tenant_id"] == "tenant-001"
+    assert messages[0].payload["source_config_revision"] == "rev-2026-05-02-001-knx-main"
+
+
+def test_settings_from_args_rejects_username_without_password(tmp_path: Path) -> None:
     class Args:
+        bundle_config = _write_bundle(tmp_path)
         broker = "mqtt://localhost:1883"
         username = "demo-user"
         password = None
         topic_root = "wm/v1"
-        object_id = "demo-stand-01"
-        agent_id = "manual-grafana-demo"
-        source_id = "knx_main"
+        source_id = None
         client_id = "demo-client"
         interval_seconds = 2.0
         count = 0
         temperature_base = 23.0
         temperature_amplitude = 1.8
         temperature_period = 8.0
-        no_metadata = False
+        no_config = False
         no_status = False
         retained_refresh_seconds = 30.0
 

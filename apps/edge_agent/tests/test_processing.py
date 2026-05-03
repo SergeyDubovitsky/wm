@@ -5,16 +5,17 @@ from datetime import UTC, datetime
 from edge_agent.application.configuration import build_runtime_config
 from edge_agent.application.processing import ObservationProcessor
 from edge_agent.domain.events import Observation
+from edge_agent.infrastructure.mqtt_contracts import (
+    telemetry_payload_from_event,
+    telemetry_topic,
+)
+from edge_agent.infrastructure.sqlite_point_state import SQLitePointStateCache
 
 
 def _runtime_config():
     return build_runtime_config(
-        agent_data={
-            "agent": {
-                "object_id": "demo-stand-01",
-                "name": "main-panel",
-                "id_file": "/tmp/edge-agent/agent_id",
-            },
+        bootstrap_data={
+            "agent_id": "edge-agent-001",
             "delivery": {
                 "transport": "mqtt",
                 "mqtt": {
@@ -29,10 +30,6 @@ def _runtime_config():
                     "clean_start": True,
                     "session_expiry_seconds": 0,
                     "telemetry_message_expiry_seconds": 86400,
-                    "publish_metadata": True,
-                    "retain_metadata": True,
-                    "publish_connection_status": True,
-                    "retain_connection_status": True,
                     "connect_timeout_seconds": 5,
                     "retry_backoff_seconds": [5, 15, 60],
                 },
@@ -48,53 +45,97 @@ def _runtime_config():
                 "metrics_bind": "0.0.0.0:9108",
             },
         },
+        runtime_data={
+            "message_type": "wm.edge.runtime-config.v1",
+            "tenant_id": "tenant-001",
+            "object_id": "demo-stand-01",
+            "agent_id": "edge-agent-001",
+            "config_revision": "rev-2026-05-02-001",
+            "issued_at": "2026-05-02T00:00:00Z",
+            "sources": [
+                {
+                    "source_id": "knx_main",
+                    "source_config_revision": "rev-2026-05-02-001-knx-main",
+                    "enabled": True,
+                }
+            ],
+        },
         source_documents=[
             {
-                "sources": [
-                    {
-                        "source_id": "knx_main",
-                        "type": "knx",
-                        "enabled": True,
-                        "connection": {"gateway_ip": "127.0.0.1", "gateway_port": 3671},
-                        "acquisition_defaults": {
-                            "listen": True,
-                            "read_on_start": False,
-                            "periodic_interval_seconds": None,
-                        },
-                        "publish_defaults": {
-                            "enabled": True,
-                            "change_threshold": None,
-                        },
-                    }
-                ]
-            }
-        ],
-        point_documents=[
-            {
+                "message_type": "wm.edge.source-config.v1",
+                "tenant_id": "tenant-001",
+                "object_id": "demo-stand-01",
+                "agent_id": "edge-agent-001",
+                "config_revision": "rev-2026-05-02-001",
                 "source_id": "knx_main",
+                "source_config_revision": "rev-2026-05-02-001-knx-main",
+                "source_type": "knx",
+                "enabled": True,
+                "connection": {"gateway_ip": "127.0.0.1", "gateway_port": 3671},
+                "acquisition_defaults": {
+                    "listen": True,
+                    "read_on_start": False,
+                    "periodic_interval_seconds": None,
+                },
+                "publish_defaults": {
+                    "enabled": True,
+                    "change_threshold": None,
+                },
                 "points": [
                     {
+                        "point_key": "0%2F0%2F7",
                         "point_ref": "0/0/7",
                         "name": "switch_feedback",
                         "value_type": "boolean",
                         "value_model": "knx.dpt.1.001",
                         "signal_type": "feedback",
+                        "acquisition": {
+                            "listen": True,
+                            "read_on_start": False,
+                            "periodic_interval_seconds": None,
+                        },
+                        "publish": {
+                            "enabled": True,
+                            "change_threshold": None,
+                        },
+                        "tags": {},
                     },
                     {
+                        "point_key": "2%2F0%2F0",
                         "point_ref": "2/0/0",
                         "name": "temperature",
                         "value_type": "number",
                         "value_model": "knx.dpt.9.001",
                         "signal_type": "sensor",
                         "unit": "C",
-                        "publish": {"change_threshold": 1.0},
+                        "acquisition": {
+                            "listen": True,
+                            "read_on_start": False,
+                            "periodic_interval_seconds": None,
+                        },
+                        "publish": {
+                            "enabled": True,
+                            "change_threshold": 1.0,
+                        },
+                        "tags": {},
                     },
                     {
+                        "point_key": "0%2F0%2F1",
                         "point_ref": "0/0/1",
                         "name": "switch_command",
                         "value_type": "boolean",
                         "value_model": "knx.dpt.1.001",
                         "signal_type": "command",
+                        "acquisition": {
+                            "listen": True,
+                            "read_on_start": False,
+                            "periodic_interval_seconds": None,
+                        },
+                        "publish": {
+                            "enabled": False,
+                            "change_threshold": None,
+                        },
+                        "tags": {},
                     },
                 ],
             }
@@ -104,7 +145,7 @@ def _runtime_config():
 
 def test_processing_emits_boolean_event_and_suppresses_duplicate() -> None:
     runtime = _runtime_config()
-    processor = ObservationProcessor(runtime, agent_id="agent-1")
+    processor = ObservationProcessor(runtime, agent_id="edge-agent-001")
     ts = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
 
     first = processor.process(
@@ -131,12 +172,14 @@ def test_processing_emits_boolean_event_and_suppresses_duplicate() -> None:
     assert first.event is not None
     assert first.event.event_type == "telemetry.changed"
     assert first.event.sequence == 1
-    assert first.event.catalog_revision.startswith("sha256:")
-    assert first.event.mqtt_payload() == {
+    assert first.event.tenant_id == "tenant-001"
+    assert first.event.source_config_revision == "rev-2026-05-02-001-knx-main"
+    assert telemetry_payload_from_event(first.event) == {
         "message_type": "wm.telemetry.event.v1",
+        "tenant_id": "tenant-001",
         "event_id": first.event.event_id,
         "event_type": "telemetry.changed",
-        "catalog_revision": first.event.catalog_revision,
+        "source_config_revision": "rev-2026-05-02-001-knx-main",
         "ts": "2026-03-28T10:00:00Z",
         "observation_mode": "listen",
         "value": True,
@@ -145,8 +188,14 @@ def test_processing_emits_boolean_event_and_suppresses_duplicate() -> None:
         "sequence": 1,
     }
     assert (
-        first.event.topic("wm/v1")
-        == "wm/v1/objects/demo-stand-01/agents/agent-1/sources/knx_main/points/0%2F0%2F7/event"
+        telemetry_topic(
+            topic_root="wm/v1",
+            object_id=first.event.object_id,
+            agent_id=first.event.agent_id,
+            source_id=first.event.source_id,
+            point_ref=first.event.point_ref,
+        )
+        == "wm/v1/objects/demo-stand-01/agents/edge-agent-001/sources/knx_main/points/0%2F0%2F7/event"
     )
     assert second.event is None
     assert second.suppressed_reason == "not_significant"
@@ -154,7 +203,7 @@ def test_processing_emits_boolean_event_and_suppresses_duplicate() -> None:
 
 def test_processing_uses_threshold_for_numeric_points() -> None:
     runtime = _runtime_config()
-    processor = ObservationProcessor(runtime, agent_id="agent-1")
+    processor = ObservationProcessor(runtime, agent_id="edge-agent-001")
     ts = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
 
     first = processor.process(
@@ -187,18 +236,6 @@ def test_processing_uses_threshold_for_numeric_points() -> None:
 
     assert first.event is not None
     assert first.event.event_type == "telemetry.sample"
-    assert first.event.mqtt_payload() == {
-        "message_type": "wm.telemetry.event.v1",
-        "event_id": first.event.event_id,
-        "event_type": "telemetry.sample",
-        "catalog_revision": first.event.catalog_revision,
-        "ts": "2026-03-28T10:00:00Z",
-        "observation_mode": "read_on_start",
-        "value": 23.0,
-        "value_raw": None,
-        "quality": "good",
-        "sequence": 1,
-    }
     assert second.event is None
     assert second.suppressed_reason == "not_significant"
     assert third.event is not None
@@ -207,7 +244,7 @@ def test_processing_uses_threshold_for_numeric_points() -> None:
 
 def test_processing_suppresses_command_point_by_default() -> None:
     runtime = _runtime_config()
-    processor = ObservationProcessor(runtime, agent_id="agent-1")
+    processor = ObservationProcessor(runtime, agent_id="edge-agent-001")
 
     result = processor.process(
         Observation(
@@ -220,3 +257,56 @@ def test_processing_suppresses_command_point_by_default() -> None:
 
     assert result.event is None
     assert result.suppressed_reason == "publish_disabled"
+
+
+def test_processing_restores_published_state_after_restart(tmp_path) -> None:
+    runtime = _runtime_config()
+    state_cache = SQLitePointStateCache(tmp_path / "state.db")
+    state_cache.initialize()
+    ts = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
+
+    first_processor = ObservationProcessor(
+        runtime,
+        agent_id="edge-agent-001",
+        state_store=state_cache,
+    )
+    first = first_processor.process(
+        Observation(
+            source_id="knx_main",
+            point_ref="2/0/0",
+            observation_mode="listen",
+            value=23.0,
+            observed_at=ts,
+        )
+    )
+
+    restarted_processor = ObservationProcessor(
+        runtime,
+        agent_id="edge-agent-001",
+        state_store=state_cache,
+    )
+    suppressed = restarted_processor.process(
+        Observation(
+            source_id="knx_main",
+            point_ref="2/0/0",
+            observation_mode="listen",
+            value=23.4,
+            observed_at=ts,
+        )
+    )
+    changed = restarted_processor.process(
+        Observation(
+            source_id="knx_main",
+            point_ref="2/0/0",
+            observation_mode="listen",
+            value=24.0,
+            observed_at=ts,
+        )
+    )
+
+    assert first.event is not None
+    assert first.event.sequence == 1
+    assert suppressed.event is None
+    assert suppressed.suppressed_reason == "not_significant"
+    assert changed.event is not None
+    assert changed.event.sequence == 2

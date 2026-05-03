@@ -11,13 +11,21 @@ records `Monitoring & Alarm Platform`.
 Ingestion pipeline принимает:
 
 - MQTT topic path из `wm.mqtt.topic-tree.v1`
-- MQTT payload contracts `wm.telemetry.event.v1`, `wm.source.meta.catalog.v1`,
+- MQTT payload contracts `wm.telemetry.event.v1`, `wm.edge.source-config.v1`,
   `wm.source.connection.v1`, `wm.agent.lwt.v1`
-- retained source catalog для enrichment telemetry events
-- Platform Registry cache для `tenant_id` и `point_id`
+- retained source config для enrichment telemetry events и tenant validation
+- config registry/cache для проверки `tenant_id`, `source_config_revision` и
+  `point_id`
 
-`tenant_id` не публикуется edge-agent-ом в MQTT topic или payload. Это
-платформенный контекст, который появляется только на границе ingestion.
+`tenant_id` публикуется edge-agent-ом в MQTT payload как claim из retained
+runtime config. Ingestion не берет tenant из topic path и обязан валидировать
+claim через MQTT auth/ACL и config registry/cache.
+
+`wm.edge.runtime-config.v1` и `wm.edge.config.status.v1` не входят в Kafka
+surface этого контракта `v1`. Они остаются retained MQTT contracts для
+bootstrap/operational lifecycle edge-agent и должны быть исключены фильтром
+подписки или routing rules до стадии Kafka mapping, а не считаться ingestion
+error.
 
 ## Routing context
 
@@ -29,7 +37,7 @@ Ingestion pipeline принимает:
 | `agent_id` | topic segment `agents/{agent_id}` |
 | `source_id` | topic segment `sources/{source_id}` для source-level topics |
 | `point_key` | topic segment `points/{point_key}` для telemetry events |
-| `message_kind` | suffix `event`, `meta/catalog`, `status/connection`, `status/lwt` |
+| `message_kind` | suffix `event`, `config`, `status/connection`, `status/lwt` |
 
 Все path identifiers должны соответствовать edge MQTT contract. Topic, который
 не матчится на известный template, отправляется в
@@ -37,23 +45,28 @@ Ingestion pipeline принимает:
 
 ## Enrichment
 
-Tenant enrichment:
+Tenant validation:
 
-- lookup key: `object_id + agent_id + source_id`
-- lookup source: Platform Registry / registry cache
-- output field: `tenant_id`
+- input field: `tenant_id` из `wm.telemetry.event.v1`
+- validation key: `tenant_id + object_id + agent_id + source_id`
+- validation source: config registry/cache, сформированный из retained source configs
+- output field: `tenant_id` сохраняется без изменения
 
 Point enrichment для telemetry events:
 
 - lookup key: `tenant_id + object_id + source_id + point_key`
-- lookup source: Platform Registry / point registry cache
+- lookup source: retained source config / config registry cache
 - output fields: `point_id`, `point_ref`, `source_type`, metadata fields
+- MVP default до появления Platform Registry: `point_id` формируется
+  детерминированно как `{tenant_id}|{object_id}|{source_id}|{point_key}`.
+  Этот fallback является provisional compatibility layer и должен быть заменен
+  на stable registry id после появления Platform Store/API.
 
-Source metadata enrichment:
+Source config enrichment:
 
-- retained `wm.source.meta.catalog.v1` обновляет registry/cache candidate state
-- `catalog_revision` используется как версия source catalog
-- telemetry event с неизвестным `catalog_revision` не пишется в telemetry topic
+- retained `wm.edge.source-config.v1` обновляет config registry/cache candidate state
+- `source_config_revision` используется как версия source config
+- telemetry event с неизвестным `source_config_revision` не пишется в telemetry topic
   и уходит в ingestion error topic
 
 ## Output records
@@ -61,7 +74,7 @@ Source metadata enrichment:
 | Input | Kafka topic | Kafka value schema |
 | --- | --- | --- |
 | `wm.telemetry.event.v1` | `wm.platform.telemetry.events.v1` | `wm.platform.telemetry.event.v1` |
-| `wm.source.meta.catalog.v1` | `wm.platform.source.catalogs.v1` | `wm.platform.source.catalog.v1` |
+| `wm.edge.source-config.v1` | `wm.platform.source.configs.v1` | `wm.platform.source.config.v1` |
 | `wm.source.connection.v1` | `wm.platform.source.connections.v1` | `wm.platform.source.connection.v1` |
 | `wm.agent.lwt.v1` | `wm.platform.agent.status.v1` | `wm.platform.agent.status.v1` |
 | invalid / unresolved input | `wm.platform.ingestion.errors.v1` | `wm.platform.ingestion.error.v1` |
@@ -88,10 +101,10 @@ Telemetry Kafka key:
 
 - MQTT topic не соответствует `wm.mqtt.topic-tree.v1`
 - payload не соответствует заявленной schema
-- tenant lookup отсутствует или неоднозначен
+- `tenant_id` claim не совпадает с MQTT auth/ACL или config registry/cache
 - point lookup отсутствует или неоднозначен для telemetry event
-- `catalog_revision` отсутствует в registry/cache для telemetry event
-- `point_key` из topic отсутствует в catalog
+- `source_config_revision` отсутствует в registry/cache для telemetry event
+- `point_key` из topic отсутствует в source config
 
 Error record должен содержать исходный topic, `message_type`, reason code,
 ingestion timestamp и raw payload snapshot, если snapshot не нарушает политики

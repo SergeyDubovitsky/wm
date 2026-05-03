@@ -9,6 +9,7 @@ views 'Developed Systems / Edge Telemetry Agent' {
         include field-protocol-gateways.*
         include monitoring-alarm-platform
         exclude service-engineer -> monitoring-alarm-platform
+        exclude service-engineer -> monitoring-alarm-platform.*
 
         style edge-telemetry-agent {
             color primary

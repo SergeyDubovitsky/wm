@@ -14,16 +14,20 @@ schemas находится в:
 
 | Message contract | Назначение |
 | --- | --- |
-| `wm.telemetry.event.v1` | Thin telemetry payload; identity берется из MQTT topic path |
-| `wm.source.meta.catalog.v1` | Retained source-level metadata catalog |
-| `wm.source.connection.v1` | Retained status southbound source |
-| `wm.agent.lwt.v1` | Retained LWT/status MQTT publisher агента |
+| `wm.edge.runtime-config.v1` | Retained root runtime config агента |
+| `wm.edge.source-config.v1` | Retained source config по `source_id` |
+| `wm.edge.config.status.v1` | Target contract для retained status применения конфигурации |
+| `wm.telemetry.event.v1` | Реализованный thin telemetry payload; identity берется из MQTT topic path |
+| `wm.source.connection.v1` | Target contract для retained status southbound source |
+| `wm.agent.lwt.v1` | Target contract для retained LWT/status MQTT publisher агента |
 
 ## Routing principles
 
 - Telemetry topic содержит `object_id`, `agent_id`, `source_id` и `point_key`.
-- Telemetry payload не дублирует routing identity и стабильную point metadata.
-- Source catalog публикуется одним retained record на source, а не отдельными retained records на каждую точку.
+- Telemetry payload содержит `tenant_id` claim и не дублирует routing identity или стабильную point metadata.
+- Retained operational status payloads содержат `tenant_id`, чтобы ingestion не
+  зависел от порядка replay retained config/status topics.
+- Source config публикуется retained record-ом на каждый `source_id`.
 - Per-point retained `state` topic не используется.
 - Backend/ingestion должен считать `event_id` ключом дедупликации, но не должен полагаться на конкретный формат `event_id`.
 
@@ -35,6 +39,10 @@ schemas находится в:
 
 ## Локальная проверка
 
-Текущий локальный dev-контур использует `MQTT broker + Grafana` и читает те же
-topics, которые описаны в registry. Для ручной генерации demo telemetry
+Текущий локальный dev-контур использует `MQTT broker` и читает те же topics,
+которые описаны в registry. Для ручной генерации demo telemetry
 используйте команды из корневого `README.md`.
+
+На текущем этапе локальные проверки и integration tests покрывают именно
+retained config + telemetry flow. Operational status topics в runtime пока не
+входят в реализованный baseline.

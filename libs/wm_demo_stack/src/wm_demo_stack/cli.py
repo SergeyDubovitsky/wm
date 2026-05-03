@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 
+from wm_demo_stack.bundle import load_bundle
 from wm_demo_stack.models import BrokerConfig, DemoSettings, TopicScope, WaveConfig
 from wm_demo_stack.publisher import connect_publisher
 from wm_demo_stack.runtime import SystemRuntime
@@ -16,7 +18,13 @@ def parse_args() -> argparse.Namespace:
     default_password = os.environ.get("MQTT_PASSWORD")
 
     parser = argparse.ArgumentParser(
-        description="Publish demo MQTT data for manual Grafana testing.",
+        description="Publish demo retained config and telemetry to MQTT.",
+    )
+    parser.add_argument(
+        "--bundle-config",
+        type=Path,
+        required=True,
+        help="Path to config.bundle.yaml or JSON authoring bundle.",
     )
     parser.add_argument(
         "--broker",
@@ -45,26 +53,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--topic-root",
         default="wm/v1",
-        help="MQTT topic root from ADR-005.",
-    )
-    parser.add_argument(
-        "--object-id",
-        default="demo-stand-01",
-        help="Automation object identifier used in topic paths.",
-    )
-    parser.add_argument(
-        "--agent-id",
-        default="manual-grafana-demo",
-        help="Agent identifier used in topic paths and retained records.",
+        help="MQTT topic root for retained config and telemetry topics.",
     )
     parser.add_argument(
         "--source-id",
-        default="knx_main",
-        help="Source identifier used in topic paths.",
+        default=None,
+        help="Source identifier from the bundle to use for live telemetry and status.",
     )
     parser.add_argument(
         "--client-id",
-        default="manual-grafana-demo-publisher",
+        default="manual-edge-demo-publisher",
         help="MQTT client id for this generator process.",
     )
     parser.add_argument(
@@ -98,9 +96,9 @@ def parse_args() -> argparse.Namespace:
         help="Number of cycles in one temperature wave period.",
     )
     parser.add_argument(
-        "--no-metadata",
+        "--no-config",
         action="store_true",
-        help="Do not publish retained source metadata catalog on startup.",
+        help="Do not publish retained runtime/source config on startup.",
     )
     parser.add_argument(
         "--no-status",
@@ -112,8 +110,7 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=30.0,
         help=(
-            "Republish retained metadata and status while running so "
-            "live-only Grafana panels stay populated. 0 disables refresh."
+            "Republish retained config and status while running. 0 disables refresh."
         ),
     )
     return parser.parse_args()
@@ -141,6 +138,9 @@ def settings_from_args(args: argparse.Namespace) -> DemoSettings:
     if args.retained_refresh_seconds < 0:
         raise ValueError("--retained-refresh-seconds must be non-negative")
 
+    bundle = load_bundle(args.bundle_config)
+    selected_source = bundle.source(args.source_id)
+
     return DemoSettings(
         broker=parse_broker(args.broker),
         username=args.username,
@@ -148,10 +148,11 @@ def settings_from_args(args: argparse.Namespace) -> DemoSettings:
         client_id=args.client_id,
         scope=TopicScope(
             topic_root=args.topic_root,
-            object_id=args.object_id,
-            agent_id=args.agent_id,
-            source_id=args.source_id,
+            object_id=bundle.object_id,
+            agent_id=bundle.agent_id,
         ),
+        bundle=bundle,
+        telemetry_source_id=selected_source.source_id,
         interval_seconds=args.interval_seconds,
         count=args.count,
         temperature=WaveConfig(
@@ -159,7 +160,7 @@ def settings_from_args(args: argparse.Namespace) -> DemoSettings:
             amplitude=args.temperature_amplitude,
             period=args.temperature_period,
         ),
-        publish_metadata=not args.no_metadata,
+        publish_config=not args.no_config,
         publish_status=not args.no_status,
         retained_refresh_seconds=args.retained_refresh_seconds,
     )
@@ -176,9 +177,9 @@ def main() -> int:
     print(
         "CONNECTED "
         f"broker={settings.broker.host}:{settings.broker.port} "
-        f"object_id={settings.scope.object_id} "
-        f"agent_id={settings.scope.agent_id} "
-        f"source_id={settings.scope.source_id}"
+        f"object_id={settings.bundle.object_id} "
+        f"agent_id={settings.bundle.agent_id} "
+        f"source_id={settings.telemetry_source_id}"
     )
     try:
         return run_demo(

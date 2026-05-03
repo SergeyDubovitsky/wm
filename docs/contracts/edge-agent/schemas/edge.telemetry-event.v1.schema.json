@@ -10,10 +10,11 @@
         "event_id",
         "ts",
         "agent_id",
+        "tenant_id",
         "object_id",
         "source_id",
         "source_type",
-        "catalog_revision",
+        "source_config_revision",
         "point_ref",
         "name",
         "value_type",
@@ -46,6 +47,10 @@
             "type": "string",
             "minLength": 1
         },
+        "tenant_id": {
+            "type": "string",
+            "minLength": 1
+        },
         "object_id": {
             "type": "string",
             "minLength": 1
@@ -58,10 +63,10 @@
             "type": "string",
             "minLength": 1
         },
-        "catalog_revision": {
+        "source_config_revision": {
             "type": "string",
             "minLength": 1,
-            "description": "Версия retained source metadata catalog, использованная при формировании события."
+            "description": "Версия retained source config, использованная при формировании события."
         },
         "point_ref": {
             "type": "string",

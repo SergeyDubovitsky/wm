@@ -2,14 +2,15 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://industrial-edge-web-monitoring.local/contracts/edge-agent/wm.telemetry.event.v1.schema.json",
     "title": "wm.telemetry.event.v1",
-    "description": "Thin MQTT payload для telemetry event; routing identity берется из MQTT topic path.",
+    "description": "Thin MQTT payload для telemetry event; routing identity берется из MQTT topic path, tenant claim берется из retained runtime config.",
     "type": "object",
     "additionalProperties": false,
     "required": [
         "message_type",
+        "tenant_id",
         "event_id",
         "event_type",
-        "catalog_revision",
+        "source_config_revision",
         "ts",
         "observation_mode",
         "value",
@@ -19,6 +20,11 @@
     "properties": {
         "message_type": {
             "const": "wm.telemetry.event.v1"
+        },
+        "tenant_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Платформенный tenant claim из retained runtime config; ingestion обязан валидировать его через auth/ACL и config cache."
         },
         "event_id": {
             "type": "string",
@@ -32,10 +38,10 @@
                 "telemetry.sample"
             ]
         },
-        "catalog_revision": {
+        "source_config_revision": {
             "type": "string",
             "minLength": 1,
-            "description": "Версия retained source metadata catalog, использованная при формировании события."
+            "description": "Версия retained source config, использованная при формировании события."
         },
         "ts": {
             "type": "string",

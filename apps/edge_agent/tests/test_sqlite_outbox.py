@@ -11,11 +11,12 @@ from edge_agent.infrastructure.sqlite_outbox import SQLiteOutbox
 def _event() -> TelemetryEvent:
     return TelemetryEvent.new(
         event_type="telemetry.changed",
-        agent_id="agent-1",
+        agent_id="edge-agent-001",
+        tenant_id="tenant-001",
         object_id="demo-stand-01",
         source_id="knx_main",
         source_type="knx",
-        catalog_revision="sha256:test",
+        source_config_revision="rev-2026-05-02-001-knx-main",
         point_ref="0/0/7",
         name="switch_feedback",
         description="Feedback",

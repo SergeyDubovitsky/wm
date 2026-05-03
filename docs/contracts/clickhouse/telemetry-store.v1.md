@@ -13,7 +13,7 @@ Kafka consumers. DDL не является production-validated performance sche
 | Table | Назначение | Writer |
 | --- | --- | --- |
 | `telemetry_events_v1` | Raw/canonical telemetry events, одна строка на наблюдение точки | `telemetry-store-writer.v1` |
-| `source_metadata_snapshots_v1` | Исторические snapshots source catalog revisions | `telemetry-store-writer.v1` |
+| `source_config_snapshots_v1` | Исторические snapshots source config revisions | `telemetry-store-writer.v1` |
 | `source_connection_events_v1` | История southbound source connection states | `telemetry-store-writer.v1` |
 | `agent_status_events_v1` | История agent online/offline status | `telemetry-store-writer.v1` |
 | `derived_events_v1` | Derived events from Streaming Analytics | `telemetry-store-writer.v1`, `streaming-analytics.v1` |
@@ -43,10 +43,10 @@ Kafka consumers. DDL не является production-validated performance sche
 | `agent_id` | `String` | Edge agent instance |
 | `source_id` | `String` | Source внутри agent |
 | `source_type` | `LowCardinality(String)` | Тип source: `knx`, `modbus`, `opc-ua`, ... |
-| `point_id` | `String` | Стабильный platform registry id точки |
+| `point_id` | `String` | Стабильный platform registry id точки; MVP fallback до Platform Registry: `{tenant_id}|{object_id}|{source_id}|{point_key}` |
 | `point_key` | `String` | MQTT-safe key точки |
 | `point_ref` | `String` | Исходный protocol point reference |
-| `catalog_revision` | `String` | Версия metadata catalog |
+| `source_config_revision` | `String` | Версия source config |
 | `ts` | `DateTime64(3, 'UTC')` | Время наблюдения |
 | `ingested_at` | `DateTime64(3, 'UTC')` | Время ingestion в платформу |
 | `event_type` | `LowCardinality(String)` | `telemetry.changed` / `telemetry.sample` |
@@ -74,7 +74,7 @@ CREATE TABLE telemetry_events_v1
     point_id String,
     point_key String,
     point_ref String,
-    catalog_revision String,
+    source_config_revision String,
     ts DateTime64(3, 'UTC'),
     ingested_at DateTime64(3, 'UTC'),
     event_type LowCardinality(String),
@@ -95,13 +95,13 @@ TTL ts + INTERVAL 180 DAY DELETE;
 
 ## Snapshot and status tables
 
-`source_metadata_snapshots_v1`:
+`source_config_snapshots_v1`:
 
-- key fields: `tenant_id`, `object_id`, `agent_id`, `source_id`, `catalog_revision`
+- key fields: `tenant_id`, `object_id`, `agent_id`, `source_id`, `source_config_revision`
 - payload fields: `source_type`, `points_json`, `ts`, `ingested_at`
 - engine draft: `ReplacingMergeTree(ingested_at)`
 - partition: `toYYYYMM(ts)`
-- order key: `(tenant_id, object_id, source_id, catalog_revision, ingested_at)`
+- order key: `(tenant_id, object_id, source_id, source_config_revision, ingested_at)`
 - retention: `400d`
 
 `source_connection_events_v1`:

@@ -1,15 +1,16 @@
 [project]
 name = "wm-demo-stack"
 version = "0.1.0"
-description = "Reusable demo MQTT/Grafana stack helpers for local development"
+description = "Reusable demo MQTT retained-config and telemetry helpers"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "paho-mqtt>=2.1.0",
+    "pyyaml>=6.0.3",
 ]
 
 [project.scripts]
-publish-grafana-demo = "wm_demo_stack.cli:main"
+publish-edge-demo = "wm_demo_stack.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.11.2,<0.12.0"]

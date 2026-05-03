@@ -93,7 +93,7 @@
 | Вариант | Статус | Плюсы | Минусы | Вывод |
 | --- | --- | --- | --- | --- |
 | `asyncua` / `opcua-asyncio` | основной кандидат | pure Python, client+server, async API, subscriptions, methods, encryption, history support, sync-wrapper | проект еще не на `1.0`, часть advanced features ограничена, ниже ceiling по производительности чем у `C` stack | рекомендовать для MVP и production v1 |
-| `python-opcua` | legacy | знакомое API, pure Python | официально deprecated, развитие перенесено в `opcua-asyncio` | не использовать для нового проекта |
+| `python-opcua` | старое API | знакомое API, pure Python | развитие перенесено в `opcua-asyncio` | не использовать для нового проекта |
 | `open62541` | технический fallback | зрелый `C` stack, кроссплатформенность, сильная репутация, certification story | не Python-native, интеграция в Python резко усложнит решение | рассматривать только если упрёмся в perf/compliance |
 
 ### 4.2. Рекомендация по библиотеке
@@ -117,7 +117,7 @@
 ### 4.3. Почему не `python-opcua`
 
 `python-opcua` не стоит брать в новый дизайн, потому что его upstream прямо
-помечает как deprecated и рекомендует переход на `opcua-asyncio`.
+рекомендует переход на `opcua-asyncio`.
 
 ### 4.4. Когда может понадобиться `open62541`
 

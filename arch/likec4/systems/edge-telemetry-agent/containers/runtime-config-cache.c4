@@ -1,0 +1,11 @@
+model {
+    extend edge-telemetry-agent {
+        runtime-config-cache = container 'Runtime Config Cache' {
+            description 'Кэш последней примененной server-issued runtime/source конфигурации: wm.edge.runtime-config.v1 и wm.edge.source-config.v1, разбитые по source_id.'
+            technology 'Retained MQTT config cache / local snapshot'
+            style {
+                shape storage
+            }
+        }
+    }
+}

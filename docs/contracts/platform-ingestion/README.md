@@ -6,7 +6,7 @@
 Раздел фиксирует контракты преобразования:
 
 ```text
-MQTT topic + MQTT payload + source catalog
+MQTT topic + MQTT payload + retained source config
   -> canonical Kafka record
   -> downstream consumers
 ```

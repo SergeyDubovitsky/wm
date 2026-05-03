@@ -1,6 +1,7 @@
 # Demo Stand Remote Environment
 
-Этот каталог хранит runtime-конфиг удаленного dev-сценария для demo-стенда.
+Этот каталог хранит bootstrap + config bundle профиль удаленного dev-сценария
+для demo-стенда.
 
 Профиль соответствует текущему workstation-based path:
 
@@ -14,16 +15,22 @@
 environments/demo-stand-remote/
 ├── README.md
 └── edge_agent/
-    ├── agent.yaml
-    ├── points.d/
-    └── sources.d/
+    ├── bootstrap.yaml
+    └── config.bundle.yaml
 ```
 
-Проверка конфига:
+Проверка bootstrap + retained config path:
 
 ```bash
 uv run --env-file .env --package edge-agent edge-agent check-config \
-  --config-root environments/demo-stand-remote/edge_agent
+  --bootstrap-config environments/demo-stand-remote/edge_agent/bootstrap.yaml
+```
+
+Для seed retained config в локальный broker используйте matching remote bundle:
+
+```bash
+uv run --env-file .env --package wm-demo-stack publish-edge-demo \
+  --bundle-config environments/demo-stand-remote/edge_agent/config.bundle.yaml
 ```
 
 Секреты и machine-local overrides сюда не коммитятся.

@@ -1,0 +1,8 @@
+model {
+    extend edge-telemetry-agent {
+        bootstrap-configuration = container 'Bootstrap Configuration' {
+            description 'Минимальный локальный конфиг запуска edge-agent: agent_id, MQTT endpoint, credentials/secret refs, Local State Store path и observability. Не содержит runtime registry sources/points.'
+            technology 'Bootstrap YAML / environment secrets'
+        }
+    }
+}

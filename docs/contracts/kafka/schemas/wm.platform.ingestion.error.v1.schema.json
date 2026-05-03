@@ -25,12 +25,12 @@
             "enum": [
                 "topic_template_mismatch",
                 "payload_schema_invalid",
-                "tenant_lookup_missing",
-                "tenant_lookup_ambiguous",
+                "tenant_claim_invalid",
+                "tenant_claim_unauthorized",
                 "point_lookup_missing",
                 "point_lookup_ambiguous",
-                "catalog_revision_missing",
-                "point_not_in_catalog"
+                "source_config_revision_missing",
+                "point_not_in_source_config"
             ]
         },
         "mqtt_topic": {

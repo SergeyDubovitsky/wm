@@ -931,6 +931,8 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
             "kafka",
             "kafka-init",
             "redpanda-connect",
+            "redpanda-connect-config-projection",
+            "redpanda-connect-source-config-snapshot",
             "clickhouse",
             "kafka-connect",
             timeout=900,
@@ -938,6 +940,8 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
         stack.wait_for_mqtt()
         stack.wait_for_kafka()
         stack.wait_for_redpanda_connect()
+        stack.wait_for_redpanda_connect_config_projection()
+        stack.wait_for_redpanda_connect_source_config_snapshot()
         stack.wait_for_clickhouse()
         stack.apply_clickhouse_migrations()
         stack.wait_for_kafka_connect()

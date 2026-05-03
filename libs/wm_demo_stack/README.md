@@ -59,5 +59,6 @@ uv run --group integration pytest \
 Что именно покрывается:
 
 - `tests/integration/test_edge_agent_mqtt_publisher.py` — raw publisher smoke и CLI-path `enqueue-demo-event -> deliver-once`
-- `tests/integration/test_edge_agent_knx_to_mqtt.py` — `bundle -> retained config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+- `tests/integration/test_edge_agent_knx_to_mqtt.py` —
+  `bundle -> Kafka config delivery records -> retained config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
 - Grafana не входит в текущий demo/integration surface; визуализация вернется поверх `Telemetry Store`, а не напрямую поверх MQTT

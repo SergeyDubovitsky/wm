@@ -44,7 +44,7 @@ def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
         agent_id=bundle.agent_id,
         broker=f"mqtt://127.0.0.1:{local_storage_stack.mqtt_port}",
     )
-    _seed_retained_config(local_stack=local_storage_stack, bundle=bundle)
+    _seed_config_delivery_records(local_stack=local_storage_stack, bundle=bundle)
 
     point = bundle.source("knx_main").points[2]
     topic = (
@@ -187,7 +187,7 @@ def test_mqtt_to_kafka_ingestion_routes_unresolved_telemetry_to_error_topic(
     monkeypatch.setenv("KNX_LOCAL_ROUTE_BACK", "false")
 
     bundle = load_bundle(DEMO_BUNDLE_PATH)
-    _seed_retained_config(local_stack=local_platform_stack, bundle=bundle)
+    _seed_config_delivery_records(local_stack=local_platform_stack, bundle=bundle)
 
     point = bundle.source("knx_main").points[2]
     scope = TopicScope(
@@ -377,32 +377,91 @@ def _matches_json_type(value: object, expected_type: object) -> bool:
             raise AssertionError(f"Unsupported schema type {expected_type!r}")
 
 
-def _seed_retained_config(*, local_stack, bundle) -> None:
+def _seed_config_delivery_records(*, local_stack, bundle) -> None:
     settings = type("BundleSettings", (), {"bundle": bundle})()
     scope = TopicScope(
         topic_root="wm/v1",
         asset_id=bundle.asset_id,
         agent_id=bundle.agent_id,
     )
-    publish_json_message(
-        host="127.0.0.1",
-        port=local_stack.mqtt_port,
-        username=local_stack.mqtt_username,
-        password=local_stack.mqtt_password,
-        topic=scope.runtime_config_topic(),
-        payload=runtime_config_payload(settings),
-        retain=True,
+    runtime_payload = runtime_config_payload(settings)
+    runtime_record = _config_delivery_record(
+        bundle=bundle,
+        config_scope="runtime",
+        source_id=None,
+        source_config_revision=None,
+        target_mqtt_topic=scope.runtime_config_topic(),
+        payload_message_type="wm.edge.runtime-config.v1",
+        payload=runtime_payload,
     )
+    local_stack.produce_kafka_text(
+        "wm.platform.edge.configs.v1",
+        json.dumps(runtime_record, ensure_ascii=True, separators=(",", ":")),
+        key=f"{bundle.tenant_id}|{bundle.asset_id}|{bundle.agent_id}|runtime",
+    )
+    runtime_message = local_stack.wait_for_mqtt_json(scope.runtime_config_topic())
+    assert runtime_message.retained is True
+    assert runtime_message.payload["config_revision"] == bundle.config_revision
+
     for source in bundle.sources:
-        publish_json_message(
-            host="127.0.0.1",
-            port=local_stack.mqtt_port,
-            username=local_stack.mqtt_username,
-            password=local_stack.mqtt_password,
-            topic=scope.source_config_topic(source.source_id),
-            payload=source_config_payload(settings, source=source),
-            retain=True,
+        source_payload = source_config_payload(settings, source=source)
+        source_topic = scope.source_config_topic(source.source_id)
+        source_record = _config_delivery_record(
+            bundle=bundle,
+            config_scope=f"source:{source.source_id}",
+            source_id=source.source_id,
+            source_config_revision=source.source_config_revision,
+            target_mqtt_topic=source_topic,
+            payload_message_type="wm.edge.source-config.v1",
+            payload=source_payload,
         )
+        local_stack.produce_kafka_text(
+            "wm.platform.edge.configs.v1",
+            json.dumps(source_record, ensure_ascii=True, separators=(",", ":")),
+            key=(
+                f"{bundle.tenant_id}|{bundle.asset_id}|{bundle.agent_id}"
+                f"|source:{source.source_id}"
+            ),
+        )
+        source_message = local_stack.wait_for_mqtt_json(source_topic)
+        assert source_message.retained is True
+        assert source_message.payload["source_config_revision"] == (
+            source.source_config_revision
+        )
+
+
+def _config_delivery_record(
+    *,
+    bundle,
+    config_scope: str,
+    source_id: str | None,
+    source_config_revision: str | None,
+    target_mqtt_topic: str,
+    payload_message_type: str,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    idempotency_scope = config_scope.replace(":", "|")
+    return {
+        "message_type": "wm.platform.edge.config.delivery.v1",
+        "tenant_id": bundle.tenant_id,
+        "asset_id": bundle.asset_id,
+        "agent_id": bundle.agent_id,
+        "config_revision": bundle.config_revision,
+        "config_scope": config_scope,
+        "source_id": source_id,
+        "source_config_revision": source_config_revision,
+        "target_mqtt_topic": target_mqtt_topic,
+        "mqtt_retain": True,
+        "mqtt_qos": 1,
+        "operation": "upsert",
+        "payload_message_type": payload_message_type,
+        "payload": payload,
+        "idempotency_key": (
+            f"{bundle.tenant_id}|{bundle.asset_id}|{bundle.agent_id}|"
+            f"{bundle.config_revision}|{idempotency_scope}"
+        ),
+        "issued_at": bundle.issued_at,
+    }
 
 
 def publish_json_message(

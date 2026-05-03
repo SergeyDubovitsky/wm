@@ -17,7 +17,7 @@
   `Config Registry`
 - поднять `Kafka Connect` с `ClickHouse Kafka Connect Sink`
 - поднять `Grafana` с provisioned ClickHouse datasource/dashboard
-- запаблишить retained runtime/source config из `config.bundle.yaml`
+- запаблишить config delivery records из `config.bundle.yaml` в Kafka
 - проверить поток
   `KNX-shaped telemetry -> edge_agent -> MQTT -> Kafka -> ClickHouse landing`
 
@@ -274,7 +274,7 @@ uv run --group integration pytest \
 - `test_edge_agent_mqtt_publisher.py` содержит два smoke-сценария:
   raw `PahoMqttPublisher -> MQTT` и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
 - `test_edge_agent_knx_to_mqtt.py` проверяет end-to-end путь
-  `config bundle -> retained runtime/source config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+  `config bundle -> Kafka config delivery records -> retained runtime/source config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
 - `test_kafka_to_clickhouse_storage.py` проверяет путь
   `Kafka -> Kafka Connect -> ClickHouse raw landing -> contract table`,
   byte-for-byte сохранение Kafka value в `payload_json` и storage DLQ для
@@ -286,7 +286,8 @@ uv run --group integration pytest \
 - `local_platform_stack` fixture поднимает `mqtt-broker`, `kafka`, `kafka-init`
   `redpanda-connect`, `redpanda-connect-config-projection` и
   `redpanda-connect-source-config-snapshot`
-- `local_storage_stack` fixture поднимает `kafka`, `kafka-init`, `clickhouse`
-  и `kafka-connect`, применяет миграции и bootstrap connector config
+- `local_storage_stack` fixture поднимает `mqtt-broker`, `kafka`,
+  `kafka-init`, все local Redpanda Connect pipelines, `clickhouse` и
+  `kafka-connect`, применяет миграции и bootstrap connector config
 - `local_grafana_clickhouse_stack` fixture поднимает только `clickhouse` и
   `grafana`, применяет миграции и seed-ит данные через load PoC в самом тесте

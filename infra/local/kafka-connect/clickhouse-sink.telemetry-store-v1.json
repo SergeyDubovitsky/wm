@@ -1,0 +1,32 @@
+{
+  "name": "${KAFKA_CONNECTOR_NAME}",
+  "config": {
+    "connector.class": "com.clickhouse.kafka.connect.ClickHouseSinkConnector",
+    "tasks.max": "1",
+    "topics": "wm.platform.telemetry.events.v1,wm.platform.source.configs.v1,wm.platform.source.connections.v1,wm.platform.agent.status.v1,wm.platform.derived.events.v1",
+    "topic2TableMap": "wm.platform.telemetry.events.v1=kafka_telemetry_events_raw_v1,wm.platform.source.configs.v1=kafka_source_configs_raw_v1,wm.platform.source.connections.v1=kafka_source_connections_raw_v1,wm.platform.agent.status.v1=kafka_agent_status_raw_v1,wm.platform.derived.events.v1=kafka_derived_events_raw_v1",
+    "hostname": "${CLICKHOUSE_CONNECT_HOST}",
+    "port": "${CLICKHOUSE_CONNECT_PORT}",
+    "ssl": "${CLICKHOUSE_CONNECT_SSL}",
+    "database": "${CLICKHOUSE_DATABASE}",
+    "username": "${CLICKHOUSE_USER}",
+    "password": "${CLICKHOUSE_PASSWORD}",
+    "exactlyOnce": "false",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "transforms": "HoistValue",
+    "transforms.HoistValue.type": "org.apache.kafka.connect.transforms.HoistField$Value",
+    "transforms.HoistValue.field": "payload_json",
+    "errors.tolerance": "all",
+    "errors.retry.timeout": "60000",
+    "errors.deadletterqueue.topic.name": "wm.platform.telemetry-store.dlq.v1",
+    "errors.deadletterqueue.topic.replication.factor": "1",
+    "errors.deadletterqueue.context.headers.enable": "true",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true",
+    "bufferCount": "1000",
+    "bufferFlushTime": "1000",
+    "tableRefreshInterval": "60",
+    "clickhouseSettings": "input_format_skip_unknown_fields=1"
+  }
+}

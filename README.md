@@ -3,6 +3,30 @@
 Репозиторий организован как monorepo для `Edge Telemetry Agent`,
 `Monitoring & Alarm Platform`, Python-утилит и архитектурных артефактов.
 
+## Статус проекта
+
+Проект уже достиг `MVP baseline`.
+
+Текущий `MVP baseline` в репозитории:
+
+- `Edge Telemetry Agent` с bootstrap-конфигом, загрузкой retained runtime/source config из `MQTT`, processing pipeline и `SQLite Delivery Outbox`
+- локальный platform slice `MQTT -> Redpanda Connect -> Kafka`
+- versioned config bundle для `demo-stand`
+- contract registry, архитектурные документы и integration-тесты для этого потока
+
+Целевая `Monitoring & Alarm Platform` проектируется для двух deployment modes:
+`self-hosted` и `cloud`.
+
+Для них сохраняется общий baseline:
+
+- одинаковые контракты данных и topic/table names
+- один и тот же основной data path
+- минимальные отличия в migration artifacts, observability и операционной модели
+
+Расширение до полной `Monitoring & Alarm Platform` с `Telemetry Store`,
+`Platform Store`, richer `alarm` lifecycle, `Platform API`, `Platform Frontend`
+и production IAM остается следующим этапом поверх уже достигнутого `MVP`.
+
 ## Структура
 
 - `apps/edge_agent/` — edge runtime, example-конфиги и runtime-guides
@@ -49,13 +73,18 @@ uv run --group lint ruff check apps libs tests infra
 uv sync --all-packages --group integration
 uv run --group integration pytest \
   tests/integration/test_edge_agent_mqtt_publisher.py \
-  tests/integration/test_edge_agent_knx_to_mqtt.py
+  tests/integration/test_edge_agent_knx_to_mqtt.py \
+  tests/integration/test_kafka_to_clickhouse_storage.py
 ```
 
 Текущее покрытие integration-набора:
 
 - `tests/integration/test_edge_agent_mqtt_publisher.py` — raw `paho` publisher smoke и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
 - `tests/integration/test_edge_agent_knx_to_mqtt.py` — `KNX-shaped retained config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+- `tests/integration/test_kafka_to_clickhouse_storage.py` —
+  `Kafka -> Kafka Connect -> ClickHouse raw landing -> contract table`,
+  включая byte-for-byte проверку `payload_json` и storage DLQ для невалидных
+  records
 
 Для host-side запуска приложений используйте общий root `.env` через
 `uv run --env-file .env ...`.
@@ -67,6 +96,7 @@ uv run --group integration pytest \
 - `uv run --package knx-demo knx-demo --help`
 - `uv run --package knx-parser knx-parser --help`
 - `uv run --env-file .env --package wm-demo-stack publish-edge-demo --help`
+- `uv run wm-clickhouse migrate status`
 
 ## Архитектурные Артефакты
 
@@ -117,7 +147,7 @@ docker compose --env-file ../../.env up -d mqtt-broker
 ```bash
 cd infra/local
 docker compose --env-file ../../.env up -d \
-  mqtt-broker kafka kafka-init redpanda-connect kafka-ui mqttx-web
+  mqtt-broker kafka kafka-init redpanda-connect clickhouse kafka-connect kafka-ui mqttx-web
 ```
 
 После старта:
@@ -126,13 +156,19 @@ docker compose --env-file ../../.env up -d \
 - `MQTT websocket` доступен на `localhost:9001`
 - `Kafka` host listener доступен на `localhost:19092`
 - `Redpanda Connect` HTTP endpoint доступен на `localhost:4195`
+- `Kafka Connect REST` доступен на `localhost:8083`
+- `Kafka Connect JMX` подготовлен на `localhost:9102`
+- `ClickHouse HTTP` доступен на `localhost:8123`
+- `ClickHouse native` доступен на `localhost:9000`
 - `Kafka UI` доступен на [http://localhost:8080](http://localhost:8080)
 - `MQTTX Web` доступен на [http://localhost:8081](http://localhost:8081)
 - доступ к `MQTT broker` требует `MQTT_USERNAME` / `MQTT_PASSWORD`
+- доступ к `ClickHouse` использует `CLICKHOUSE_DATABASE`, `CLICKHOUSE_USER` и
+  `CLICKHOUSE_PASSWORD` из `.env`
 - для seed retained runtime/source config используйте
   `uv run --env-file .env --package wm-demo-stack publish-edge-demo --bundle-config environments/demo-stand/edge_agent/config.bundle.yaml`
 - для автоматизированной проверки используйте интеграционные тесты
-  `uv run --group integration pytest tests/integration/test_edge_agent_mqtt_publisher.py tests/integration/test_edge_agent_knx_to_mqtt.py`
+  `uv run --group integration pytest tests/integration/test_edge_agent_mqtt_publisher.py tests/integration/test_edge_agent_knx_to_mqtt.py tests/integration/test_kafka_to_clickhouse_storage.py`
 
 Для `edge_agent` уже подготовлен bootstrap + retained config профиль под этот стек:
 
@@ -153,4 +189,17 @@ uv run --env-file .env --package edge-agent edge-agent check-config \
 ```bash
 uv run --env-file .env --package wm-demo-stack publish-edge-demo \
   --bundle-config environments/demo-stand-remote/edge_agent/config.bundle.yaml
+```
+
+ClickHouse migrations выполняются из корня репозитория:
+
+```bash
+uv run --env-file .env wm-clickhouse migrate status
+uv run --env-file .env wm-clickhouse migrate up
+```
+
+Kafka Connect connector для raw landing path применяется так:
+
+```bash
+uv run --env-file .env python infra/local/kafka-connect/bootstrap_connector.py
 ```

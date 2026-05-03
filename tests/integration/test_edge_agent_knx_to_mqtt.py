@@ -27,13 +27,13 @@ DEMO_BUNDLE_PATH = REPO_ROOT / "environments" / "demo-stand" / "edge_agent" / "c
 KAFKA_SCHEMAS_ROOT = REPO_ROOT / "docs" / "contracts" / "kafka" / "schemas"
 
 
-def test_demo_knx_edge_delivery_flow_publishes_to_mqtt(
-    local_platform_stack,
+def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
+    local_storage_stack,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("MQTT_USERNAME", local_platform_stack.mqtt_username)
-    monkeypatch.setenv("MQTT_PASSWORD", local_platform_stack.mqtt_password)
+    monkeypatch.setenv("MQTT_USERNAME", local_storage_stack.mqtt_username)
+    monkeypatch.setenv("MQTT_PASSWORD", local_storage_stack.mqtt_password)
     monkeypatch.setenv("KNX_LOCAL_GATEWAY_IP", "127.0.0.1")
     monkeypatch.setenv("KNX_LOCAL_GATEWAY_PORT", "3671")
     monkeypatch.setenv("KNX_LOCAL_ROUTE_BACK", "false")
@@ -42,9 +42,9 @@ def test_demo_knx_edge_delivery_flow_publishes_to_mqtt(
     bootstrap_path = _write_bootstrap_config(
         tmp_path,
         agent_id=bundle.agent_id,
-        broker=f"mqtt://127.0.0.1:{local_platform_stack.mqtt_port}",
+        broker=f"mqtt://127.0.0.1:{local_storage_stack.mqtt_port}",
     )
-    _seed_retained_config(local_stack=local_platform_stack, bundle=bundle)
+    _seed_retained_config(local_stack=local_storage_stack, bundle=bundle)
 
     point = bundle.source("knx_main").points[2]
     topic = (
@@ -58,8 +58,8 @@ def test_demo_knx_edge_delivery_flow_publishes_to_mqtt(
 
     subscriber = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     subscriber.username_pw_set(
-        local_platform_stack.mqtt_username,
-        local_platform_stack.mqtt_password,
+        local_storage_stack.mqtt_username,
+        local_storage_stack.mqtt_password,
     )
 
     def on_message(
@@ -91,7 +91,7 @@ def test_demo_knx_edge_delivery_flow_publishes_to_mqtt(
     subscriber.on_message = on_message
     subscriber.on_connect = on_connect
     subscriber.on_subscribe = on_subscribe
-    subscriber.connect("127.0.0.1", local_platform_stack.mqtt_port, keepalive=20)
+    subscriber.connect("127.0.0.1", local_storage_stack.mqtt_port, keepalive=20)
     subscriber.loop_start()
     assert connected.wait(timeout=10), "MQTT subscriber did not connect in time"
     subscriber.subscribe(topic, qos=1)
@@ -138,7 +138,7 @@ def test_demo_knx_edge_delivery_flow_publishes_to_mqtt(
         assert received_payloads[0]["source_config_revision"] == "rev-demo-stand-knx-main-001"
         assert received_payloads[0]["value"] == 24.8
 
-        kafka_key, kafka_payload = local_platform_stack.consume_kafka_json(
+        kafka_key, kafka_payload = local_storage_stack.consume_kafka_json(
             "wm.platform.telemetry.events.v1"
         )
         _assert_schema_subset(
@@ -159,6 +159,19 @@ def test_demo_knx_edge_delivery_flow_publishes_to_mqtt(
         assert kafka_payload["point_ref"] == point.point_ref
         assert kafka_payload["value"] == 24.8
         assert kafka_payload["quality"] == "good"
+
+        clickhouse_row = local_storage_stack.wait_for_clickhouse_value(
+            f"""
+            SELECT tenant_id, object_id, agent_id, source_id, point_key, value_type, value_float
+            FROM telemetry_events_v1
+            WHERE event_id = '{kafka_payload["event_id"]}'
+            FORMAT TabSeparatedRaw
+            """.strip()
+        )
+        assert clickhouse_row == (
+            f"{bundle.tenant_id}\t{bundle.object_id}\t{bundle.agent_id}"
+            f"\tknx_main\t{point.point_key}\tnumber\t24.8"
+        )
     finally:
         publisher.close()
         subscriber.disconnect()

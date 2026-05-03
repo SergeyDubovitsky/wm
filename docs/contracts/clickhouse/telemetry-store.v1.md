@@ -22,6 +22,57 @@ Kafka consumers. DDL не является production-validated performance sche
 | `telemetry_1h_v1` | Rollup по точке за 1 час | materialized view / streaming analytics |
 | `telemetry_latest_v1` | Последнее значение по точке для быстрых UI/API запросов | materialized view / writer |
 
+## Kafka landing tables
+
+Первая миграция создает raw landing tables для Kafka Connect Sink. Они являются
+техническим слоем между Kafka topics и contract tables; доменный transform
+выполняется последующими materialized views.
+
+| Kafka topic | Landing table |
+| --- | --- |
+| `wm.platform.telemetry.events.v1` | `kafka_telemetry_events_raw_v1` |
+| `wm.platform.source.configs.v1` | `kafka_source_configs_raw_v1` |
+| `wm.platform.source.connections.v1` | `kafka_source_connections_raw_v1` |
+| `wm.platform.agent.status.v1` | `kafka_agent_status_raw_v1` |
+| `wm.platform.derived.events.v1` | `kafka_derived_events_raw_v1` |
+
+Initial landing shape:
+
+```sql
+payload_json String,
+ingested_at DateTime64(3, 'UTC') DEFAULT now64(3)
+```
+
+Kafka metadata columns (`topic`, `partition`, `offset`, `key`, `timestamp`) are
+not part of the initial migration until the Kafka Connect StringConverter PoC
+confirms reliable metadata population without connector-side domain mapping.
+
+## Materialized views
+
+Вторая миграция создает materialized views для преобразования raw landing rows
+в contract tables:
+
+| Landing table | Materialized view | Target table |
+| --- | --- | --- |
+| `kafka_telemetry_events_raw_v1` | `telemetry_events_from_raw_mv_v1` | `telemetry_events_v1` |
+| `kafka_source_configs_raw_v1` | `source_config_snapshots_from_raw_mv_v1` | `source_config_snapshots_v1` |
+| `kafka_source_connections_raw_v1` | `source_connection_events_from_raw_mv_v1` | `source_connection_events_v1` |
+| `kafka_agent_status_raw_v1` | `agent_status_events_from_raw_mv_v1` | `agent_status_events_v1` |
+| `kafka_derived_events_raw_v1` | `derived_events_from_raw_mv_v1` | `derived_events_v1` |
+
+MV layer owns domain parsing from `payload_json`.
+
+- Required Kafka payload fields are validated with fail-fast ClickHouse
+  expressions.
+- Invalid landing inserts are rejected by the MV and, with Kafka Connect
+  `errors.tolerance=all`, are routed to
+  `wm.platform.telemetry-store.dlq.v1`.
+- Polymorphic Kafka `value` is mapped to typed ClickHouse columns:
+  `number -> value_float`, `boolean -> value_bool`,
+  `string -> value_string`.
+- Optional JSON payloads such as `points`, `source_event_ids` and `attributes`
+  are stored as JSON strings in the corresponding `*_json` columns.
+
 ## Raw telemetry model
 
 `telemetry_events_v1` хранит узкую событийную модель:
@@ -93,6 +144,30 @@ ORDER BY (tenant_id, object_id, source_id, point_key, ts, idempotency_key)
 TTL ts + INTERVAL 180 DAY DELETE;
 ```
 
+## Read and dedup conventions
+
+Kafka Connect path в MVP работает в at-least-once режиме. Один и тот же Kafka
+record может быть записан в landing/contract tables повторно после retry,
+rebalance или restart. Поэтому `ReplacingMergeTree` tables являются
+eventual-dedup storage layer, а не мгновенно уникальным state API.
+
+Правила чтения:
+
+- API/UI-запросы, которым нужна уникальность по `idempotency_key`, должны читать
+  `ReplacingMergeTree` contract tables с `FINAL` или через отдельные
+  deduplicated query views.
+- Raw landing tables (`kafka_*_raw_v1`) являются append-only diagnostic layer;
+  их нельзя использовать как пользовательский источник истины для счетчиков
+  событий без явной дедупликации.
+- History/status tables на `MergeTree` (`source_connection_events_v1`,
+  `agent_status_events_v1`) сохраняют события как историю. Если upstream
+  повторит тот же status event, downstream read model должен решать, считать ли
+  это дублем или повторным наблюдением.
+- Latest-state и rollup tables/views (`telemetry_latest_v1`,
+  `telemetry_1m_v1`, `telemetry_1h_v1`) должны строиться с учетом
+  `idempotency_key`/`FINAL` semantics, когда источником являются raw contract
+  tables.
+
 ## Snapshot and status tables
 
 `source_config_snapshots_v1`:
@@ -101,7 +176,7 @@ TTL ts + INTERVAL 180 DAY DELETE;
 - payload fields: `source_type`, `points_json`, `ts`, `ingested_at`
 - engine draft: `ReplacingMergeTree(ingested_at)`
 - partition: `toYYYYMM(ts)`
-- order key: `(tenant_id, object_id, source_id, source_config_revision, ingested_at)`
+- order key: `(tenant_id, object_id, agent_id, source_id, source_config_revision)`
 - retention: `400d`
 
 `source_connection_events_v1`:

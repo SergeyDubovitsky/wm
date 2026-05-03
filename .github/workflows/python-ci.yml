@@ -10,6 +10,7 @@ on:
             - "apps/**"
             - "libs/**"
             - "infra/**"
+            - "tools/**"
             - "tests/**"
     pull_request:
         paths:
@@ -20,6 +21,7 @@ on:
             - "apps/**"
             - "libs/**"
             - "infra/**"
+            - "tools/**"
             - "tests/**"
 
 permissions:
@@ -48,7 +50,7 @@ jobs:
               run: uv sync --frozen --all-packages --group lint
 
             - name: Run Ruff
-              run: uv run --frozen --group lint ruff check apps libs tests infra
+              run: uv run --frozen --group lint ruff check apps libs tests infra tools
 
     test:
         name: Test (${{ matrix.package }})
@@ -66,6 +68,8 @@ jobs:
                       test_path: libs/knx_parser/tests
                     - package: wm-demo-stack
                       test_path: libs/wm_demo_stack/tests
+                    - package: wm-clickhouse
+                      test_path: tools/clickhouse_migrations/tests
 
         steps:
             - name: Checkout
@@ -126,4 +130,5 @@ jobs:
               run: |
                   uv run --frozen --group integration pytest \
                     tests/integration/test_edge_agent_mqtt_publisher.py \
-                    tests/integration/test_edge_agent_knx_to_mqtt.py
+                    tests/integration/test_edge_agent_knx_to_mqtt.py \
+                    tests/integration/test_kafka_to_clickhouse_storage.py

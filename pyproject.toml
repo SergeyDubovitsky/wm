@@ -2,12 +2,17 @@
 name = "web-monitoring"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "edge-agent",
+    "wm-demo-stack",
+    "wm-clickhouse",
+]
 
 [dependency-groups]
 integration = [
     "paho-mqtt>=2.1.0",
     "pytest>=9.0.2",
+    "pyyaml>=6.0.3",
 ]
 lint = [
     "ruff>=0.15.8",
@@ -16,10 +21,16 @@ lint = [
 [tool.uv]
 package = false
 
+[tool.uv.sources]
+edge-agent = { workspace = true }
+wm-demo-stack = { workspace = true }
+wm-clickhouse = { workspace = true }
+
 [tool.uv.workspace]
 members = [
     "apps/*",
     "libs/*",
+    "tools/*",
 ]
 
 [tool.pytest.ini_options]
@@ -36,6 +47,7 @@ src = [
     "apps/knx_demo/src",
     "libs/knx_parser/src",
     "libs/wm_demo_stack/src",
+    "tools/clickhouse_migrations/src",
     "tests",
 ]
 

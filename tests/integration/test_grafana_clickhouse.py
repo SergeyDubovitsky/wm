@@ -57,11 +57,11 @@ def test_grafana_reads_clickhouse_telemetry_read_models(
     assert datasource["uid"] == DATASOURCE_UID
     assert datasource["type"] == "grafana-clickhouse-datasource"
 
-    search_results = local_grafana_clickhouse_stack.grafana_json(
-        "GET",
-        "/api/search?query=Telemetry%20Overview",
+    search_results = _wait_for_dashboard_search_results(
+        local_grafana_clickhouse_stack,
+        query="Telemetry%20Overview",
+        dashboard_uid=DASHBOARD_UID,
     )
-    assert isinstance(search_results, list)
     assert any(item.get("uid") == DASHBOARD_UID for item in search_results)
 
     dashboard_response = local_grafana_clickhouse_stack.grafana_json(
@@ -151,3 +151,35 @@ def _contains_scalar_value(value: Any, expected: object) -> bool:
     if isinstance(value, list):
         return any(_contains_scalar_value(item, expected) for item in value)
     return False
+
+
+def _wait_for_dashboard_search_results(
+    local_grafana_clickhouse_stack,
+    *,
+    query: str,
+    dashboard_uid: str,
+    timeout: float = 30.0,
+) -> list[dict[str, object]]:
+    deadline = time.monotonic() + timeout
+    last_results: list[dict[str, object]] = []
+
+    while time.monotonic() < deadline:
+        search_results = local_grafana_clickhouse_stack.grafana_json(
+            "GET",
+            f"/api/search?query={query}",
+        )
+        assert isinstance(search_results, list)
+
+        normalized_results = [
+            item for item in search_results if isinstance(item, dict)
+        ]
+        if any(item.get("uid") == dashboard_uid for item in normalized_results):
+            return normalized_results
+
+        last_results = normalized_results
+        time.sleep(1)
+
+    raise AssertionError(
+        f"Grafana dashboard {dashboard_uid!r} did not appear in search within "
+        f"{timeout:.0f}s. Last search results: {json.dumps(last_results, sort_keys=True)}"
+    )

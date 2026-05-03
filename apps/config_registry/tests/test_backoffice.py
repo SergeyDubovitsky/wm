@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from config_registry.infrastructure.backoffice import (
+    BACKOFFICE_CUSTOM_VIEWS,
     BACKOFFICE_VIEWS,
     AgentBackofficeView,
     AssetBackofficeView,
     PointBackofficeView,
+    RenderConfigBackofficeView,
     RuntimeConfigRevisionBackofficeView,
     SourceBackofficeView,
     TenantBackofficeView,
@@ -48,6 +52,10 @@ def test_backoffice_model_views_disable_edit_and_delete() -> None:
         assert view.can_edit is False
         assert view.can_delete is False
         assert view.can_view_details is True
+
+
+def test_backoffice_registers_render_config_custom_view() -> None:
+    assert RenderConfigBackofficeView in BACKOFFICE_CUSTOM_VIEWS
 
 
 @pytest.mark.asyncio
@@ -256,6 +264,96 @@ async def test_backoffice_create_point_uses_application_use_case() -> None:
     assert points[0]["acquisition_json"] == {}
 
 
+@pytest.mark.asyncio
+async def test_backoffice_render_config_action_uses_application_use_cases() -> None:
+    app = create_app()
+    request = SimpleNamespace(app=app)
+    await TenantBackofficeView().insert_model(
+        request,
+        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
+    )
+    await AssetBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "name": "Asset Backoffice",
+        },
+    )
+    await AgentBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+        },
+    )
+    await SourceBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+            "source_id": "source-backoffice",
+            "source_type": "knx",
+        },
+    )
+    await PointBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+            "source_id": "source-backoffice",
+            "point_id": "point-backoffice",
+            "point_key": "1%2F2%2F3",
+            "point_ref": "1/2/3",
+            "name": "Point Backoffice",
+            "value_type": "number",
+            "value_model": "knx.dpt.9.001",
+            "signal_type": "sensor",
+            "enabled": True,
+        },
+    )
+
+    response = await RenderConfigBackofficeView().render_config(
+        FakeJsonRequest(
+            app,
+            {
+                "tenant_id": "tenant-backoffice",
+                "asset_id": "asset-backoffice",
+                "agent_id": "agent-backoffice",
+                "config_revision": "rev-backoffice-001",
+                "issued_at": "2026-05-03T12:00:00Z",
+                "source_config_revisions": {
+                    "source-backoffice": "rev-backoffice-001-source"
+                },
+            },
+        )
+    )
+    duplicate_response = await RenderConfigBackofficeView().render_config(
+        FakeJsonRequest(
+            app,
+            {
+                "tenant_id": "tenant-backoffice",
+                "asset_id": "asset-backoffice",
+                "agent_id": "agent-backoffice",
+                "config_revision": "rev-backoffice-001",
+                "issued_at": "2026-05-03T12:00:00Z",
+                "source_config_revisions": {
+                    "source-backoffice": "rev-backoffice-001-source"
+                },
+            },
+        )
+    )
+
+    body = json.loads(response.body)
+    assert response.status_code == 201
+    assert body["config_revision"] == "rev-backoffice-001"
+    assert body["outbox_record_count"] == 2
+    assert duplicate_response.status_code == 409
+
+
 def test_only_tenant_backoffice_view_is_create_enabled_for_now() -> None:
     for view in BACKOFFICE_VIEWS:
         assert view.can_create is (
@@ -293,3 +391,12 @@ def _settings(*, internal_mode: bool) -> ConfigRegistrySettings:
 def _has_route_prefix(app: object, prefix: str) -> bool:
     routes = getattr(app, "routes")
     return any(str(getattr(route, "path", "")).startswith(prefix) for route in routes)
+
+
+class FakeJsonRequest:
+    def __init__(self, app: object, payload: dict[str, Any]) -> None:
+        self.app = app
+        self._payload = payload
+
+    async def json(self) -> dict[str, Any]:
+        return self._payload

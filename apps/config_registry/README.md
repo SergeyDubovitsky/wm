@@ -70,6 +70,9 @@ CONFIG_REGISTRY_DATABASE_URL=postgresql+asyncpg://wm:change-me-local-postgres@lo
 `Tenant`, `Asset`, `Agent`, `Source` и `Point` и вызывают application use
 cases; edit/delete и config revision/outbox views остаются read-only без прямых
 ORM-write операций.
+Backoffice custom endpoint `POST /backoffice/render-config` вызывает
+`RenderAgentConfig` + `StoreRenderedAgentConfig` и создает config revisions /
+`config_outbox` тем же application path, что и HTTP API.
 
 Для локальной доставки config records в Kafka используется
 `KAFKA_BOOTSTRAP_SERVERS` и `CONFIG_REGISTRY_KAFKA_CLIENT_ID`.

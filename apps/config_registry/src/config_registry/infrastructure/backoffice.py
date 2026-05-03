@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from typing import Any
+
 from fastapi import FastAPI
-from sqladmin import Admin, ModelView
+from sqladmin import Admin, BaseView, ModelView, expose
 from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.requests import Request
+from starlette.responses import JSONResponse
 
+from config_registry.application.errors import (
+    AgentNotFoundError,
+    ConfigRenderError,
+    DuplicateConfigOutboxRecordError,
+    DuplicateConfigRevisionError,
+)
 from config_registry.application.use_cases.agents import (
     CreateAgent,
     CreateAgentCommand,
@@ -16,6 +26,11 @@ from config_registry.application.use_cases.assets import (
 from config_registry.application.use_cases.points import (
     CreatePoint,
     CreatePointCommand,
+)
+from config_registry.application.use_cases.render_config import (
+    RenderAgentConfig,
+    RenderAgentConfigCommand,
+    StoreRenderedAgentConfig,
 )
 from config_registry.application.use_cases.sources import (
     CreateSource,
@@ -213,6 +228,8 @@ class SourceBackofficeView(CreateOnlyModelView, model=SourceModel):
                 enabled=_optional_bool(data.get("enabled"), default=True),
                 name=_optional_string(data.get("name")),
                 description=_optional_string(data.get("description")),
+                acquisition_defaults_json=_default_acquisition_settings(),
+                publish_defaults_json=_default_publish_settings(),
             )
         )
         return SourceModel(
@@ -369,6 +386,52 @@ BACKOFFICE_VIEWS: tuple[type[ModelView], ...] = (
 )
 
 
+class RenderConfigBackofficeView(BaseView):
+    name = "Render Config"
+    icon = "fa-solid fa-gears"
+
+    @expose("/render-config", methods=["POST"])
+    async def render_config(self, request: Request) -> JSONResponse:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"detail": "Request body must be a JSON object"},
+                status_code=422,
+            )
+
+        try:
+            command = _render_command(payload)
+            rendered = await RenderAgentConfig(
+                request.app.state.unit_of_work_factory(),
+                request.app.state.config_payload_validator,
+            ).execute(command)
+            await StoreRenderedAgentConfig(
+                request.app.state.unit_of_work_factory(),
+                request.app.state.config_payload_validator,
+            ).execute(rendered)
+        except AgentNotFoundError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=404)
+        except (DuplicateConfigRevisionError, DuplicateConfigOutboxRecordError) as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=409)
+        except (ConfigRenderError, KeyError, TypeError, ValueError) as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=422)
+
+        runtime_payload = rendered.runtime_payload
+        return JSONResponse(
+            {
+                "tenant_id": runtime_payload["tenant_id"],
+                "asset_id": runtime_payload["asset_id"],
+                "agent_id": runtime_payload["agent_id"],
+                "config_revision": runtime_payload["config_revision"],
+                "outbox_record_count": 1 + len(rendered.source_payloads),
+            },
+            status_code=201,
+        )
+
+
+BACKOFFICE_CUSTOM_VIEWS: tuple[type[BaseView], ...] = (RenderConfigBackofficeView,)
+
+
 def mount_backoffice(app: FastAPI, *, engine: AsyncEngine) -> Admin:
     admin = Admin(
         app=app,
@@ -378,7 +441,39 @@ def mount_backoffice(app: FastAPI, *, engine: AsyncEngine) -> Admin:
     )
     for view in BACKOFFICE_VIEWS:
         admin.add_view(view)
+    for view in BACKOFFICE_CUSTOM_VIEWS:
+        admin.add_view(view)
     return admin
+
+
+def _render_command(payload: dict[str, Any]) -> RenderAgentConfigCommand:
+    return RenderAgentConfigCommand(
+        tenant_id=str(payload["tenant_id"]),
+        asset_id=str(payload["asset_id"]),
+        agent_id=str(payload["agent_id"]),
+        config_revision=str(payload["config_revision"]),
+        issued_at=_parse_issued_at(payload.get("issued_at")),
+        source_config_revisions=_source_config_revisions(
+            payload.get("source_config_revisions")
+        ),
+    )
+
+
+def _parse_issued_at(value: object) -> datetime:
+    if value is None or value == "":
+        return datetime.now(UTC)
+    if not isinstance(value, str):
+        raise ValueError("issued_at must be an ISO-8601 string")
+    normalized = value.removesuffix("Z") + "+00:00" if value.endswith("Z") else value
+    return datetime.fromisoformat(normalized)
+
+
+def _source_config_revisions(value: object) -> dict[str, str] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("source_config_revisions must be an object")
+    return {str(source_id): str(revision) for source_id, revision in value.items()}
 
 
 def _optional_string(value: object) -> str | None:
@@ -399,3 +494,18 @@ def _optional_bool(value: object, *, default: bool) -> bool:
         if normalized in {"true", "1", "on", "yes"}:
             return True
     return bool(value)
+
+
+def _default_acquisition_settings() -> dict[str, object]:
+    return {
+        "listen": True,
+        "read_on_start": False,
+        "periodic_interval_seconds": None,
+    }
+
+
+def _default_publish_settings() -> dict[str, object]:
+    return {
+        "enabled": True,
+        "change_threshold": None,
+    }

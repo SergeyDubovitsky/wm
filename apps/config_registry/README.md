@@ -20,7 +20,7 @@
   `wm.platform.edge.configs.v1`
 - long-running CLI worker `publish-config-outbox-worker` для отдельного
   контейнера outbox publisher-а
-- internal read-only backoffice UI на `/backoffice` в `internal_mode`
+- internal backoffice UI на `/backoffice` в `internal_mode`
 - local Redpanda Connect projection
   `wm.platform.edge.configs.v1 -> MQTT retained runtime/source config topics`
 - временный in-memory adapter для unit/API smoke-тестов
@@ -66,10 +66,17 @@ CONFIG_REGISTRY_DATABASE_URL=postgresql+asyncpg://wm:change-me-local-postgres@lo
 
 Если `CONFIG_REGISTRY_INTERNAL_MODE=true` и API запущен с PostgreSQL-backed
 `CONFIG_REGISTRY_DATABASE_URL`, дополнительно монтируется internal
-`/backoffice`. Первые write-enabled adapters включены только для создания
-`Tenant`, `Asset`, `Agent`, `Source` и `Point` и вызывают application use
-cases; edit/delete и config revision/outbox views остаются read-only без прямых
-ORM-write операций.
+`/backoffice`. В админке включен полный internal CRUD для всех SQLAdmin
+ModelViews. Создание `Tenant`, `Asset`, `Agent`, `Source` и `Point` по-прежнему
+идет через application use cases; update/delete и технические таблицы
+`runtime_config_revisions`, `source_config_revisions`, `config_outbox` работают
+как прямой SQLAdmin ORM shortcut для внутренних операторов.
+
+Важно: прямое редактирование registry state через CRUD не создает новую
+`config_revision` и не пишет `config_outbox` автоматически. После таких правок
+оператор должен явно вызвать render action, иначе MQTT retained config не
+изменится.
+
 Backoffice custom endpoint `POST /backoffice/render-config` вызывает
 `RenderAgentConfig` + `StoreRenderedAgentConfig` и создает config revisions /
 `config_outbox` тем же application path, что и HTTP API.

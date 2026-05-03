@@ -17,7 +17,6 @@ from config_registry.infrastructure.backoffice import (
     ConfigOutboxActionsBackofficeView,
     PointBackofficeView,
     RenderConfigBackofficeView,
-    RuntimeConfigRevisionBackofficeView,
     SourceBackofficeView,
     TenantBackofficeView,
 )
@@ -51,11 +50,12 @@ def test_backoffice_is_not_mounted_without_postgres_uow() -> None:
         assert not _has_route_prefix(client.app, "/backoffice")
 
 
-def test_backoffice_model_views_disable_edit_and_delete() -> None:
+def test_backoffice_model_views_enable_full_internal_crud() -> None:
     assert BACKOFFICE_VIEWS
     for view in BACKOFFICE_VIEWS:
-        assert view.can_edit is False
-        assert view.can_delete is False
+        assert view.can_create is True
+        assert view.can_edit is True
+        assert view.can_delete is True
         assert view.can_view_details is True
 
 
@@ -413,33 +413,6 @@ async def test_backoffice_outbox_actions_use_application_use_cases() -> None:
     assert dead_letter_response.status_code == 200
     assert dead_letter_body["status"] == "dead_letter"
     assert dead_letter_body["last_error"] == "Manual dead-letter from test"
-
-
-def test_only_tenant_backoffice_view_is_create_enabled_for_now() -> None:
-    for view in BACKOFFICE_VIEWS:
-        assert view.can_create is (
-            view
-            in {
-                TenantBackofficeView,
-                AssetBackofficeView,
-                AgentBackofficeView,
-                SourceBackofficeView,
-                PointBackofficeView,
-            }
-        )
-
-
-@pytest.mark.asyncio
-async def test_backoffice_views_reject_unsupported_programmatic_writes() -> None:
-    tenant_view = TenantBackofficeView()
-    revision_view = RuntimeConfigRevisionBackofficeView()
-
-    with pytest.raises(PermissionError, match="read-only"):
-        await revision_view.insert_model(object(), {})
-    with pytest.raises(PermissionError, match="read-only"):
-        await tenant_view.update_model(object(), "tenant-a", {})
-    with pytest.raises(PermissionError, match="read-only"):
-        await tenant_view.delete_model(object(), "tenant-a")
 
 
 def _settings(*, internal_mode: bool) -> ConfigRegistrySettings:

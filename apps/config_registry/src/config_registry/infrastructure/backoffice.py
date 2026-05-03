@@ -60,38 +60,17 @@ from config_registry.infrastructure.postgres.models import (
 )
 
 
-class ReadOnlyModelView(ModelView):
-    can_create = False
-    can_edit = False
-    can_delete = False
+class BackofficeCrudModelView(ModelView):
+    can_create = True
+    can_edit = True
+    can_delete = True
     can_view_details = True
     can_export = True
     page_size = 50
     page_size_options = [25, 50, 100]
 
-    async def insert_model(self, request: object, data: dict[str, object]) -> object:
-        raise PermissionError("Backoffice model views are read-only")
 
-    async def update_model(
-        self,
-        request: object,
-        pk: object,
-        data: dict[str, object],
-    ) -> object:
-        raise PermissionError("Backoffice model views are read-only")
-
-    async def delete_model(self, request: object, pk: object) -> object:
-        raise PermissionError("Backoffice model views are read-only")
-
-
-class CreateOnlyModelView(ReadOnlyModelView):
-    can_create = True
-
-    async def insert_model(self, request: object, data: dict[str, object]) -> object:
-        raise NotImplementedError("Create-enabled views must call application use cases")
-
-
-class TenantBackofficeView(CreateOnlyModelView, model=TenantModel):
+class TenantBackofficeView(BackofficeCrudModelView, model=TenantModel):
     name = "Tenant"
     name_plural = "Tenants"
     category = "Registry"
@@ -123,7 +102,7 @@ class TenantBackofficeView(CreateOnlyModelView, model=TenantModel):
         )
 
 
-class AssetBackofficeView(CreateOnlyModelView, model=AssetModel):
+class AssetBackofficeView(BackofficeCrudModelView, model=AssetModel):
     name = "Asset"
     name_plural = "Assets"
     category = "Registry"
@@ -161,7 +140,7 @@ class AssetBackofficeView(CreateOnlyModelView, model=AssetModel):
         )
 
 
-class AgentBackofficeView(CreateOnlyModelView, model=AgentModel):
+class AgentBackofficeView(BackofficeCrudModelView, model=AgentModel):
     name = "Agent"
     name_plural = "Agents"
     category = "Registry"
@@ -200,7 +179,7 @@ class AgentBackofficeView(CreateOnlyModelView, model=AgentModel):
         )
 
 
-class SourceBackofficeView(CreateOnlyModelView, model=SourceModel):
+class SourceBackofficeView(BackofficeCrudModelView, model=SourceModel):
     name = "Source"
     name_plural = "Sources"
     category = "Registry"
@@ -256,7 +235,7 @@ class SourceBackofficeView(CreateOnlyModelView, model=SourceModel):
         )
 
 
-class PointBackofficeView(CreateOnlyModelView, model=PointModel):
+class PointBackofficeView(BackofficeCrudModelView, model=PointModel):
     name = "Point"
     name_plural = "Points"
     category = "Registry"
@@ -329,7 +308,7 @@ class PointBackofficeView(CreateOnlyModelView, model=PointModel):
 
 
 class RuntimeConfigRevisionBackofficeView(
-    ReadOnlyModelView,
+    BackofficeCrudModelView,
     model=RuntimeConfigRevisionModel,
 ):
     name = "Runtime Config Revision"
@@ -347,7 +326,7 @@ class RuntimeConfigRevisionBackofficeView(
 
 
 class SourceConfigRevisionBackofficeView(
-    ReadOnlyModelView,
+    BackofficeCrudModelView,
     model=SourceConfigRevisionModel,
 ):
     name = "Source Config Revision"
@@ -365,7 +344,7 @@ class SourceConfigRevisionBackofficeView(
     ]
 
 
-class ConfigOutboxBackofficeView(ReadOnlyModelView, model=ConfigOutboxModel):
+class ConfigOutboxBackofficeView(BackofficeCrudModelView, model=ConfigOutboxModel):
     name = "Config Outbox Record"
     name_plural = "Config Outbox Records"
     category = "Delivery"

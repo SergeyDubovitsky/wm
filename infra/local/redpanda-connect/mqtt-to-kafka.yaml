@@ -78,6 +78,7 @@ pipeline:
                 operator: set
                 key: '${! json("asset_id") }|${! json("agent_id") }|${! json("source_id") }'
                 value: '${! content().string() }'
+            - mapping: root = deleted()
 
         - check: this.message_type == "wm.telemetry.event.v1"
           processors:

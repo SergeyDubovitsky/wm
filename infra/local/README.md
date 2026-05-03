@@ -10,6 +10,8 @@
 - поднять `Redpanda Connect` как ingestion pipeline `MQTT -> Kafka`
 - поднять `Redpanda Connect` как config projection pipeline
   `Kafka -> MQTT retained`
+- поднять `Redpanda Connect` как source config snapshot pipeline
+  `Kafka edge configs -> Kafka source configs`
 - поднять `ClickHouse` как локальный `Telemetry Store` foundation
 - поднять `PostgreSQL` как локальный `Platform Store` foundation для
   `Config Registry`
@@ -30,6 +32,9 @@
 - `redpanda-connect-config-projection` — connector pipeline, который читает
   `wm.platform.edge.configs.v1` и материализует retained runtime/source config
   topics для edge-agent
+- `redpanda-connect-source-config-snapshot` — connector pipeline, который
+  строит canonical `wm.platform.source.config.v1` snapshots из
+  `wm.platform.edge.configs.v1`
 - `clickhouse` — локальный `ClickHouse` для пути
   `Kafka -> Kafka Connect -> ClickHouse` и read models для Grafana
 - `postgres` — локальный `PostgreSQL` для `Config Registry`
@@ -54,7 +59,8 @@ docker compose --env-file ../../.env up -d mqtt-broker
 cd infra/local
 docker compose --env-file ../../.env up -d \
   mqtt-broker kafka kafka-init redpanda-connect redpanda-connect-config-projection \
-  clickhouse postgres kafka-connect kafka-ui mqttx-web grafana
+  redpanda-connect-source-config-snapshot clickhouse postgres kafka-connect \
+  kafka-ui mqttx-web grafana
 ```
 
 После старта:
@@ -65,6 +71,8 @@ docker compose --env-file ../../.env up -d \
 - `Redpanda Connect MQTT -> Kafka` HTTP endpoint доступен на `localhost:4195`
 - `Redpanda Connect Kafka -> MQTT config projection` HTTP endpoint доступен на
   `localhost:4196`
+- `Redpanda Connect source config snapshot projector` HTTP endpoint доступен на
+  `localhost:4197`
 - `Kafka Connect REST` доступен на `localhost:8083`
 - `Kafka Connect JMX` подготовлен на `localhost:9102`
 - `ClickHouse HTTP` доступен на `localhost:8123`
@@ -227,7 +235,6 @@ CLI:
 При запущенном `redpanda-connect` эти MQTT-сообщения перекладываются в Kafka:
 
 - telemetry -> `wm.platform.telemetry.events.v1`
-- source config -> `wm.platform.source.configs.v1`
 - source connection -> `wm.platform.source.connections.v1`
 - agent LWT -> `wm.platform.agent.status.v1`
 - ingestion errors -> `wm.platform.ingestion.errors.v1`
@@ -237,6 +244,11 @@ CLI:
 
 - runtime config -> `wm/v1/agents/{agent_id}/config/runtime`
 - source config -> `wm/v1/agents/{agent_id}/sources/{source_id}/config`
+
+При запущенном `redpanda-connect-source-config-snapshot` source delivery records
+из `wm.platform.edge.configs.v1` материализуются в compacted Kafka topic
+`wm.platform.source.configs.v1`. Retained MQTT source configs не являются
+authoritative ingress для source snapshots.
 
 Shim через `infra/local/scripts` тоже доступен:
 
@@ -272,7 +284,8 @@ uv run --group integration pytest \
   минимальный datasource query через Grafana API
 - `local_stack` fixture поднимает только `mqtt-broker`
 - `local_platform_stack` fixture поднимает `mqtt-broker`, `kafka`, `kafka-init`
-  `redpanda-connect` и `redpanda-connect-config-projection`
+  `redpanda-connect`, `redpanda-connect-config-projection` и
+  `redpanda-connect-source-config-snapshot`
 - `local_storage_stack` fixture поднимает `kafka`, `kafka-init`, `clickhouse`
   и `kafka-connect`, применяет миграции и bootstrap connector config
 - `local_grafana_clickhouse_stack` fixture поднимает только `clickhouse` и

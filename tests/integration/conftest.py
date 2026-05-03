@@ -210,6 +210,7 @@ class LocalPlatformStack(LocalMqttStack):
     kafka_port: int
     redpanda_connect_port: int
     redpanda_connect_config_port: int
+    redpanda_connect_source_config_port: int
 
     def wait_for_kafka(self, timeout: float = 120.0) -> None:
         deadline = time.monotonic() + timeout
@@ -253,6 +254,16 @@ class LocalPlatformStack(LocalMqttStack):
         self._wait_for_tcp_port(
             self.redpanda_connect_config_port,
             service_label="Redpanda Connect Kafka -> MQTT config projection",
+            timeout=timeout,
+        )
+
+    def wait_for_redpanda_connect_source_config_snapshot(
+        self,
+        timeout: float = 90.0,
+    ) -> None:
+        self._wait_for_tcp_port(
+            self.redpanda_connect_source_config_port,
+            service_label="Redpanda Connect source config snapshot projector",
             timeout=timeout,
         )
 
@@ -785,6 +796,7 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
     kafka_port = _reserve_free_port()
     redpanda_connect_port = _reserve_free_port()
     redpanda_connect_config_port = _reserve_free_port()
+    redpanda_connect_source_config_port = _reserve_free_port()
     mqtt_username = f"wm_test_{uuid.uuid4().hex[:8]}"
     mqtt_password = secrets.token_urlsafe(18)
 
@@ -799,6 +811,9 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
             "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{kafka_port}",
             "REDPANDA_CONNECT_PORT": str(redpanda_connect_port),
             "REDPANDA_CONNECT_CONFIG_PORT": str(redpanda_connect_config_port),
+            "REDPANDA_CONNECT_SOURCE_CONFIG_PORT": str(
+                redpanda_connect_source_config_port
+            ),
         }
     )
 
@@ -815,6 +830,7 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
         kafka_port=kafka_port,
         redpanda_connect_port=redpanda_connect_port,
         redpanda_connect_config_port=redpanda_connect_config_port,
+        redpanda_connect_source_config_port=redpanda_connect_source_config_port,
     )
 
     try:
@@ -826,12 +842,14 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
             "kafka-init",
             "redpanda-connect",
             "redpanda-connect-config-projection",
+            "redpanda-connect-source-config-snapshot",
             timeout=900,
         )
         stack.wait_for_mqtt()
         stack.wait_for_kafka()
         stack.wait_for_redpanda_connect()
         stack.wait_for_redpanda_connect_config_projection()
+        stack.wait_for_redpanda_connect_source_config_snapshot()
         yield stack
     except subprocess.CalledProcessError as exc:
         raise AssertionError(
@@ -853,6 +871,7 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
     kafka_port = _reserve_free_port()
     redpanda_connect_port = _reserve_free_port()
     redpanda_connect_config_port = _reserve_free_port()
+    redpanda_connect_source_config_port = _reserve_free_port()
     clickhouse_http_port = _reserve_free_port()
     clickhouse_native_port = _reserve_free_port()
     kafka_connect_rest_port = _reserve_free_port()
@@ -871,6 +890,9 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
             "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{kafka_port}",
             "REDPANDA_CONNECT_PORT": str(redpanda_connect_port),
             "REDPANDA_CONNECT_CONFIG_PORT": str(redpanda_connect_config_port),
+            "REDPANDA_CONNECT_SOURCE_CONFIG_PORT": str(
+                redpanda_connect_source_config_port
+            ),
             "CLICKHOUSE_HOST": "127.0.0.1",
             "CLICKHOUSE_HTTP_PORT": str(clickhouse_http_port),
             "CLICKHOUSE_NATIVE_PORT": str(clickhouse_native_port),
@@ -893,6 +915,7 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
         kafka_port=kafka_port,
         redpanda_connect_port=redpanda_connect_port,
         redpanda_connect_config_port=redpanda_connect_config_port,
+        redpanda_connect_source_config_port=redpanda_connect_source_config_port,
         clickhouse_http_port=clickhouse_http_port,
         clickhouse_native_port=clickhouse_native_port,
         kafka_connect_rest_port=kafka_connect_rest_port,

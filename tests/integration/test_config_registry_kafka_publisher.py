@@ -227,9 +227,17 @@ def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
             "source_type": "knx",
             "config_revision": "rev-projection-001",
             "source_config_revision": "rev-projection-001-knx-main",
-            "issued_at": "2026-05-03T10:00:00Z",
             "enabled": True,
             "connection": {"gateway_ip": "127.0.0.1"},
+            "acquisition_defaults": {
+                "listen": True,
+                "read_on_start": False,
+                "periodic_interval_seconds": None,
+            },
+            "publish_defaults": {
+                "enabled": True,
+                "change_threshold": None,
+            },
             "points": [
                 {
                     "point_key": "temperature",
@@ -238,6 +246,16 @@ def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
                     "value_type": "number",
                     "value_model": "knx.dpt.9.001",
                     "signal_type": "sensor",
+                    "acquisition": {
+                        "listen": True,
+                        "read_on_start": True,
+                        "periodic_interval_seconds": None,
+                    },
+                    "publish": {
+                        "enabled": True,
+                        "change_threshold": 1.0,
+                    },
+                    "tags": {"room": "demo"},
                 }
             ],
         },
@@ -275,6 +293,19 @@ def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
     assert (
         source_message.payload["source_config_revision"]
         == "rev-projection-001-knx-main"
+    )
+
+    source_snapshot_key, source_snapshot = local_platform_stack.consume_kafka_json(
+        "wm.platform.source.configs.v1",
+        timeout=45,
+    )
+
+    assert source_snapshot_key == "tenant-projection|asset-a|agent-a|knx-main"
+    assert source_snapshot["message_type"] == "wm.platform.source.config.v1"
+    assert source_snapshot["tenant_id"] == "tenant-projection"
+    assert source_snapshot["source_config_revision"] == "rev-projection-001-knx-main"
+    assert source_snapshot["points"][0]["point_id"] == (
+        "tenant-projection|asset-a|knx-main|temperature"
     )
 
 

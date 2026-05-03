@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from config_registry.api.routers import agents, assets, health, tenants
+from config_registry.api.routers import agents, assets, health, points, sources, tenants
 from config_registry.application.ports.unit_of_work import UnitOfWork
 from config_registry.infrastructure.memory.unit_of_work import (
     InMemoryUnitOfWorkFactory,
@@ -50,4 +50,6 @@ def create_app(
     app.include_router(tenants.router)
     app.include_router(assets.router)
     app.include_router(agents.router)
+    app.include_router(sources.router)
+    app.include_router(points.router)
     return app

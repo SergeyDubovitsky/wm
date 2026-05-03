@@ -40,3 +40,61 @@ class DuplicateAgentError(ApplicationError):
         self.tenant_id = tenant_id
         self.asset_id = asset_id
         self.agent_id = agent_id
+
+
+class AgentNotFoundError(ApplicationError):
+    def __init__(self, tenant_id: str, asset_id: str, agent_id: str) -> None:
+        super().__init__(
+            f"Agent {agent_id!r} does not exist for asset {asset_id!r} "
+            f"in tenant {tenant_id!r}"
+        )
+        self.tenant_id = tenant_id
+        self.asset_id = asset_id
+        self.agent_id = agent_id
+
+
+class DuplicateSourceError(ApplicationError):
+    def __init__(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> None:
+        super().__init__(
+            f"Source {source_id!r} already exists for agent {agent_id!r} "
+            f"in asset {asset_id!r} and tenant {tenant_id!r}"
+        )
+        self.tenant_id = tenant_id
+        self.asset_id = asset_id
+        self.agent_id = agent_id
+        self.source_id = source_id
+
+
+class SourceNotFoundError(ApplicationError):
+    def __init__(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> None:
+        super().__init__(
+            f"Source {source_id!r} does not exist for agent {agent_id!r} "
+            f"in asset {asset_id!r} and tenant {tenant_id!r}"
+        )
+        self.tenant_id = tenant_id
+        self.asset_id = asset_id
+        self.agent_id = agent_id
+        self.source_id = source_id
+
+
+class DuplicatePointError(ApplicationError):
+    def __init__(self, tenant_id: str, field_name: str, field_value: str) -> None:
+        super().__init__(
+            f"Point with {field_name} {field_value!r} already exists "
+            f"for tenant {tenant_id!r}"
+        )
+        self.tenant_id = tenant_id
+        self.field_name = field_name
+        self.field_value = field_value

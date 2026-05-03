@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol, Self
 
-from config_registry.domain.entities import Agent, Asset, Tenant
+from config_registry.domain.entities import Agent, Asset, Point, Source, Tenant
 
 
 class TenantRepository(Protocol):
@@ -30,10 +30,63 @@ class AgentRepository(Protocol):
     async def list_for_asset(self, tenant_id: str, asset_id: str) -> list[Agent]: ...
 
 
+class SourceRepository(Protocol):
+    async def add(self, source: Source) -> None: ...
+
+    async def get(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> Source | None: ...
+
+    async def list_for_agent(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+    ) -> list[Source]: ...
+
+
+class PointRepository(Protocol):
+    async def add(self, point: Point) -> None: ...
+
+    async def get_by_id(self, tenant_id: str, point_id: str) -> Point | None: ...
+
+    async def get_by_key(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+        point_key: str,
+    ) -> Point | None: ...
+
+    async def get_by_ref(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+        point_ref: str,
+    ) -> Point | None: ...
+
+    async def list_for_source(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> list[Point]: ...
+
+
 class UnitOfWork(Protocol):
     tenants: TenantRepository
     assets: AssetRepository
     agents: AgentRepository
+    sources: SourceRepository
+    points: PointRepository
 
     async def __aenter__(self) -> Self: ...
 

@@ -6,12 +6,20 @@ from types import TracebackType
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from config_registry.domain.entities import Agent, Asset, Tenant
-from config_registry.domain.value_objects import AgentStatus, AssetStatus, TenantStatus
+from config_registry.domain.entities import Agent, Asset, Point, Source, Tenant
+from config_registry.domain.value_objects import (
+    AgentStatus,
+    AssetStatus,
+    SignalType,
+    TenantStatus,
+    ValueType,
+)
 from config_registry.infrastructure.postgres.database import PostgresSessionManager
 from config_registry.infrastructure.postgres.models import (
     AgentModel,
     AssetModel,
+    PointModel,
+    SourceModel,
     TenantModel,
 )
 
@@ -86,6 +94,90 @@ def _agent_from_model(model: AgentModel) -> Agent:
     )
 
 
+def _source_to_model(source: Source) -> SourceModel:
+    return SourceModel(
+        tenant_id=source.tenant_id,
+        asset_id=source.asset_id,
+        agent_id=source.agent_id,
+        source_id=source.source_id,
+        source_type=source.source_type,
+        enabled=source.enabled,
+        name=source.name,
+        description=source.description,
+        connection_json=dict(source.connection_json),
+        acquisition_defaults_json=dict(source.acquisition_defaults_json),
+        publish_defaults_json=dict(source.publish_defaults_json),
+        created_at=source.created_at,
+        updated_at=source.updated_at,
+    )
+
+
+def _source_from_model(model: SourceModel) -> Source:
+    return Source(
+        tenant_id=model.tenant_id,
+        asset_id=model.asset_id,
+        agent_id=model.agent_id,
+        source_id=model.source_id,
+        source_type=model.source_type,
+        enabled=model.enabled,
+        name=model.name,
+        description=model.description,
+        connection_json=dict(model.connection_json),
+        acquisition_defaults_json=dict(model.acquisition_defaults_json),
+        publish_defaults_json=dict(model.publish_defaults_json),
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+    )
+
+
+def _point_to_model(point: Point) -> PointModel:
+    return PointModel(
+        tenant_id=point.tenant_id,
+        asset_id=point.asset_id,
+        agent_id=point.agent_id,
+        source_id=point.source_id,
+        point_id=point.point_id,
+        point_key=point.point_key,
+        point_ref=point.point_ref,
+        name=point.name,
+        description=point.description,
+        value_type=point.value_type.value,
+        value_model=point.value_model,
+        signal_type=point.signal_type.value,
+        unit=point.unit,
+        enabled=point.enabled,
+        acquisition_json=dict(point.acquisition_json),
+        publish_json=dict(point.publish_json),
+        tags_json=dict(point.tags_json),
+        created_at=point.created_at,
+        updated_at=point.updated_at,
+    )
+
+
+def _point_from_model(model: PointModel) -> Point:
+    return Point(
+        tenant_id=model.tenant_id,
+        asset_id=model.asset_id,
+        agent_id=model.agent_id,
+        source_id=model.source_id,
+        point_id=model.point_id,
+        point_key=model.point_key,
+        point_ref=model.point_ref,
+        name=model.name,
+        description=model.description,
+        value_type=ValueType(model.value_type),
+        value_model=model.value_model,
+        signal_type=SignalType(model.signal_type),
+        unit=model.unit,
+        enabled=model.enabled,
+        acquisition_json=dict(model.acquisition_json),
+        publish_json=dict(model.publish_json),
+        tags_json=dict(model.tags_json),
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+    )
+
+
 @dataclass
 class PostgresTenantRepository:
     session: AsyncSession
@@ -148,11 +240,122 @@ class PostgresAgentRepository:
 
 
 @dataclass
+class PostgresSourceRepository:
+    session: AsyncSession
+
+    async def add(self, source: Source) -> None:
+        self.session.add(_source_to_model(source))
+
+    async def get(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> Source | None:
+        model = await self.session.get(
+            SourceModel,
+            (tenant_id, asset_id, agent_id, source_id),
+        )
+        return _source_from_model(model) if model is not None else None
+
+    async def list_for_agent(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+    ) -> list[Source]:
+        result = await self.session.scalars(
+            select(SourceModel)
+            .where(
+                SourceModel.tenant_id == tenant_id,
+                SourceModel.asset_id == asset_id,
+                SourceModel.agent_id == agent_id,
+            )
+            .order_by(SourceModel.source_id)
+        )
+        return [_source_from_model(model) for model in result]
+
+
+@dataclass
+class PostgresPointRepository:
+    session: AsyncSession
+
+    async def add(self, point: Point) -> None:
+        self.session.add(_point_to_model(point))
+
+    async def get_by_id(self, tenant_id: str, point_id: str) -> Point | None:
+        model = await self.session.get(PointModel, (tenant_id, point_id))
+        return _point_from_model(model) if model is not None else None
+
+    async def get_by_key(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+        point_key: str,
+    ) -> Point | None:
+        result = await self.session.scalars(
+            select(PointModel).where(
+                PointModel.tenant_id == tenant_id,
+                PointModel.asset_id == asset_id,
+                PointModel.agent_id == agent_id,
+                PointModel.source_id == source_id,
+                PointModel.point_key == point_key,
+            )
+        )
+        model = result.first()
+        return _point_from_model(model) if model is not None else None
+
+    async def get_by_ref(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+        point_ref: str,
+    ) -> Point | None:
+        result = await self.session.scalars(
+            select(PointModel).where(
+                PointModel.tenant_id == tenant_id,
+                PointModel.asset_id == asset_id,
+                PointModel.agent_id == agent_id,
+                PointModel.source_id == source_id,
+                PointModel.point_ref == point_ref,
+            )
+        )
+        model = result.first()
+        return _point_from_model(model) if model is not None else None
+
+    async def list_for_source(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> list[Point]:
+        result = await self.session.scalars(
+            select(PointModel)
+            .where(
+                PointModel.tenant_id == tenant_id,
+                PointModel.asset_id == asset_id,
+                PointModel.agent_id == agent_id,
+                PointModel.source_id == source_id,
+            )
+            .order_by(PointModel.point_key)
+        )
+        return [_point_from_model(model) for model in result]
+
+
+@dataclass
 class PostgresUnitOfWork:
     session_factory: async_sessionmaker[AsyncSession]
     tenants: PostgresTenantRepository = field(init=False)
     assets: PostgresAssetRepository = field(init=False)
     agents: PostgresAgentRepository = field(init=False)
+    sources: PostgresSourceRepository = field(init=False)
+    points: PostgresPointRepository = field(init=False)
     _session: AsyncSession = field(init=False)
     _committed: bool = field(default=False, init=False)
 
@@ -161,6 +364,8 @@ class PostgresUnitOfWork:
         self.tenants = PostgresTenantRepository(self._session)
         self.assets = PostgresAssetRepository(self._session)
         self.agents = PostgresAgentRepository(self._session)
+        self.sources = PostgresSourceRepository(self._session)
+        self.points = PostgresPointRepository(self._session)
         self._committed = False
         return self
 

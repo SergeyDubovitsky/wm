@@ -10,13 +10,17 @@ flow.
 - domain entities/value objects для registry-модели
 - application use cases и repository/unit-of-work protocols
 - временный in-memory adapter для unit/API smoke-тестов
-- PostgreSQL adapter для `tenants`, `assets` и `agents`
+- PostgreSQL adapter для `tenants`, `assets`, `agents`, `sources` и `points`
 - Alembic migration для core registry tables:
   `tenants`, `assets`, `agents`, `sources`, `points`
 - endpoints `GET /health`, `GET /ready`, `POST /tenants`, `GET /tenants`,
   `POST /tenants/{tenant_id}/assets`, `GET /tenants/{tenant_id}/assets`,
   `POST /tenants/{tenant_id}/assets/{asset_id}/agents`,
-  `GET /tenants/{tenant_id}/assets/{asset_id}/agents`
+  `GET /tenants/{tenant_id}/assets/{asset_id}/agents`,
+  `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources`,
+  `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources`,
+  `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`,
+  `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`
 
 Render-config, config revisions и transactional outbox будут добавляться
 следующими инкрементами по `ADR-010`.

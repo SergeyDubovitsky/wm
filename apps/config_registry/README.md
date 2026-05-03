@@ -67,8 +67,9 @@ CONFIG_REGISTRY_DATABASE_URL=postgresql+asyncpg://wm:change-me-local-postgres@lo
 Если `CONFIG_REGISTRY_INTERNAL_MODE=true` и API запущен с PostgreSQL-backed
 `CONFIG_REGISTRY_DATABASE_URL`, дополнительно монтируется internal
 `/backoffice`. Первые write-enabled adapters включены только для создания
-`Tenant`, `Asset` и `Agent` и вызывают application use cases; edit/delete и
-остальные model views остаются read-only без прямых ORM-write операций.
+`Tenant`, `Asset`, `Agent` и `Source` и вызывают application use cases;
+edit/delete и остальные model views остаются read-only без прямых ORM-write
+операций.
 
 Для локальной доставки config records в Kafka используется
 `KAFKA_BOOTSTRAP_SERVERS` и `CONFIG_REGISTRY_KAFKA_CLIENT_ID`.

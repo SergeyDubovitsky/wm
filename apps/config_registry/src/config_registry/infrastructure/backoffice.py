@@ -13,6 +13,10 @@ from config_registry.application.use_cases.assets import (
     CreateAsset,
     CreateAssetCommand,
 )
+from config_registry.application.use_cases.sources import (
+    CreateSource,
+    CreateSourceCommand,
+)
 from config_registry.application.use_cases.tenants import (
     CreateTenant,
     CreateTenantCommand,
@@ -169,10 +173,20 @@ class AgentBackofficeView(CreateOnlyModelView, model=AgentModel):
         )
 
 
-class SourceBackofficeView(ReadOnlyModelView, model=SourceModel):
+class SourceBackofficeView(CreateOnlyModelView, model=SourceModel):
     name = "Source"
     name_plural = "Sources"
     category = "Registry"
+    form_columns = [
+        SourceModel.tenant_id,
+        SourceModel.asset_id,
+        SourceModel.agent_id,
+        SourceModel.source_id,
+        SourceModel.source_type,
+        SourceModel.enabled,
+        SourceModel.name,
+        SourceModel.description,
+    ]
     column_list = [
         SourceModel.tenant_id,
         SourceModel.asset_id,
@@ -182,6 +196,35 @@ class SourceBackofficeView(ReadOnlyModelView, model=SourceModel):
         SourceModel.enabled,
         SourceModel.updated_at,
     ]
+
+    async def insert_model(self, request: Request, data: dict[str, object]) -> object:
+        source = await CreateSource(request.app.state.unit_of_work_factory()).execute(
+            CreateSourceCommand(
+                tenant_id=str(data["tenant_id"]),
+                asset_id=str(data["asset_id"]),
+                agent_id=str(data["agent_id"]),
+                source_id=str(data["source_id"]),
+                source_type=str(data["source_type"]),
+                enabled=_optional_bool(data.get("enabled"), default=True),
+                name=_optional_string(data.get("name")),
+                description=_optional_string(data.get("description")),
+            )
+        )
+        return SourceModel(
+            tenant_id=source.tenant_id,
+            asset_id=source.asset_id,
+            agent_id=source.agent_id,
+            source_id=source.source_id,
+            source_type=source.source_type,
+            enabled=source.enabled,
+            name=source.name,
+            description=source.description,
+            connection_json=dict(source.connection_json),
+            acquisition_defaults_json=dict(source.acquisition_defaults_json),
+            publish_defaults_json=dict(source.publish_defaults_json),
+            created_at=source.created_at,
+            updated_at=source.updated_at,
+        )
 
 
 class PointBackofficeView(ReadOnlyModelView, model=PointModel):
@@ -282,3 +325,9 @@ def _optional_string(value: object) -> str | None:
     if value is None or value == "":
         return None
     return str(value)
+
+
+def _optional_bool(value: object, *, default: bool) -> bool:
+    if value is None or value == "":
+        return default
+    return bool(value)

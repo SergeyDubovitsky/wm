@@ -9,6 +9,7 @@ from config_registry.infrastructure.backoffice import (
     BACKOFFICE_VIEWS,
     AgentBackofficeView,
     AssetBackofficeView,
+    PointBackofficeView,
     SourceBackofficeView,
     TenantBackofficeView,
 )
@@ -138,20 +139,76 @@ async def test_backoffice_create_agent_uses_application_use_case() -> None:
     assert agents[0]["bootstrap_hint_json"] == {}
 
 
+@pytest.mark.asyncio
+async def test_backoffice_create_source_uses_application_use_case() -> None:
+    app = create_app()
+    request = SimpleNamespace(app=app)
+    await TenantBackofficeView().insert_model(
+        request,
+        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
+    )
+    await AssetBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "name": "Asset Backoffice",
+        },
+    )
+    await AgentBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+        },
+    )
+
+    created = await SourceBackofficeView().insert_model(
+        request,
+        {
+            "tenant_id": "tenant-backoffice",
+            "asset_id": "asset-backoffice",
+            "agent_id": "agent-backoffice",
+            "source_id": "source-backoffice",
+            "source_type": "knx",
+            "enabled": True,
+            "name": "Source Backoffice",
+        },
+    )
+
+    with TestClient(app) as client:
+        sources = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice"
+            "/agents/agent-backoffice/sources"
+        ).json()
+
+    assert created.source_id == "source-backoffice"
+    assert created.enabled is True
+    assert sources[0]["source_id"] == "source-backoffice"
+    assert sources[0]["connection_json"] == {}
+
+
 def test_only_tenant_backoffice_view_is_create_enabled_for_now() -> None:
     for view in BACKOFFICE_VIEWS:
         assert view.can_create is (
-            view in {TenantBackofficeView, AssetBackofficeView, AgentBackofficeView}
+            view
+            in {
+                TenantBackofficeView,
+                AssetBackofficeView,
+                AgentBackofficeView,
+                SourceBackofficeView,
+            }
         )
 
 
 @pytest.mark.asyncio
 async def test_backoffice_views_reject_unsupported_programmatic_writes() -> None:
     tenant_view = TenantBackofficeView()
-    source_view = SourceBackofficeView()
+    point_view = PointBackofficeView()
 
     with pytest.raises(PermissionError, match="read-only"):
-        await source_view.insert_model(object(), {})
+        await point_view.insert_model(object(), {})
     with pytest.raises(PermissionError, match="read-only"):
         await tenant_view.update_model(object(), "tenant-a", {})
     with pytest.raises(PermissionError, match="read-only"):

@@ -203,3 +203,13 @@ Kafka Connect connector для raw landing path применяется так:
 ```bash
 uv run --env-file .env python infra/local/kafka-connect/bootstrap_connector.py
 ```
+
+ClickHouse analytical read-model PoC:
+
+```bash
+uv run --env-file .env wm-clickhouse load-poc telemetry-read-models \
+  --rows 50000 \
+  --points 100 \
+  --batch-size 10000 \
+  --duplicate-every 10
+```

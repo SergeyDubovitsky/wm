@@ -27,8 +27,10 @@
 - Done: read/dedup conventions and replay/duplicate storage smoke with `FINAL`.
 - Done: correctness-first read models via `telemetry_events_dedup_v1`,
   `telemetry_latest_v1`, `telemetry_1m_v1` and `telemetry_1h_v1` query views.
-- Next: decide whether materialized latest/rollup tables are needed after a
-  load/performance PoC.
+- Done: ClickHouse analytics readiness review and reproducible
+  `wm-clickhouse load-poc telemetry-read-models` command.
+- Next: decide whether materialized latest/rollup tables are needed after
+  representative load runs exceed API/UI latency targets.
 
 ## Overview
 

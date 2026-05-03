@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import subprocess
+from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.integration
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
@@ -307,6 +310,43 @@ def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
         """.strip()
     )
     assert derived_row == 'boolean\t\\N\ttrue\t\\N\t["storage-raw-001"]\t{"threshold":40}'
+
+    load_poc_result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--env-file",
+            str(local_storage_stack.env_file),
+            "wm-clickhouse",
+            "load-poc",
+            "telemetry-read-models",
+            "--rows",
+            "2000",
+            "--points",
+            "20",
+            "--batch-size",
+            "1000",
+            "--duplicate-every",
+            "10",
+            "--run-id",
+            "storage-it-load-poc",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert load_poc_result.returncode == 0, load_poc_result.stderr
+    load_poc = json.loads(load_poc_result.stdout)
+
+    assert load_poc["logical_rows"] == 2000
+    assert load_poc["duplicate_rows"] == 200
+    assert load_poc["inserted_rows"] == 2200
+    assert load_poc["queries"]["dedup_count"]["value"] == 2000
+    assert load_poc["queries"]["latest_count"]["value"] == 20
+    assert load_poc["queries"]["minute_rollup"]["value"] == 2000
+    assert load_poc["queries"]["hour_rollup"]["value"] == 2000
 
 
 def test_invalid_storage_record_goes_to_kafka_connect_dlq(local_storage_stack) -> None:

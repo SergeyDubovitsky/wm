@@ -15,6 +15,8 @@ flow.
   `source_config_revisions`
 - transactional `config_outbox` pending records для Kafka-first edge config
   delivery
+- outbox lease workflow и `Config Event Publisher` boundary:
+  `reserve -> publish -> mark_published/mark_retry/mark_dead_letter`
 - временный in-memory adapter для unit/API smoke-тестов
 - PostgreSQL adapter для `tenants`, `assets`, `agents`, `sources` и `points`
 - Alembic migrations для registry tables:
@@ -30,8 +32,9 @@ flow.
   `POST /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`,
   `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points`
 
-Outbox reservation, retry, dead-letter и publisher runtime будут добавляться
-следующими инкрементами по `ADR-010`.
+Реальный Kafka producer adapter, CLI/runtime упаковка publisher-а и
+Redpanda Connect Kafka -> MQTT retained projection будут добавляться следующими
+инкрементами по `ADR-010`.
 
 ```bash
 uv run --package config-registry pytest apps/config_registry/tests

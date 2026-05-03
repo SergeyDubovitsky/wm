@@ -7,11 +7,13 @@ from typing import Any
 from config_registry.application.errors import (
     AgentNotFoundError,
     ConfigRenderError,
+    DuplicateConfigOutboxRecordError,
     DuplicateConfigRevisionError,
 )
 from config_registry.application.ports.config_validation import ConfigPayloadValidator
 from config_registry.application.ports.unit_of_work import UnitOfWork
 from config_registry.domain.entities import (
+    ConfigOutboxRecord,
     Point,
     RuntimeConfigRevision,
     Source,
@@ -224,6 +226,7 @@ class StoreRenderedAgentConfig:
             )
             for source in rendered.source_payloads
         ]
+        outbox_records = _outbox_records_for_rendered_config(rendered)
 
         async with self._unit_of_work as unit_of_work:
             if (
@@ -244,6 +247,17 @@ class StoreRenderedAgentConfig:
             await unit_of_work.runtime_config_revisions.add(runtime_revision)
             for source_revision in source_revisions:
                 await unit_of_work.source_config_revisions.add(source_revision)
+            for outbox_record in outbox_records:
+                if (
+                    await unit_of_work.config_outbox.get_by_idempotency_key(
+                        outbox_record.idempotency_key
+                    )
+                    is not None
+                ):
+                    raise DuplicateConfigOutboxRecordError(
+                        outbox_record.idempotency_key
+                    )
+                await unit_of_work.config_outbox.add(outbox_record)
             await unit_of_work.commit()
 
         return runtime_revision
@@ -281,3 +295,94 @@ def _source_revision_from_payload(
 
 def _parse_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _outbox_records_for_rendered_config(
+    rendered: RenderedAgentConfig,
+) -> list[ConfigOutboxRecord]:
+    runtime_payload = rendered.runtime_payload
+    tenant_id = str(runtime_payload["tenant_id"])
+    asset_id = str(runtime_payload["asset_id"])
+    agent_id = str(runtime_payload["agent_id"])
+    config_revision = str(runtime_payload["config_revision"])
+    issued_at = str(runtime_payload["issued_at"])
+
+    records = [
+        ConfigOutboxRecord.new(
+            tenant_id=tenant_id,
+            idempotency_key=(
+                f"{tenant_id}|{asset_id}|{agent_id}|{config_revision}|runtime"
+            ),
+            asset_id=asset_id,
+            agent_id=agent_id,
+            config_revision=config_revision,
+            config_scope="runtime",
+            source_id=None,
+            source_config_revision=None,
+            kafka_key=f"{tenant_id}|{asset_id}|{agent_id}|runtime",
+            payload_json={
+                "message_type": "wm.platform.edge.config.delivery.v1",
+                "tenant_id": tenant_id,
+                "asset_id": asset_id,
+                "agent_id": agent_id,
+                "config_revision": config_revision,
+                "config_scope": "runtime",
+                "source_id": None,
+                "source_config_revision": None,
+                "target_mqtt_topic": f"wm/v1/agents/{agent_id}/config/runtime",
+                "mqtt_retain": True,
+                "mqtt_qos": 1,
+                "operation": "upsert",
+                "payload_message_type": "wm.edge.runtime-config.v1",
+                "payload": dict(runtime_payload),
+                "idempotency_key": (
+                    f"{tenant_id}|{asset_id}|{agent_id}|{config_revision}|runtime"
+                ),
+                "issued_at": issued_at,
+            },
+        )
+    ]
+
+    for rendered_source in rendered.source_payloads:
+        source_payload = rendered_source.payload
+        source_id = str(source_payload["source_id"])
+        source_config_revision = str(source_payload["source_config_revision"])
+        config_scope = f"source:{source_id}"
+        idempotency_key = (
+            f"{tenant_id}|{asset_id}|{agent_id}|{config_revision}|source|{source_id}"
+        )
+        records.append(
+            ConfigOutboxRecord.new(
+                tenant_id=tenant_id,
+                idempotency_key=idempotency_key,
+                asset_id=asset_id,
+                agent_id=agent_id,
+                config_revision=config_revision,
+                config_scope=config_scope,
+                source_id=source_id,
+                source_config_revision=source_config_revision,
+                kafka_key=f"{tenant_id}|{asset_id}|{agent_id}|{config_scope}",
+                payload_json={
+                    "message_type": "wm.platform.edge.config.delivery.v1",
+                    "tenant_id": tenant_id,
+                    "asset_id": asset_id,
+                    "agent_id": agent_id,
+                    "config_revision": config_revision,
+                    "config_scope": config_scope,
+                    "source_id": source_id,
+                    "source_config_revision": source_config_revision,
+                    "target_mqtt_topic": (
+                        f"wm/v1/agents/{agent_id}/sources/{source_id}/config"
+                    ),
+                    "mqtt_retain": True,
+                    "mqtt_qos": 1,
+                    "operation": "upsert",
+                    "payload_message_type": "wm.edge.source-config.v1",
+                    "payload": dict(source_payload),
+                    "idempotency_key": idempotency_key,
+                    "issued_at": issued_at,
+                },
+            )
+        )
+
+    return records

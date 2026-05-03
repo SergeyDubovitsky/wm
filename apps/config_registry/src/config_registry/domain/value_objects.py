@@ -45,6 +45,14 @@ class ConfigRevisionStatus(StrEnum):
     FAILED = "failed"
 
 
+class ConfigOutboxStatus(StrEnum):
+    PENDING = "pending"
+    INFLIGHT = "inflight"
+    PUBLISHED = "published"
+    RETRY = "retry"
+    DEAD_LETTER = "dead_letter"
+
+
 _PATH_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,127}$")
 _POINT_KEY_PATTERN = re.compile(r"^(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+$")
 

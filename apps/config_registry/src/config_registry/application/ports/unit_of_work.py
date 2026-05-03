@@ -6,6 +6,7 @@ from typing import Protocol, Self
 from config_registry.domain.entities import (
     Agent,
     Asset,
+    ConfigOutboxRecord,
     Point,
     RuntimeConfigRevision,
     Source,
@@ -122,6 +123,23 @@ class SourceConfigRevisionRepository(Protocol):
     ) -> list[SourceConfigRevision]: ...
 
 
+class ConfigOutboxRepository(Protocol):
+    async def add(self, record: ConfigOutboxRecord) -> None: ...
+
+    async def get_by_idempotency_key(
+        self,
+        idempotency_key: str,
+    ) -> ConfigOutboxRecord | None: ...
+
+    async def list_for_config_revision(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        config_revision: str,
+    ) -> list[ConfigOutboxRecord]: ...
+
+
 class UnitOfWork(Protocol):
     tenants: TenantRepository
     assets: AssetRepository
@@ -130,6 +148,7 @@ class UnitOfWork(Protocol):
     points: PointRepository
     runtime_config_revisions: RuntimeConfigRevisionRepository
     source_config_revisions: SourceConfigRevisionRepository
+    config_outbox: ConfigOutboxRepository
 
     async def __aenter__(self) -> Self: ...
 

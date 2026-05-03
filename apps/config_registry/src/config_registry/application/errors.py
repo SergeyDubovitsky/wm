@@ -122,3 +122,11 @@ class DuplicateConfigRevisionError(ApplicationError):
         self.asset_id = asset_id
         self.agent_id = agent_id
         self.revision = revision
+
+
+class DuplicateConfigOutboxRecordError(ApplicationError):
+    def __init__(self, idempotency_key: str) -> None:
+        super().__init__(
+            f"Config outbox record with idempotency key {idempotency_key!r} already exists"
+        )
+        self.idempotency_key = idempotency_key

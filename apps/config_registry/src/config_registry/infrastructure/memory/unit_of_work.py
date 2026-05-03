@@ -6,6 +6,7 @@ from types import TracebackType
 from config_registry.domain.entities import (
     Agent,
     Asset,
+    ConfigOutboxRecord,
     Point,
     RuntimeConfigRevision,
     Source,
@@ -260,6 +261,39 @@ class InMemorySourceConfigRevisionRepository:
 
 
 @dataclass
+class InMemoryConfigOutboxRepository:
+    _items: dict[str, ConfigOutboxRecord] = field(default_factory=dict)
+
+    async def add(self, record: ConfigOutboxRecord) -> None:
+        self._items[record.idempotency_key] = record
+
+    async def get_by_idempotency_key(
+        self,
+        idempotency_key: str,
+    ) -> ConfigOutboxRecord | None:
+        return self._items.get(idempotency_key)
+
+    async def list_for_config_revision(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        config_revision: str,
+    ) -> list[ConfigOutboxRecord]:
+        return sorted(
+            (
+                record
+                for record in self._items.values()
+                if record.tenant_id == tenant_id
+                and record.asset_id == asset_id
+                and record.agent_id == agent_id
+                and record.config_revision == config_revision
+            ),
+            key=lambda record: record.config_scope,
+        )
+
+
+@dataclass
 class InMemoryUnitOfWork:
     tenants: InMemoryTenantRepository
     assets: InMemoryAssetRepository
@@ -268,6 +302,7 @@ class InMemoryUnitOfWork:
     points: InMemoryPointRepository
     runtime_config_revisions: InMemoryRuntimeConfigRevisionRepository
     source_config_revisions: InMemorySourceConfigRevisionRepository
+    config_outbox: InMemoryConfigOutboxRepository
     committed: bool = False
 
     async def __aenter__(self) -> InMemoryUnitOfWork:
@@ -298,6 +333,9 @@ class InMemoryUnitOfWorkFactory:
     source_config_revisions: InMemorySourceConfigRevisionRepository = field(
         default_factory=InMemorySourceConfigRevisionRepository
     )
+    config_outbox: InMemoryConfigOutboxRepository = field(
+        default_factory=InMemoryConfigOutboxRepository
+    )
 
     def __call__(self) -> InMemoryUnitOfWork:
         return InMemoryUnitOfWork(
@@ -308,4 +346,5 @@ class InMemoryUnitOfWorkFactory:
             points=self.points,
             runtime_config_revisions=self.runtime_config_revisions,
             source_config_revisions=self.source_config_revisions,
+            config_outbox=self.config_outbox,
         )

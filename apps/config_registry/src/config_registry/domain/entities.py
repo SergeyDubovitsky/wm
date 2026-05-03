@@ -3,10 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID, uuid4
 
 from config_registry.domain.value_objects import (
     AgentStatus,
     AssetStatus,
+    ConfigOutboxStatus,
     ConfigRevisionStatus,
     SignalType,
     TenantStatus,
@@ -289,4 +291,93 @@ class SourceConfigRevision:
             self,
             "config_revision",
             require_non_empty(self.config_revision, field_name="config_revision"),
+        )
+
+
+@dataclass(frozen=True)
+class ConfigOutboxRecord:
+    tenant_id: str
+    outbox_id: UUID
+    idempotency_key: str
+    asset_id: str
+    agent_id: str
+    config_revision: str
+    config_scope: str
+    source_id: str | None
+    source_config_revision: str | None
+    message_type: str
+    kafka_topic: str
+    kafka_key: str
+    payload_json: dict[str, Any]
+    status: ConfigOutboxStatus = ConfigOutboxStatus.PENDING
+    available_at: datetime = field(default_factory=utc_now)
+    lease_expires_at: datetime | None = None
+    published_at: datetime | None = None
+    attempt_count: int = 0
+    next_attempt_at: datetime | None = None
+    last_error: str | None = None
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
+
+    @classmethod
+    def new(
+        cls,
+        *,
+        tenant_id: str,
+        idempotency_key: str,
+        asset_id: str,
+        agent_id: str,
+        config_revision: str,
+        config_scope: str,
+        source_id: str | None,
+        source_config_revision: str | None,
+        kafka_key: str,
+        payload_json: dict[str, Any],
+    ) -> ConfigOutboxRecord:
+        return cls(
+            tenant_id=tenant_id,
+            outbox_id=uuid4(),
+            idempotency_key=idempotency_key,
+            asset_id=asset_id,
+            agent_id=agent_id,
+            config_revision=config_revision,
+            config_scope=config_scope,
+            source_id=source_id,
+            source_config_revision=source_config_revision,
+            message_type="wm.platform.edge.config.delivery.v1",
+            kafka_topic="wm.platform.edge.configs.v1",
+            kafka_key=kafka_key,
+            payload_json=payload_json,
+        )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "tenant_id",
+            require_non_empty(self.tenant_id, field_name="tenant_id"),
+        )
+        object.__setattr__(
+            self,
+            "idempotency_key",
+            require_non_empty(self.idempotency_key, field_name="idempotency_key"),
+        )
+        object.__setattr__(
+            self,
+            "asset_id",
+            require_path_id(self.asset_id, field_name="asset_id"),
+        )
+        object.__setattr__(
+            self,
+            "agent_id",
+            require_path_id(self.agent_id, field_name="agent_id"),
+        )
+        object.__setattr__(
+            self,
+            "config_revision",
+            require_non_empty(self.config_revision, field_name="config_revision"),
+        )
+        object.__setattr__(
+            self,
+            "config_scope",
+            require_non_empty(self.config_scope, field_name="config_scope"),
         )

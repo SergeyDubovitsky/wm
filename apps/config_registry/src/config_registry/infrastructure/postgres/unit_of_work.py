@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from config_registry.domain.entities import (
     Agent,
     Asset,
+    ConfigOutboxRecord,
     Point,
     RuntimeConfigRevision,
     Source,
@@ -18,6 +19,7 @@ from config_registry.domain.entities import (
 from config_registry.domain.value_objects import (
     AgentStatus,
     AssetStatus,
+    ConfigOutboxStatus,
     ConfigRevisionStatus,
     SignalType,
     TenantStatus,
@@ -27,6 +29,7 @@ from config_registry.infrastructure.postgres.database import PostgresSessionMana
 from config_registry.infrastructure.postgres.models import (
     AgentModel,
     AssetModel,
+    ConfigOutboxModel,
     PointModel,
     RuntimeConfigRevisionModel,
     SourceConfigRevisionModel,
@@ -250,6 +253,60 @@ def _source_config_revision_from_model(
         issued_at=model.issued_at,
         source_payload_json=dict(model.source_payload_json),
         created_at=model.created_at,
+    )
+
+
+def _config_outbox_to_model(record: ConfigOutboxRecord) -> ConfigOutboxModel:
+    return ConfigOutboxModel(
+        tenant_id=record.tenant_id,
+        outbox_id=record.outbox_id,
+        idempotency_key=record.idempotency_key,
+        asset_id=record.asset_id,
+        agent_id=record.agent_id,
+        config_revision=record.config_revision,
+        config_scope=record.config_scope,
+        source_id=record.source_id,
+        source_config_revision=record.source_config_revision,
+        message_type=record.message_type,
+        kafka_topic=record.kafka_topic,
+        kafka_key=record.kafka_key,
+        payload_json=dict(record.payload_json),
+        status=record.status.value,
+        available_at=record.available_at,
+        lease_expires_at=record.lease_expires_at,
+        published_at=record.published_at,
+        attempt_count=record.attempt_count,
+        next_attempt_at=record.next_attempt_at,
+        last_error=record.last_error,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
+
+
+def _config_outbox_from_model(model: ConfigOutboxModel) -> ConfigOutboxRecord:
+    return ConfigOutboxRecord(
+        tenant_id=model.tenant_id,
+        outbox_id=model.outbox_id,
+        idempotency_key=model.idempotency_key,
+        asset_id=model.asset_id,
+        agent_id=model.agent_id,
+        config_revision=model.config_revision,
+        config_scope=model.config_scope,
+        source_id=model.source_id,
+        source_config_revision=model.source_config_revision,
+        message_type=model.message_type,
+        kafka_topic=model.kafka_topic,
+        kafka_key=model.kafka_key,
+        payload_json=dict(model.payload_json),
+        status=ConfigOutboxStatus(model.status),
+        available_at=model.available_at,
+        lease_expires_at=model.lease_expires_at,
+        published_at=model.published_at,
+        attempt_count=model.attempt_count,
+        next_attempt_at=model.next_attempt_at,
+        last_error=model.last_error,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
     )
 
 
@@ -494,6 +551,45 @@ class PostgresSourceConfigRevisionRepository:
 
 
 @dataclass
+class PostgresConfigOutboxRepository:
+    session: AsyncSession
+
+    async def add(self, record: ConfigOutboxRecord) -> None:
+        self.session.add(_config_outbox_to_model(record))
+
+    async def get_by_idempotency_key(
+        self,
+        idempotency_key: str,
+    ) -> ConfigOutboxRecord | None:
+        result = await self.session.scalars(
+            select(ConfigOutboxModel).where(
+                ConfigOutboxModel.idempotency_key == idempotency_key
+            )
+        )
+        model = result.first()
+        return _config_outbox_from_model(model) if model is not None else None
+
+    async def list_for_config_revision(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        config_revision: str,
+    ) -> list[ConfigOutboxRecord]:
+        result = await self.session.scalars(
+            select(ConfigOutboxModel)
+            .where(
+                ConfigOutboxModel.tenant_id == tenant_id,
+                ConfigOutboxModel.asset_id == asset_id,
+                ConfigOutboxModel.agent_id == agent_id,
+                ConfigOutboxModel.config_revision == config_revision,
+            )
+            .order_by(ConfigOutboxModel.config_scope)
+        )
+        return [_config_outbox_from_model(model) for model in result]
+
+
+@dataclass
 class PostgresUnitOfWork:
     session_factory: async_sessionmaker[AsyncSession]
     tenants: PostgresTenantRepository = field(init=False)
@@ -507,6 +603,7 @@ class PostgresUnitOfWork:
     source_config_revisions: PostgresSourceConfigRevisionRepository = field(
         init=False
     )
+    config_outbox: PostgresConfigOutboxRepository = field(init=False)
     _session: AsyncSession = field(init=False)
     _committed: bool = field(default=False, init=False)
 
@@ -523,6 +620,7 @@ class PostgresUnitOfWork:
         self.source_config_revisions = PostgresSourceConfigRevisionRepository(
             self._session
         )
+        self.config_outbox = PostgresConfigOutboxRepository(self._session)
         self._committed = False
         return self
 

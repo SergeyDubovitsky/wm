@@ -199,12 +199,28 @@ async def test_store_rendered_agent_config_persists_runtime_and_source_revisions
                 "rev-2026-05-03-001",
             )
         )
+        outbox_records = await unit_of_work.config_outbox.list_for_config_revision(
+            "tenant-a",
+            "asset-a",
+            "agent-a",
+            "rev-2026-05-03-001",
+        )
 
     assert runtime_revision.config_revision == "rev-2026-05-03-001"
     assert stored_runtime is not None
     assert stored_runtime.runtime_payload_json == rendered.runtime_payload
     assert [revision.source_id for revision in stored_sources] == ["knx-main"]
     assert stored_sources[0].source_payload_json == rendered.source_payloads[0].payload
+    assert [record.config_scope for record in outbox_records] == [
+        "runtime",
+        "source:knx-main",
+    ]
+    assert outbox_records[0].payload_json["target_mqtt_topic"] == (
+        "wm/v1/agents/agent-a/config/runtime"
+    )
+    assert outbox_records[1].payload_json["target_mqtt_topic"] == (
+        "wm/v1/agents/agent-a/sources/knx-main/config"
+    )
 
 
 async def test_store_rendered_agent_config_rejects_duplicate_revision() -> None:

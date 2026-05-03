@@ -1,4 +1,4 @@
-# platform-api
+# platform-config-api
 
 Первый backend-срез `Monitoring & Alarm Platform`: internal `Platform Config API`
 для tenants/objects/agents/sources/points и будущего Kafka-first config delivery
@@ -16,6 +16,6 @@ PostgreSQL, SQLAlchemy adapters, Alembic migrations, render-config и outbox
 будут добавляться следующими инкрементами по `ADR-010`.
 
 ```bash
-uv run --package platform-api pytest apps/platform_api/tests
-uv run --package platform-api platform-api
+uv run --package platform-config-api pytest apps/platform_config_api/tests
+uv run --package platform-config-api platform-config-api
 ```

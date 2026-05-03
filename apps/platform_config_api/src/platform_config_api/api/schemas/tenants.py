@@ -4,8 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from platform_api.domain.entities import Tenant
-from platform_api.domain.value_objects import TenantStatus
+from platform_config_api.domain.entities import Tenant
+from platform_config_api.domain.value_objects import TenantStatus
 
 
 class TenantCreateRequest(BaseModel):

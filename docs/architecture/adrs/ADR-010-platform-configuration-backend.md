@@ -89,8 +89,8 @@ FastAPI routers
 Рекомендуемая структура будущего приложения:
 
 ```text
-apps/platform_api/
-├── src/platform_api/
+apps/platform_config_api/
+├── src/platform_config_api/
 │   ├── api/
 │   │   ├── routers/
 │   │   └── schemas/
@@ -781,7 +781,7 @@ projection: факт применения конфигурации edge-agent-о
 
 ## План реализации
 
-1. Создать `apps/platform_api`.
+1. Создать `apps/platform_config_api`.
 2. Добавить зависимости: `fastapi`, `uvicorn`, `pydantic`, `sqlalchemy`,
    `asyncpg`, `alembic`.
 3. Создать clean architecture layout: `api`, `application`, `domain`,

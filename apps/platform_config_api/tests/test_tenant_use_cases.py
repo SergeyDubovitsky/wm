@@ -4,14 +4,16 @@ import asyncio
 
 import pytest
 
-from platform_api.application.errors import DuplicateTenantError
-from platform_api.application.use_cases.tenants import (
+from platform_config_api.application.errors import DuplicateTenantError
+from platform_config_api.application.use_cases.tenants import (
     CreateTenant,
     CreateTenantCommand,
     ListTenants,
 )
-from platform_api.domain.value_objects import DomainValidationError
-from platform_api.infrastructure.memory.unit_of_work import InMemoryUnitOfWorkFactory
+from platform_config_api.domain.value_objects import DomainValidationError
+from platform_config_api.infrastructure.memory.unit_of_work import (
+    InMemoryUnitOfWorkFactory,
+)
 
 
 def test_create_tenant_persists_entity_and_commits_unit_of_work() -> None:

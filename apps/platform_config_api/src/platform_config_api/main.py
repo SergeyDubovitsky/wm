@@ -4,9 +4,11 @@ from collections.abc import Callable
 
 from fastapi import FastAPI
 
-from platform_api.api.routers import health, tenants
-from platform_api.application.ports.unit_of_work import UnitOfWork
-from platform_api.infrastructure.memory.unit_of_work import InMemoryUnitOfWorkFactory
+from platform_config_api.api.routers import health, tenants
+from platform_config_api.application.ports.unit_of_work import UnitOfWork
+from platform_config_api.infrastructure.memory.unit_of_work import (
+    InMemoryUnitOfWorkFactory,
+)
 
 
 def create_app(

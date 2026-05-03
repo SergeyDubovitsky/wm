@@ -31,7 +31,7 @@
 
 - `apps/edge_agent/` — edge runtime, example-конфиги и runtime-guides
 - `apps/knx_demo/` — KNX demo utilities
-- `apps/platform_api/` — первый backend-срез Platform Config API
+- `apps/platform_config_api/` — первый backend-срез Platform Config API
 - `libs/knx_parser/` — библиотека для разбора ETS `.knxproj`
 - `libs/wm_demo_stack/` — библиотека demo/scenario потока `config bundle -> retained MQTT config -> telemetry`
 - `environments/` — versioned edge profiles конкретных стендов и окружений
@@ -57,7 +57,7 @@ cp .env.example .env
 uv sync
 uv run --package edge-agent pytest apps/edge_agent/tests
 uv run --package knx-demo pytest apps/knx_demo/tests
-uv run --package platform-api pytest apps/platform_api/tests
+uv run --package platform-config-api pytest apps/platform_config_api/tests
 uv run --package knx-parser pytest libs/knx_parser/tests
 uv run --group integration pytest libs/wm_demo_stack/tests/test_scenario.py
 ```
@@ -96,7 +96,7 @@ uv run --group integration pytest \
 - `uv run --package edge-agent edge-agent --help`
 - `uv run --package edge-agent edge-agent check-config`
 - `uv run --package knx-demo knx-demo --help`
-- `uv run --package platform-api platform-api`
+- `uv run --package platform-config-api platform-config-api`
 - `uv run --package knx-parser knx-parser --help`
 - `uv run --env-file .env --package wm-demo-stack publish-edge-demo --help`
 - `uv run wm-clickhouse migrate status`

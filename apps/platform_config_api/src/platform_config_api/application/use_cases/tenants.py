@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from platform_api.application.errors import DuplicateTenantError
-from platform_api.application.ports.unit_of_work import UnitOfWork
-from platform_api.domain.entities import Tenant
+from platform_config_api.application.errors import DuplicateTenantError
+from platform_config_api.application.ports.unit_of_work import UnitOfWork
+from platform_config_api.domain.entities import Tenant
 
 
 @dataclass(frozen=True)

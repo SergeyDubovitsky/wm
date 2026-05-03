@@ -172,6 +172,62 @@ async def test_config_registry_cli_publishes_outbox_batch_to_kafka(
     assert runtime_payload["config_scope"] == "runtime"
 
 
+@pytest.mark.asyncio
+async def test_config_outbox_worker_container_publishes_records_to_kafka_and_mqtt(
+    local_config_delivery_stack,
+) -> None:
+    settings = ConfigRegistrySettings(
+        database_url=local_config_delivery_stack.database_url
+    )
+    with TestClient(create_app(settings=settings)) as client:
+        _create_renderable_agent_graph(client, tenant_id="tenant-worker")
+
+    unit_of_work_factory = PostgresUnitOfWorkFactory.from_url(settings.database_url)
+    validator = JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR)
+    try:
+        rendered = await RenderAgentConfig(unit_of_work_factory(), validator).execute(
+            RenderAgentConfigCommand(
+                tenant_id="tenant-worker",
+                asset_id="asset-a",
+                agent_id="agent-a",
+                config_revision="rev-worker-001",
+                issued_at=datetime(2026, 5, 3, 10, 0, tzinfo=UTC),
+                source_config_revisions={"knx-main": "rev-worker-001-knx-main"},
+            )
+        )
+        await StoreRenderedAgentConfig(unit_of_work_factory(), validator).execute(
+            rendered
+        )
+    finally:
+        await unit_of_work_factory.dispose()
+
+    runtime_key, runtime_payload = local_config_delivery_stack.consume_kafka_json(
+        "wm.platform.edge.configs.v1",
+        timeout=60,
+    )
+    runtime_message = local_config_delivery_stack.wait_for_mqtt_json(
+        "wm/v1/agents/agent-a/config/runtime",
+        timeout=60,
+    )
+    source_snapshot_key, source_snapshot = (
+        local_config_delivery_stack.consume_kafka_json(
+            "wm.platform.source.configs.v1",
+            timeout=60,
+        )
+    )
+
+    assert runtime_key == "tenant-worker|asset-a|agent-a|runtime"
+    assert runtime_payload["message_type"] == "wm.platform.edge.config.delivery.v1"
+    assert runtime_payload["config_scope"] == "runtime"
+    assert runtime_payload["payload"]["message_type"] == "wm.edge.runtime-config.v1"
+    assert runtime_message.payload["message_type"] == "wm.edge.runtime-config.v1"
+    assert runtime_message.payload["tenant_id"] == "tenant-worker"
+    assert runtime_message.payload["config_revision"] == "rev-worker-001"
+    assert source_snapshot_key == "tenant-worker|asset-a|agent-a|knx-main"
+    assert source_snapshot["message_type"] == "wm.platform.source.config.v1"
+    assert source_snapshot["source_config_revision"] == "rev-worker-001-knx-main"
+
+
 def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
     local_platform_stack,
 ) -> None:
@@ -386,21 +442,25 @@ def test_publish_edge_demo_cli_seeds_config_through_kafka_by_default(
     )
 
 
-def _create_renderable_agent_graph(client: TestClient) -> None:
+def _create_renderable_agent_graph(
+    client: TestClient,
+    *,
+    tenant_id: str = "tenant-cli",
+) -> None:
     client.post(
         "/tenants",
-        json={"tenant_id": "tenant-cli", "name": "Tenant CLI"},
+        json={"tenant_id": tenant_id, "name": "Tenant CLI"},
     )
     client.post(
-        "/tenants/tenant-cli/assets",
+        f"/tenants/{tenant_id}/assets",
         json={"asset_id": "asset-a", "name": "Asset A"},
     )
     client.post(
-        "/tenants/tenant-cli/assets/asset-a/agents",
+        f"/tenants/{tenant_id}/assets/asset-a/agents",
         json={"agent_id": "agent-a"},
     )
     client.post(
-        "/tenants/tenant-cli/assets/asset-a/agents/agent-a/sources",
+        f"/tenants/{tenant_id}/assets/asset-a/agents/agent-a/sources",
         json={
             "source_id": "knx-main",
             "source_type": "knx",
@@ -417,10 +477,10 @@ def _create_renderable_agent_graph(client: TestClient) -> None:
         },
     )
     client.post(
-        "/tenants/tenant-cli/assets/asset-a/agents/agent-a"
+        f"/tenants/{tenant_id}/assets/asset-a/agents/agent-a"
         "/sources/knx-main/points",
         json={
-            "point_id": "tenant-cli|asset-a|knx-main|temperature",
+            "point_id": f"{tenant_id}|asset-a|knx-main|temperature",
             "point_key": "temperature",
             "point_ref": "2/0/0",
             "name": "Temperature",

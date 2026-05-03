@@ -712,6 +712,69 @@ class LocalConfigRegistryPostgresStack(LocalComposeStack):
             )
 
 
+@dataclass(frozen=True)
+class LocalConfigDeliveryStack(LocalPlatformStack):
+    postgres_port: int
+    database_url: str
+
+    def wait_for_postgres(self, timeout: float = 90.0) -> None:
+        deadline = time.monotonic() + timeout
+        last_error = "PostgreSQL has not accepted connections yet."
+
+        while time.monotonic() < deadline:
+            result = self.compose(
+                "exec",
+                "-T",
+                "postgres",
+                "pg_isready",
+                "-h",
+                "127.0.0.1",
+                "-p",
+                "5432",
+                "-U",
+                "wm",
+                "-d",
+                "wm_config_registry",
+                check=False,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                return
+            last_error = "\n".join(
+                part for part in (result.stdout, result.stderr) if part
+            ).strip()
+            time.sleep(1)
+
+        raise AssertionError(
+            f"PostgreSQL did not become healthy within {timeout:.0f}s. "
+            f"Last error: {last_error}\n\nCompose logs:\n{self.logs()}"
+        )
+
+    def wait_for_config_outbox_worker(self, timeout: float = 120.0) -> None:
+        deadline = time.monotonic() + timeout
+        last_logs = ""
+
+        while time.monotonic() < deadline:
+            result = self.compose(
+                "logs",
+                "--no-color",
+                "config-registry-outbox-publisher",
+                check=False,
+                timeout=30,
+            )
+            last_logs = "\n".join(
+                part for part in (result.stdout, result.stderr) if part
+            ).strip()
+            if "Config outbox publisher worker started" in last_logs:
+                return
+            time.sleep(1)
+
+        raise AssertionError(
+            "Config Registry outbox worker did not start within "
+            f"{timeout:.0f}s.\n\nCompose logs:\n{last_logs or self.logs()}"
+        )
+
+
 def publish_json_message(
     *,
     host: str,
@@ -1052,6 +1115,98 @@ def local_config_registry_postgres_stack(
     except subprocess.CalledProcessError as exc:
         raise AssertionError(
             "Failed to start the local Config Registry PostgreSQL stack.\n\n"
+            f"stdout:\n{exc.stdout}\n\nstderr:\n{exc.stderr}"
+        ) from exc
+    finally:
+        stack.compose("down", "-v", "--remove-orphans", check=False, timeout=300)
+
+
+@pytest.fixture()
+def local_config_delivery_stack(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> LocalConfigDeliveryStack:
+    if not _docker_is_available():
+        pytest.skip("Docker Compose is required for Config Delivery integration tests.")
+
+    env_values = _read_env_file(BASE_ENV_FILE)
+    mqtt_port = _reserve_free_port()
+    mqtt_ws_port = _reserve_free_port()
+    kafka_port = _reserve_free_port()
+    redpanda_connect_port = _reserve_free_port()
+    redpanda_connect_config_port = _reserve_free_port()
+    redpanda_connect_source_config_port = _reserve_free_port()
+    postgres_port = _reserve_free_port()
+    mqtt_username = f"wm_test_{uuid.uuid4().hex[:8]}"
+    mqtt_password = secrets.token_urlsafe(18)
+    database_url = (
+        "postgresql+asyncpg://wm:change-me-local-postgres"
+        f"@127.0.0.1:{postgres_port}/wm_config_registry"
+    )
+
+    env_values.update(
+        {
+            "MQTT_PORT": str(mqtt_port),
+            "MQTT_WS_PORT": str(mqtt_ws_port),
+            "MQTT_USERNAME": mqtt_username,
+            "MQTT_PASSWORD": mqtt_password,
+            "MQTT_BROKER": f"mqtt://127.0.0.1:{mqtt_port}",
+            "KAFKA_PORT": str(kafka_port),
+            "KAFKA_BOOTSTRAP_SERVERS": f"127.0.0.1:{kafka_port}",
+            "REDPANDA_CONNECT_PORT": str(redpanda_connect_port),
+            "REDPANDA_CONNECT_CONFIG_PORT": str(redpanda_connect_config_port),
+            "REDPANDA_CONNECT_SOURCE_CONFIG_PORT": str(
+                redpanda_connect_source_config_port
+            ),
+            "POSTGRES_HOST": "127.0.0.1",
+            "POSTGRES_PORT": str(postgres_port),
+            "CONFIG_REGISTRY_DATABASE_URL": database_url,
+            "CONFIG_REGISTRY_KAFKA_CLIENT_ID": "config-registry-worker-it",
+            "CONFIG_REGISTRY_OUTBOX_POLL_INTERVAL_SECONDS": "0.5",
+        }
+    )
+
+    env_dir = tmp_path_factory.mktemp("config-delivery-stack")
+    env_file = env_dir / ".env.integration"
+    _write_env_file(env_file, env_values)
+
+    stack = LocalConfigDeliveryStack(
+        project_name=f"wm-it-{uuid.uuid4().hex[:10]}",
+        env_file=env_file,
+        mqtt_port=mqtt_port,
+        mqtt_username=mqtt_username,
+        mqtt_password=mqtt_password,
+        kafka_port=kafka_port,
+        redpanda_connect_port=redpanda_connect_port,
+        redpanda_connect_config_port=redpanda_connect_config_port,
+        redpanda_connect_source_config_port=redpanda_connect_source_config_port,
+        postgres_port=postgres_port,
+        database_url=database_url,
+    )
+
+    try:
+        stack.compose("build", "config-registry-outbox-publisher", timeout=1200)
+        stack.compose(
+            "up",
+            "-d",
+            "mqtt-broker",
+            "kafka",
+            "kafka-init",
+            "redpanda-connect-config-projection",
+            "redpanda-connect-source-config-snapshot",
+            "postgres",
+            "config-registry-outbox-publisher",
+            timeout=900,
+        )
+        stack.wait_for_mqtt()
+        stack.wait_for_kafka()
+        stack.wait_for_redpanda_connect_config_projection()
+        stack.wait_for_redpanda_connect_source_config_snapshot()
+        stack.wait_for_postgres()
+        stack.wait_for_config_outbox_worker()
+        yield stack
+    except subprocess.CalledProcessError as exc:
+        raise AssertionError(
+            "Failed to start the local Config Delivery stack.\n\n"
             f"stdout:\n{exc.stdout}\n\nstderr:\n{exc.stderr}"
         ) from exc
     finally:

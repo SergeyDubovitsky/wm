@@ -58,3 +58,9 @@ CONFIG_REGISTRY_DATABASE_URL=postgresql+asyncpg://wm:change-me-local-postgres@lo
 
 Для локальной доставки config records в Kafka используется
 `KAFKA_BOOTSTRAP_SERVERS` и `CONFIG_REGISTRY_KAFKA_CLIENT_ID`.
+
+Один batch pending outbox records можно отправить в Kafka командой:
+
+```bash
+uv run --package config-registry config-registry publish-config-outbox-once
+```

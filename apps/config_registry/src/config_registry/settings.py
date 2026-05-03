@@ -12,6 +12,10 @@ class ConfigRegistrySettings:
     database_url: str | None = None
     kafka_bootstrap_servers: str = "localhost:19092"
     kafka_client_id: str = "config-registry"
+    outbox_batch_limit: int = 100
+    outbox_lease_seconds: int = 30
+    outbox_retry_delay_seconds: int = 30
+    outbox_max_attempts: int = 5
 
     @classmethod
     def from_env(cls) -> ConfigRegistrySettings:
@@ -28,5 +32,17 @@ class ConfigRegistrySettings:
             kafka_client_id=os.getenv(
                 "CONFIG_REGISTRY_KAFKA_CLIENT_ID",
                 "config-registry",
+            ),
+            outbox_batch_limit=int(
+                os.getenv("CONFIG_REGISTRY_OUTBOX_BATCH_LIMIT", "100")
+            ),
+            outbox_lease_seconds=int(
+                os.getenv("CONFIG_REGISTRY_OUTBOX_LEASE_SECONDS", "30")
+            ),
+            outbox_retry_delay_seconds=int(
+                os.getenv("CONFIG_REGISTRY_OUTBOX_RETRY_DELAY_SECONDS", "30")
+            ),
+            outbox_max_attempts=int(
+                os.getenv("CONFIG_REGISTRY_OUTBOX_MAX_ATTEMPTS", "5")
             ),
         )

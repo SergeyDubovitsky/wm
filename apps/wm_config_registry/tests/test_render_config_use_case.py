@@ -148,10 +148,10 @@ async def test_render_agent_config_rejects_contract_invalid_source_payload() -> 
     unit_of_work_factory = InMemoryUnitOfWorkFactory()
     await _create_registry_graph(
         unit_of_work_factory,
-        acquisition_defaults={"listen": True},
+        publish_defaults={"enabled": "not-a-bool"},
     )
 
-    with pytest.raises(ConfigPayloadValidationError, match="read_on_start"):
+    with pytest.raises(ConfigPayloadValidationError, match="enabled"):
         await RenderAgentConfig(
             unit_of_work_factory(),
             JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR),
@@ -164,6 +164,51 @@ async def test_render_agent_config_rejects_contract_invalid_source_payload() -> 
                 issued_at=datetime(2026, 5, 3, tzinfo=UTC),
             )
         )
+
+
+async def test_render_agent_config_backfills_missing_source_and_point_settings() -> None:
+    unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _create_registry_graph(
+        unit_of_work_factory,
+        acquisition_defaults={},
+        publish_defaults={},
+        point_acquisition={},
+        point_publish={},
+    )
+
+    rendered = await RenderAgentConfig(
+        unit_of_work_factory(),
+        JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR),
+    ).execute(
+        RenderAgentConfigCommand(
+            tenant_id="tenant-a",
+            asset_id="asset-a",
+            agent_id="agent-a",
+            config_revision="rev-2026-05-03-legacy",
+            issued_at=datetime(2026, 5, 3, 10, 15, 0, tzinfo=UTC),
+            source_config_revisions={"knx-main": "rev-2026-05-03-legacy-knx-main"},
+        )
+    )
+
+    source_payload = rendered.source_payloads[0].payload
+    assert source_payload["acquisition_defaults"] == {
+        "listen": True,
+        "read_on_start": False,
+        "periodic_interval_seconds": None,
+    }
+    assert source_payload["publish_defaults"] == {
+        "enabled": True,
+        "change_threshold": None,
+    }
+    assert source_payload["points"][0]["acquisition"] == {
+        "listen": True,
+        "read_on_start": False,
+        "periodic_interval_seconds": None,
+    }
+    assert source_payload["points"][0]["publish"] == {
+        "enabled": True,
+        "change_threshold": None,
+    }
 
 
 async def test_store_rendered_agent_config_persists_runtime_and_source_revisions() -> None:
@@ -325,6 +370,9 @@ async def _create_registry_graph(
     unit_of_work_factory: InMemoryUnitOfWorkFactory,
     *,
     acquisition_defaults: dict[str, object] | None = None,
+    publish_defaults: dict[str, object] | None = None,
+    point_acquisition: dict[str, object] | None = None,
+    point_publish: dict[str, object] | None = None,
 ) -> None:
     await CreateTenant(unit_of_work_factory()).execute(
         CreateTenantCommand(tenant_id="tenant-a", name="Tenant A")
@@ -351,16 +399,23 @@ async def _create_registry_graph(
             source_id="knx-main",
             source_type="knx",
             connection_json={"gateway_ip": "127.0.0.1"},
-            acquisition_defaults_json=acquisition_defaults
-            or {
-                "listen": True,
-                "read_on_start": False,
-                "periodic_interval_seconds": None,
-            },
-            publish_defaults_json={
-                "enabled": True,
-                "change_threshold": None,
-            },
+            acquisition_defaults_json=(
+                dict(acquisition_defaults)
+                if acquisition_defaults is not None
+                else {
+                    "listen": True,
+                    "read_on_start": False,
+                    "periodic_interval_seconds": None,
+                }
+            ),
+            publish_defaults_json=(
+                dict(publish_defaults)
+                if publish_defaults is not None
+                else {
+                    "enabled": True,
+                    "change_threshold": None,
+                }
+            ),
         )
     )
     await CreatePoint(unit_of_work_factory()).execute(
@@ -377,8 +432,16 @@ async def _create_registry_graph(
             value_model="knx.dpt.9.001",
             signal_type=SignalType.SENSOR,
             unit="C",
-            acquisition_json={"read_on_start": True},
-            publish_json={"change_threshold": 1.0},
+            acquisition_json=(
+                dict(point_acquisition)
+                if point_acquisition is not None
+                else {"read_on_start": True}
+            ),
+            publish_json=(
+                dict(point_publish)
+                if point_publish is not None
+                else {"change_threshold": 1.0}
+            ),
             tags_json={"room": "demo"},
         )
     )

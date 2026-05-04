@@ -40,6 +40,14 @@ Root runtime config содержит `tenant_id`, `asset_id`, `agent_id`,
 `source_config_revision`, protocol connection settings, points,
 acquisition/publish policies и metadata точек.
 
+Явно:
+
+- root runtime config не содержит полный payload конфигурации точек;
+- root runtime config только объявляет, какие `source_id` активны и какие
+  `source_config_revision` агент должен загрузить;
+- полный config connection settings, defaults и points приходит отдельными
+  source config payloads по `source_id`.
+
 До внедрения backend-среза из `ADR-010` authoring source of truth — versioned
 YAML config bundle в репозитории или operations bundle. Config delivery pipeline
 валидирует YAML bundle по контрактам, формирует config delivery records, пишет их

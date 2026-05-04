@@ -62,6 +62,12 @@ Observation
 | `wm.agent.lwt.v1` | `schemas/wm.agent.lwt.v1.schema.json` | Retained LWT/status сообщения MQTT publisher агента |
 | `wm.mqtt.topic-tree.v1` | `mqtt-topic-tree.v1.md` | MQTT topic templates, routing identity, QoS, retain и expiry |
 
+## Reference Notes
+
+- [`config-revision-model.md`](./config-revision-model.md) — как связаны
+  `RuntimeConfigRevision`, `SourceConfigRevision`, `config_revision` и
+  `source_config_revision`; как они формируются и передаются по контуру
+
 ## Основные правила
 
 - `event_id` — непрозрачная непустая строка для дедупликации. Рекомендуемый production generator: `UUIDv7` или `ULID`; consumer не должен зависеть от конкретного формата.

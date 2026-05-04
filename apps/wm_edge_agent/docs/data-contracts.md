@@ -17,6 +17,7 @@
 | SQLite Point State Cache | `docs/contracts/wm-edge-agent/schemas/edge.sqlite-point-state-cache.v1.schema.json` |
 | SQLite Delivery Outbox | `docs/contracts/wm-edge-agent/schemas/edge.sqlite-outbox-record.v1.schema.json` |
 | MQTT messages и topic tree | `docs/contracts/wm-edge-agent/README.md` и `docs/contracts/wm-edge-agent/mqtt-topic-tree.v1.md` |
+| Revision-модель runtime/source config | `docs/contracts/wm-edge-agent/config-revision-model.md` |
 
 ## Runtime dataflow
 

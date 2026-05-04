@@ -13,9 +13,9 @@ from wm_config_registry.application.use_cases.config_outbox import (
     ReserveConfigOutboxRecords,
 )
 from wm_config_registry.application.use_cases.render_config import (
-    RenderAgentConfig,
-    RenderAgentConfigCommand,
-    StoreRenderedAgentConfig,
+    RenderAgentRuntimeConfig,
+    RenderAgentRuntimeConfigCommand,
+    StoreRenderedAgentRuntimeConfig,
 )
 from wm_config_registry.domain.value_objects import ConfigOutboxStatus
 from wm_config_registry.infrastructure.json_schema_validator import (
@@ -257,11 +257,11 @@ async def test_config_registry_persists_and_reserves_outbox_records_in_postgres(
     unit_of_work_factory = PostgresUnitOfWorkFactory.from_url(settings.database_url)
     validator = JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR)
     try:
-        rendered = await RenderAgentConfig(
+        rendered = await RenderAgentRuntimeConfig(
             unit_of_work_factory(),
             validator,
         ).execute(
-            RenderAgentConfigCommand(
+            RenderAgentRuntimeConfigCommand(
                 tenant_id="tenant-outbox",
                 asset_id="asset-a",
                 agent_id="agent-a",
@@ -270,7 +270,7 @@ async def test_config_registry_persists_and_reserves_outbox_records_in_postgres(
                 source_config_revisions={"knx-main": "rev-outbox-001-knx-main"},
             )
         )
-        await StoreRenderedAgentConfig(unit_of_work_factory(), validator).execute(
+        await StoreRenderedAgentRuntimeConfig(unit_of_work_factory(), validator).execute(
             rendered
         )
 
@@ -292,7 +292,7 @@ async def test_config_registry_persists_and_reserves_outbox_records_in_postgres(
         await unit_of_work_factory.dispose()
 
     assert [record.config_scope for record in reserved] == [
-        "runtime",
+        "agent_runtime",
         "source:knx-main",
     ]
     assert all(record.status == ConfigOutboxStatus.INFLIGHT for record in reserved)

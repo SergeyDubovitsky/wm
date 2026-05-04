@@ -22,9 +22,9 @@ from wm_config_registry.application.use_cases.config_outbox import (
     MarkConfigOutboxRetryCommand,
 )
 from wm_config_registry.application.use_cases.render_config import (
-    RenderAgentConfig,
-    RenderAgentConfigCommand,
-    StoreRenderedAgentConfig,
+    RenderAgentRuntimeConfig,
+    RenderAgentRuntimeConfigCommand,
+    StoreRenderedAgentRuntimeConfig,
 )
 from wm_config_registry.infrastructure.backoffice_support import (
     format_datetime,
@@ -42,14 +42,14 @@ class AgentRenderTarget:
 
 
 @dataclass(frozen=True)
-class RenderAgentConfigResult:
+class RenderAgentRuntimeConfigResult:
     target: AgentRenderTarget
     config_revision: str
     outbox_record_count: int
 
 
 @dataclass(frozen=True)
-class RenderAgentConfigFailure:
+class RenderAgentRuntimeConfigFailure:
     target: AgentRenderTarget
     detail: str
 
@@ -120,14 +120,14 @@ async def render_agent_config_for_agent(
     asset_id: str,
     agent_id: str,
     issued_at: datetime | None = None,
-) -> RenderAgentConfigResult:
+) -> RenderAgentRuntimeConfigResult:
     resolved_issued_at = issued_at or datetime.now(UTC)
     state = get_request_state(request)
-    rendered = await RenderAgentConfig(
+    rendered = await RenderAgentRuntimeConfig(
         state.unit_of_work_factory(),
         state.config_payload_validator,
     ).execute(
-        RenderAgentConfigCommand(
+        RenderAgentRuntimeConfigCommand(
             tenant_id=tenant_id,
             asset_id=asset_id,
             agent_id=agent_id,
@@ -136,18 +136,18 @@ async def render_agent_config_for_agent(
             source_config_revisions=None,
         )
     )
-    await StoreRenderedAgentConfig(
+    await StoreRenderedAgentRuntimeConfig(
         state.unit_of_work_factory(),
         state.config_payload_validator,
     ).execute(rendered)
-    runtime_payload = rendered.runtime_payload
-    return RenderAgentConfigResult(
+    agent_runtime_payload = rendered.agent_runtime_payload
+    return RenderAgentRuntimeConfigResult(
         target=AgentRenderTarget(
             tenant_id=tenant_id,
             asset_id=asset_id,
             agent_id=agent_id,
         ),
-        config_revision=str(runtime_payload["config_revision"]),
+        config_revision=str(agent_runtime_payload["config_revision"]),
         outbox_record_count=1 + len(rendered.source_payloads),
     )
 
@@ -169,8 +169,8 @@ async def render_agent_config_action_response(
             status_code=422,
         )
 
-    successes: list[RenderAgentConfigResult] = []
-    failures: list[RenderAgentConfigFailure] = []
+    successes: list[RenderAgentRuntimeConfigResult] = []
+    failures: list[RenderAgentRuntimeConfigFailure] = []
     for target in agent_targets:
         try:
             result = await render_agent_config_for_agent(
@@ -189,7 +189,7 @@ async def render_agent_config_action_response(
             ValueError,
         ) as exc:
             failures.append(
-                RenderAgentConfigFailure(
+                RenderAgentRuntimeConfigFailure(
                     target=target,
                     detail=str(exc),
                 )
@@ -210,8 +210,8 @@ async def render_agent_config_action_response(
 
 def render_agent_config_results_html(
     *,
-    successes: list[RenderAgentConfigResult],
-    failures: list[RenderAgentConfigFailure],
+    successes: list[RenderAgentRuntimeConfigResult],
+    failures: list[RenderAgentRuntimeConfigFailure],
     back_url: str,
     summary_message: str | None = None,
 ) -> str:

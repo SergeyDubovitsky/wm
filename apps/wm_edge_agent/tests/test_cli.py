@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from wm_edge_agent.application.configuration import build_runtime_config
+from wm_edge_agent.application.configuration import build_agent_runtime_config
 from wm_edge_agent.cli import main
 from wm_edge_agent.domain.config import ConfigurationError
 
@@ -22,7 +22,7 @@ class FakePublisher:
 
 
 def _runtime_config(tmp_path: Path):
-    return build_runtime_config(
+    return build_agent_runtime_config(
         bootstrap_data={
             "agent_id": "wm-edge-agent-001",
             "delivery": {
@@ -54,8 +54,8 @@ def _runtime_config(tmp_path: Path):
                 "metrics_bind": "0.0.0.0:9108",
             },
         },
-        runtime_data={
-            "message_type": "wm.edge.runtime-config.v1",
+        agent_runtime_data={
+            "message_type": "wm.edge.agent-runtime-config.v1",
             "tenant_id": "tenant-001",
             "asset_id": "demo-stand-01",
             "agent_id": "wm-edge-agent-001",
@@ -140,7 +140,7 @@ def test_check_config_command_uses_bootstrap_and_retained_runtime(
     capsys,
 ) -> None:
     runtime = _runtime_config(tmp_path)
-    monkeypatch.setattr("wm_edge_agent.cli.load_runtime_config", lambda path: runtime)
+    monkeypatch.setattr("wm_edge_agent.cli.load_agent_runtime_config", lambda path: runtime)
 
     exit_code = main(["check-config", "--bootstrap-config", str(tmp_path / "bootstrap.yaml")])
 
@@ -153,7 +153,7 @@ def test_check_config_command_uses_bootstrap_and_retained_runtime(
 
 def test_show_config_json_outputs_summary(tmp_path, monkeypatch, capsys) -> None:
     runtime = _runtime_config(tmp_path)
-    monkeypatch.setattr("wm_edge_agent.cli.load_runtime_config", lambda path: runtime)
+    monkeypatch.setattr("wm_edge_agent.cli.load_agent_runtime_config", lambda path: runtime)
 
     exit_code = main(
         [
@@ -179,7 +179,7 @@ def test_enqueue_demo_event_appends_publishable_event_to_sqlite_outbox(
     capsys,
 ) -> None:
     runtime = _runtime_config(tmp_path)
-    monkeypatch.setattr("wm_edge_agent.cli.load_runtime_config", lambda path: runtime)
+    monkeypatch.setattr("wm_edge_agent.cli.load_agent_runtime_config", lambda path: runtime)
 
     exit_code = main(
         [
@@ -234,7 +234,7 @@ def test_deliver_once_publishes_pending_outbox_event_and_marks_sent(
 ) -> None:
     runtime = _runtime_config(tmp_path)
     fake_publisher = FakePublisher()
-    monkeypatch.setattr("wm_edge_agent.cli.load_runtime_config", lambda path: runtime)
+    monkeypatch.setattr("wm_edge_agent.cli.load_agent_runtime_config", lambda path: runtime)
     monkeypatch.setattr(
         "wm_edge_agent.cli.connect_mqtt_publisher",
         lambda settings, *, agent_id: fake_publisher,
@@ -288,7 +288,7 @@ def test_check_config_command_returns_error_for_invalid_runtime(monkeypatch, cap
     def fail(_path: Path):
         raise ConfigurationError("broken runtime")
 
-    monkeypatch.setattr("wm_edge_agent.cli.load_runtime_config", fail)
+    monkeypatch.setattr("wm_edge_agent.cli.load_agent_runtime_config", fail)
 
     exit_code = main(["check-config", "--bootstrap-config", "/tmp/bootstrap.yaml"])
 

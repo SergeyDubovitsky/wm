@@ -9,7 +9,7 @@ model {
             }
 
             -> keycloak 'Аутентифицирует пользователя и получает OIDC tokens'
-            -> platform-api 'Запрашивает состояние alarm, историю событий и прикладные данные платформы'
+            -> wm-config-registry 'Запрашивает registry/config данные текущего backend-среза'
             -> grafana 'Открывает и встраивает dashboards и live-панели'
         }
     }

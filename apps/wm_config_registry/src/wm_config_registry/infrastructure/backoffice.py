@@ -15,8 +15,8 @@ from wm_config_registry.infrastructure.backoffice_business_views import (
     TenantBackofficeView,
 )
 from wm_config_registry.infrastructure.backoffice_config_views import (
+    AgentRuntimeConfigRevisionBackofficeView,
     ConfigOutboxBackofficeView,
-    RuntimeConfigRevisionBackofficeView,
     SourceConfigRevisionBackofficeView,
 )
 from wm_config_registry.infrastructure.backoffice_support import (
@@ -29,7 +29,7 @@ BACKOFFICE_VIEWS: tuple[type[ModelView], ...] = (
     AgentBackofficeView,
     SourceBackofficeView,
     PointBackofficeView,
-    RuntimeConfigRevisionBackofficeView,
+    AgentRuntimeConfigRevisionBackofficeView,
     SourceConfigRevisionBackofficeView,
     ConfigOutboxBackofficeView,
 )
@@ -63,7 +63,7 @@ __all__ = [
     "ConfigOutboxActionsBackofficeView",
     "ConfigOutboxBackofficeView",
     "PointBackofficeView",
-    "RuntimeConfigRevisionBackofficeView",
+    "AgentRuntimeConfigRevisionBackofficeView",
     "SourceBackofficeView",
     "SourceConfigRevisionBackofficeView",
     "TenantBackofficeView",

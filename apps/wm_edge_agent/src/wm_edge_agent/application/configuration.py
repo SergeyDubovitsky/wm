@@ -155,7 +155,7 @@ class RuntimeSourceRefModel(ConfigModel):
     enabled: StrictBool
 
 
-class RuntimeConfigPayloadModel(ConfigModel):
+class AgentRuntimeConfigPayloadModel(ConfigModel):
     message_type: str
     tenant_id: NonEmptyStr
     asset_id: MqttPathId
@@ -166,8 +166,8 @@ class RuntimeConfigPayloadModel(ConfigModel):
 
     @model_validator(mode="after")
     def validate_message_type(self) -> Self:
-        if self.message_type != "wm.edge.runtime-config.v1":
-            raise ValueError("message_type must be wm.edge.runtime-config.v1")
+        if self.message_type != "wm.edge.agent-runtime-config.v1":
+            raise ValueError("message_type must be wm.edge.agent-runtime-config.v1")
         return self
 
 
@@ -231,34 +231,34 @@ def load_bootstrap_config(bootstrap_config_path: Path) -> BootstrapConfig:
     )
 
 
-def load_runtime_config(bootstrap_config_path: Path) -> AgentRuntimeConfig:
+def load_agent_runtime_config(bootstrap_config_path: Path) -> AgentRuntimeConfig:
     bootstrap = load_bootstrap_config(bootstrap_config_path)
     mqtt = bootstrap.delivery.mqtt
     if mqtt is None or not mqtt.enabled:
         raise ConfigurationError("MQTT delivery settings are not configured or disabled")
     retained = RetainedConfigLoader(mqtt, agent_id=bootstrap.agent_id).load()
-    return build_runtime_config(
+    return build_agent_runtime_config(
         bootstrap_data=_load_document(bootstrap_config_path),
-        runtime_data=retained.runtime_config,
+        agent_runtime_data=retained.agent_runtime_config,
         source_documents=list(retained.source_configs.values()),
     )
 
 
-def build_runtime_config(
+def build_agent_runtime_config(
     *,
     bootstrap_data: Mapping[str, object],
-    runtime_data: Mapping[str, object],
+    agent_runtime_data: Mapping[str, object],
     source_documents: list[Mapping[str, object]],
 ) -> AgentRuntimeConfig:
     bootstrap = _validate_model(BootstrapDocumentModel, bootstrap_data, "bootstrap config")
-    runtime_payload = _validate_model(
-        RuntimeConfigPayloadModel,
-        runtime_data,
-        "runtime config",
+    agent_runtime_payload = _validate_model(
+        AgentRuntimeConfigPayloadModel,
+        agent_runtime_data,
+        "agent runtime config",
     )
-    if runtime_payload.agent_id != bootstrap.agent_id:
+    if agent_runtime_payload.agent_id != bootstrap.agent_id:
         raise ConfigurationError(
-            "Runtime config agent_id does not match bootstrap agent_id"
+            "Agent runtime config agent_id does not match bootstrap agent_id"
         )
 
     source_refs = {
@@ -267,7 +267,7 @@ def build_runtime_config(
             source_config_revision=item.source_config_revision,
             enabled=item.enabled,
         )
-        for item in runtime_payload.sources
+        for item in agent_runtime_payload.sources
     }
     source_payloads: dict[str, SourceConfigPayloadModel] = {}
     for index, raw_source in enumerate(source_documents):
@@ -291,7 +291,11 @@ def build_runtime_config(
     points: dict[tuple[str, str], RuntimePoint] = {}
     for source_id, source_ref in source_refs.items():
         source_payload = source_payloads[source_id]
-        _validate_source_matches_runtime(runtime_payload, source_ref, source_payload)
+        _validate_source_matches_agent_runtime(
+            agent_runtime_payload,
+            source_ref,
+            source_payload,
+        )
 
         source = SourceDefinition(
             source_id=source_payload.source_id,
@@ -338,10 +342,10 @@ def build_runtime_config(
             points[(source_id, runtime_point.point_ref)] = runtime_point
 
     return AgentRuntimeConfig(
-        tenant_id=runtime_payload.tenant_id,
-        asset_id=runtime_payload.asset_id,
-        agent_id=runtime_payload.agent_id,
-        config_revision=runtime_payload.config_revision,
+        tenant_id=agent_runtime_payload.tenant_id,
+        asset_id=agent_runtime_payload.asset_id,
+        agent_id=agent_runtime_payload.agent_id,
+        config_revision=agent_runtime_payload.config_revision,
         delivery=_to_delivery_settings(bootstrap.delivery),
         storage=_to_storage_settings(bootstrap.storage),
         observability=_to_observability_settings(bootstrap.observability),
@@ -351,34 +355,34 @@ def build_runtime_config(
     )
 
 
-def _validate_source_matches_runtime(
-    runtime_payload: RuntimeConfigPayloadModel,
+def _validate_source_matches_agent_runtime(
+    agent_runtime_payload: AgentRuntimeConfigPayloadModel,
     source_ref: SourceRuntimeRef,
     source_payload: SourceConfigPayloadModel,
 ) -> None:
-    if source_payload.tenant_id != runtime_payload.tenant_id:
+    if source_payload.tenant_id != agent_runtime_payload.tenant_id:
         raise ConfigurationError(
-            f"Source {source_payload.source_id} tenant_id does not match runtime config"
+            f"Source {source_payload.source_id} tenant_id does not match agent runtime config"
         )
-    if source_payload.asset_id != runtime_payload.asset_id:
+    if source_payload.asset_id != agent_runtime_payload.asset_id:
         raise ConfigurationError(
-            f"Source {source_payload.source_id} asset_id does not match runtime config"
+            f"Source {source_payload.source_id} asset_id does not match agent runtime config"
         )
-    if source_payload.agent_id != runtime_payload.agent_id:
+    if source_payload.agent_id != agent_runtime_payload.agent_id:
         raise ConfigurationError(
-            f"Source {source_payload.source_id} agent_id does not match runtime config"
+            f"Source {source_payload.source_id} agent_id does not match agent runtime config"
         )
-    if source_payload.config_revision != runtime_payload.config_revision:
+    if source_payload.config_revision != agent_runtime_payload.config_revision:
         raise ConfigurationError(
-            f"Source {source_payload.source_id} config_revision does not match runtime config"
+            f"Source {source_payload.source_id} config_revision does not match agent runtime config"
         )
     if source_payload.source_config_revision != source_ref.source_config_revision:
         raise ConfigurationError(
-            f"Source {source_payload.source_id} source_config_revision does not match runtime config"
+            f"Source {source_payload.source_id} source_config_revision does not match agent runtime config"
         )
     if source_payload.enabled != source_ref.enabled:
         raise ConfigurationError(
-            f"Source {source_payload.source_id} enabled flag does not match runtime config"
+            f"Source {source_payload.source_id} enabled flag does not match agent runtime config"
         )
 
 

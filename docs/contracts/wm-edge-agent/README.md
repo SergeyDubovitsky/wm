@@ -8,7 +8,7 @@
 а полные схемы и имена topics находятся здесь.
 
 Production-модель после `ADR-008`: wm-edge-agent стартует с минимальным
-`edge.bootstrap-config.v1`, получает retained `wm.edge.runtime-config.v1` и
+`edge.bootstrap-config.v1`, получает retained `wm.edge.agent-runtime-config.v1` и
 `wm.edge.source-config.v1` из MQTT и публикует telemetry с `tenant_id` из
 server-issued config.
 
@@ -17,7 +17,7 @@ server-issued config.
 На текущем этапе в коде уже реализовано:
 
 - bootstrap-конфигурация агента
-- загрузка retained runtime/source config из MQTT
+- загрузка retained agent runtime/source config из MQTT
 - canonical telemetry event
 - persistent `SQLite Point State Cache`
 - SQLite delivery outbox
@@ -35,7 +35,7 @@ server-issued config.
 ```text
 Observation
   -> Bootstrap Config
-  -> Retained Runtime Config
+  -> Retained Agent Runtime Config
   -> Retained Source Configs by source_id
   -> Protocol Decoder / Normalizer
   -> In-memory Last Value Cache
@@ -51,7 +51,7 @@ Observation
 | Contract-id | Файл | Назначение |
 | --- | --- | --- |
 | `edge.bootstrap-config.v1` | `schemas/edge.bootstrap-config.v1.schema.json` | Минимальная локальная конфигурация запуска: `agent_id`, MQTT endpoint, local storage и observability |
-| `wm.edge.runtime-config.v1` | `schemas/wm.edge.runtime-config.v1.schema.json` | Retained root runtime config агента: `tenant_id`, `asset_id`, `agent_id`, `config_revision`, список `sources` |
+| `wm.edge.agent-runtime-config.v1` | `schemas/wm.edge.agent-runtime-config.v1.schema.json` | Retained root agent runtime config агента: `tenant_id`, `asset_id`, `agent_id`, `config_revision`, список `sources` |
 | `wm.edge.source-config.v1` | `schemas/wm.edge.source-config.v1.schema.json` | Retained source config по `source_id`: connection, points, acquisition/publish policies |
 | `wm.edge.config.status.v1` | `schemas/wm.edge.config.status.v1.schema.json` | Retained статус применения конфигурации агентом |
 | `edge.telemetry-event.v1` | `schemas/edge.telemetry-event.v1.schema.json` | Каноническое telemetry event внутри wm-edge-agent до MQTT wire transform |
@@ -65,13 +65,13 @@ Observation
 ## Reference Notes
 
 - [`config-revision-model.md`](./config-revision-model.md) — как связаны
-  `RuntimeConfigRevision`, `SourceConfigRevision`, `config_revision` и
+  `AgentRuntimeConfigRevision`, `SourceConfigRevision`, `config_revision` и
   `source_config_revision`; как они формируются и передаются по контуру
 
 ## Основные правила
 
 - `event_id` — непрозрачная непустая строка для дедупликации. Рекомендуемый production generator: `UUIDv7` или `ULID`; consumer не должен зависеть от конкретного формата.
-- `tenant_id` приходит в wm-edge-agent из `wm.edge.runtime-config.v1` и публикуется в `wm.telemetry.event.v1` payload как claim; ingestion обязан валидировать claim.
+- `tenant_id` приходит в wm-edge-agent из `wm.edge.agent-runtime-config.v1` и публикуется в `wm.telemetry.event.v1` payload как claim; ingestion обязан валидировать claim.
 - `tenant_id` также обязателен в retained operational status payloads
   `wm.source.connection.v1` и `wm.agent.lwt.v1`, чтобы ingestion мог писать
   Kafka status records без зависимости от порядка replay retained config topics.
@@ -82,6 +82,6 @@ Observation
 - SQLite на edge хранит техническое состояние агента, а не исторический архив телеметрии.
 - `SQLite Point State Cache` поддерживает warm restart, фильтрацию изменений и восстановление sequence.
 - `SQLite Delivery Outbox` нужен для надежной retry-доставки telemetry events.
-- Runtime/source config приходит в retained MQTT topics как platform projection из Kafka config delivery records.
+- Agent runtime/source config приходит в retained MQTT topics как platform projection из Kafka config delivery records.
 - В текущей реализации wm-edge-agent публикует telemetry; config status и operational status остаются следующей фазой runtime.
 - YAML config bundle остается versioned import/bootstrap path и не конкурирует с `Config Registry`/`Platform Store` как source of truth; wire contracts при этом не меняются.

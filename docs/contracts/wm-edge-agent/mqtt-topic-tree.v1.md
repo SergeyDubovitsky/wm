@@ -3,7 +3,8 @@
 Дата: 2026-05-02
 Статус: working draft
 
-Этот контракт фиксирует MQTT topic tree, которым владеет `Edge Telemetry Agent`.
+Этот контракт фиксирует MQTT topic tree, которым владеет `wm_edge_agent`
+как реализованный edge-модуль.
 Payload-схемы находятся в `schemas/`.
 
 ## Корневой префикс
@@ -19,8 +20,8 @@ wm/v1
 
 | Topic type | Topic template | Message contract | QoS | Retain | Expiry | Когда публикуется |
 | --- | --- | --- | --- | --- | --- | --- |
-| `runtime-config` | `wm/v1/agents/{agent_id}/config/runtime` | `wm.edge.runtime-config.v1` | `1` | `true` | нет | Config publisher tool публикует root runtime config агента |
-| `source-config` | `wm/v1/agents/{agent_id}/sources/{source_id}/config` | `wm.edge.source-config.v1` | `1` | `true` | нет | Config publisher tool публикует config конкретного source |
+| `agent-runtime-config` | `wm/v1/agents/{agent_id}/config/agent-runtime` | `wm.edge.agent-runtime-config.v1` | `1` | `true` | нет | Config delivery projection материализует root agent runtime config агента |
+| `source-config` | `wm/v1/agents/{agent_id}/sources/{source_id}/config` | `wm.edge.source-config.v1` | `1` | `true` | нет | Config delivery projection материализует config конкретного source |
 | `config-status` | `wm/v1/agents/{agent_id}/status/config` | `wm.edge.config.status.v1` | `1` | `true` | нет | Target contract: wm-edge-agent сообщает pending/applied/rejected config revision |
 | `event` | `wm/v1/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/points/{point_key}/event` | `wm.telemetry.event.v1` | `1` | `false` | `telemetry_message_expiry_seconds` | Реализовано: публикуется, когда point прошел publish filter |
 | `connection` | `wm/v1/assets/{asset_id}/agents/{agent_id}/sources/{source_id}/status/connection` | `wm.source.connection.v1` | `1` | `true` | нет | Target contract: при изменении состояния southbound source |
@@ -43,6 +44,6 @@ wm/v1
 - Batch payload на уровне source не используется.
 - Per-point retained `state` topic не используется.
 - Per-point retained `meta` topics не используются.
-- Runtime config не публикуется wm-edge-agent-ом: retained MQTT topics строятся platform projection pipeline из Kafka config delivery records.
+- Agent runtime config не публикуется wm-edge-agent-ом: retained MQTT topics строятся platform projection pipeline из Kafka config delivery records.
 - Publisher уже использует MQTT 5 `Content Type = application/json`.
 - `Topic Alias` остается planned optimization: контракт его рекомендует, но текущий publisher еще не использует alias negotiation.

@@ -65,7 +65,7 @@ Telemetry topic:
 
 Config topics:
 
-- `wm/v1/agents/{agent_id}/config/runtime`
+- `wm/v1/agents/{agent_id}/config/agent-runtime`
 - `wm/v1/agents/{agent_id}/sources/{source_id}/config`
 
 Status topics:
@@ -92,7 +92,7 @@ Telemetry payload principles:
 - не повторяет `point_key`
 - не повторяет статические point metadata, которые приходят через retained source config
 - содержит только динамические данные события и поля, нужные для дедупликации/диагностики
-- содержит `tenant_id` claim из retained runtime config
+- содержит `tenant_id` claim из retained agent runtime config
 - содержит `source_config_revision`, использованную при формировании события
 - для MVP ограничен scalar values: `boolean`, `number`, `string`
 - complex protocol values вроде массивов, структур или `ByteString` не входят в текущую версию wire contract
@@ -112,7 +112,7 @@ Source config payload:
 ### 6. QoS и свойства публикации
 
 - telemetry topics: `QoS 1`, `retain = false`
-- runtime/source config topics: `QoS 1`, `retain = true`
+- agent runtime/source config topics: `QoS 1`, `retain = true`
 - `Message Expiry Interval` задается конфигом и по умолчанию может быть `86400` секунд
 - `Content Type` для JSON payload: `application/json`
 - status topics могут использовать `retain = true`

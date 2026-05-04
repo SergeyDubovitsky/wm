@@ -17,8 +17,8 @@ from wm_config_registry.application.use_cases.assets import (
     CreateAssetCommand,
 )
 from wm_config_registry.application.use_cases.config_revisions import (
-    CreateRuntimeConfigRevision,
-    CreateRuntimeConfigRevisionCommand,
+    CreateAgentRuntimeConfigRevision,
+    CreateAgentRuntimeConfigRevisionCommand,
 )
 from wm_config_registry.application.use_cases.points import (
     CreatePoint,
@@ -37,11 +37,11 @@ from wm_config_registry.infrastructure.backoffice import (
     BACKOFFICE_CUSTOM_VIEWS,
     BACKOFFICE_VIEWS,
     AgentBackofficeView,
+    AgentRuntimeConfigRevisionBackofficeView,
     AssetBackofficeView,
     ConfigOutboxActionsBackofficeView,
     ConfigOutboxBackofficeView,
     PointBackofficeView,
-    RuntimeConfigRevisionBackofficeView,
     SourceBackofficeView,
     SourceConfigRevisionBackofficeView,
     TenantBackofficeView,
@@ -66,10 +66,10 @@ from wm_config_registry.infrastructure.memory.unit_of_work import (
 )
 from wm_config_registry.infrastructure.postgres.models import (
     AgentModel,
+    AgentRuntimeConfigRevisionModel,
     AssetModel,
     ConfigOutboxModel,
     PointModel,
-    RuntimeConfigRevisionModel,
     SourceConfigRevisionModel,
     SourceModel,
     TenantModel,
@@ -121,8 +121,8 @@ LIST_VIEW_COLUMNS: tuple[tuple[type[object], type[object], tuple[str, ...]], ...
         ),
     ),
     (
-        RuntimeConfigRevisionBackofficeView,
-        RuntimeConfigRevisionModel,
+        AgentRuntimeConfigRevisionBackofficeView,
+        AgentRuntimeConfigRevisionModel,
         ("tenant_id", "agent_id", "config_revision", "status", "issued_at", "created_at"),
     ),
     (
@@ -198,9 +198,9 @@ def test_backoffice_business_views_use_application_backed_crud() -> None:
 
 
 def test_backoffice_append_only_and_action_driven_views_have_explicit_capabilities() -> None:
-    assert RuntimeConfigRevisionBackofficeView.can_create is True
-    assert RuntimeConfigRevisionBackofficeView.can_edit is False
-    assert RuntimeConfigRevisionBackofficeView.can_delete is False
+    assert AgentRuntimeConfigRevisionBackofficeView.can_create is True
+    assert AgentRuntimeConfigRevisionBackofficeView.can_edit is False
+    assert AgentRuntimeConfigRevisionBackofficeView.can_delete is False
 
     assert SourceConfigRevisionBackofficeView.can_create is True
     assert SourceConfigRevisionBackofficeView.can_edit is False
@@ -219,7 +219,7 @@ def test_backoffice_registers_custom_operator_views() -> None:
 def test_backoffice_view_registry_contains_business_and_technical_views() -> None:
     assert BACKOFFICE_VIEWS
     assert TenantBackofficeView in BACKOFFICE_VIEWS
-    assert RuntimeConfigRevisionBackofficeView in BACKOFFICE_VIEWS
+    assert AgentRuntimeConfigRevisionBackofficeView in BACKOFFICE_VIEWS
     assert ConfigOutboxBackofficeView in BACKOFFICE_VIEWS
 
 
@@ -231,7 +231,7 @@ def test_backoffice_bulk_action_affordances_follow_view_capabilities() -> None:
     runtime_view = next(
         view
         for view in app.state.backoffice.views
-        if isinstance(view, RuntimeConfigRevisionBackofficeView)
+        if isinstance(view, AgentRuntimeConfigRevisionBackofficeView)
     )
     source_view = next(
         view
@@ -332,20 +332,20 @@ async def test_backoffice_point_create_form_uses_source_selector() -> None:
 
 
 @pytest.mark.asyncio
-async def test_runtime_config_revision_create_form_uses_agent_selector() -> None:
+async def test_agent_runtime_config_revision_create_form_uses_agent_selector() -> None:
     app = create_app(settings=_settings(internal_mode=True))
     app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
     await _seed_registry_tree(app)
 
     with TestClient(app) as client:
-        response = client.get("/backoffice/runtime-config-revision-model/create")
+        response = client.get("/backoffice/agent-runtime-config-revision-model/create")
 
     assert response.status_code == 200
     assert f'name="{AGENT_SELECTOR_FIELD}"' in response.text
     assert 'name="agent_id"' not in response.text
     assert 'name="config_revision"' in response.text
     assert 'name="issued_at"' in response.text
-    assert 'name="runtime_payload_json"' in response.text
+    assert 'name="agent_runtime_payload_json"' in response.text
     assert 'name="status"' not in response.text
 
 
@@ -877,14 +877,14 @@ async def test_backoffice_can_delete_point_via_mounted_delete_route() -> None:
 
 
 @pytest.mark.asyncio
-async def test_backoffice_can_create_runtime_config_revision_via_mounted_form() -> None:
+async def test_backoffice_can_create_agent_runtime_config_revision_via_mounted_form() -> None:
     app = create_app(settings=_settings(internal_mode=True))
     app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
     await _seed_registry_tree(app)
 
     with TestClient(app) as client:
         response = client.post(
-            "/backoffice/runtime-config-revision-model/create",
+            "/backoffice/agent-runtime-config-revision-model/create",
             data={
                 AGENT_SELECTOR_FIELD: encode_agent_selection(
                     AgentSelection(
@@ -895,14 +895,14 @@ async def test_backoffice_can_create_runtime_config_revision_via_mounted_form() 
                 ),
                 "config_revision": "rev-ui",
                 "issued_at": "2026-05-04T06:58:00Z",
-                "runtime_payload_json": '{"demo": true}',
+                "agent_runtime_payload_json": '{"demo": true}',
                 "save": "Save",
             },
             follow_redirects=False,
         )
 
     async with app.state.unit_of_work_factory() as unit_of_work:
-        revision = await unit_of_work.runtime_config_revisions.get(
+        revision = await unit_of_work.agent_runtime_config_revisions.get(
             "tenant-backoffice",
             "asset-backoffice",
             "agent-backoffice",
@@ -911,7 +911,7 @@ async def test_backoffice_can_create_runtime_config_revision_via_mounted_form() 
 
     assert response.status_code == 302
     assert revision is not None
-    assert revision.runtime_payload_json == {"demo": True}
+    assert revision.agent_runtime_payload_json == {"demo": True}
 
 
 @pytest.mark.asyncio
@@ -919,14 +919,14 @@ async def test_backoffice_can_create_source_config_revision_via_mounted_form() -
     app = create_app(settings=_settings(internal_mode=True))
     app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
     await _seed_registry_tree(app)
-    await CreateRuntimeConfigRevision(app.state.unit_of_work_factory()).execute(
-        CreateRuntimeConfigRevisionCommand(
+    await CreateAgentRuntimeConfigRevision(app.state.unit_of_work_factory()).execute(
+        CreateAgentRuntimeConfigRevisionCommand(
             tenant_id="tenant-backoffice",
             asset_id="asset-backoffice",
             agent_id="agent-backoffice",
             config_revision="rev-ui",
             issued_at=datetime(2026, 5, 4, 6, 58, tzinfo=UTC),
-            runtime_payload_json={"demo": True},
+            agent_runtime_payload_json={"demo": True},
         )
     )
 
@@ -970,25 +970,25 @@ async def test_backoffice_config_revision_edit_and_delete_are_disabled() -> None
     app = create_app(settings=_settings(internal_mode=True))
     app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
     await _seed_registry_tree(app)
-    await CreateRuntimeConfigRevision(app.state.unit_of_work_factory()).execute(
-        CreateRuntimeConfigRevisionCommand(
+    await CreateAgentRuntimeConfigRevision(app.state.unit_of_work_factory()).execute(
+        CreateAgentRuntimeConfigRevisionCommand(
             tenant_id="tenant-backoffice",
             asset_id="asset-backoffice",
             agent_id="agent-backoffice",
             config_revision="rev-disabled",
             issued_at=datetime(2026, 5, 4, 7, 0, tzinfo=UTC),
-            runtime_payload_json={"demo": True},
+            agent_runtime_payload_json={"demo": True},
         )
     )
 
     with TestClient(app) as client:
         edit_response = client.get(
-            "/backoffice/runtime-config-revision-model/edit/"
+            "/backoffice/agent-runtime-config-revision-model/edit/"
             "tenant-backoffice;asset-backoffice;agent-backoffice;rev-disabled"
         )
         delete_response = client.request(
             "DELETE",
-            "/backoffice/runtime-config-revision-model/delete?"
+            "/backoffice/agent-runtime-config-revision-model/delete?"
             "pks=tenant-backoffice;asset-backoffice;agent-backoffice;rev-disabled",
         )
 

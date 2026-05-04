@@ -18,10 +18,10 @@ Ingestion pipeline принимает:
   `Platform Store`, а не из retained MQTT config topics
 
 `tenant_id` публикуется wm-edge-agent-ом в MQTT payload как claim из retained
-runtime config. Ingestion не берет tenant из topic path и обязан валидировать
+agent runtime config. Ingestion не берет tenant из topic path и обязан валидировать
 claim через MQTT auth/ACL и config registry/cache.
 
-`wm.edge.runtime-config.v1` и `wm.edge.config.status.v1` не входят в Kafka
+`wm.edge.agent-runtime-config.v1` и `wm.edge.config.status.v1` не входят в Kafka
 surface этого контракта `v1`. Они остаются retained MQTT contracts для
 bootstrap/operational lifecycle wm-edge-agent и должны быть исключены фильтром
 подписки или routing rules до стадии Kafka mapping, а не считаться ingestion
@@ -69,7 +69,7 @@ Source config enrichment:
 - telemetry event с неизвестным `source_config_revision` не пишется в telemetry topic
   и уходит в ingestion error topic
 
-Retained `wm.edge.runtime-config.v1` / `wm.edge.source-config.v1` topics являются
+Retained `wm.edge.agent-runtime-config.v1` / `wm.edge.source-config.v1` topics являются
 delivery projection для wm-edge-agent и не являются authoritative MQTT ingress для
 `wm.platform.source.configs.v1`.
 

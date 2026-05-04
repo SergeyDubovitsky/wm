@@ -1,11 +1,11 @@
 model {
 
 
-    edge-telemetry-agent = developed-system 'Edge Telemetry Agent' {
+    edge-telemetry-agent = developed-system 'wm_edge_agent' {
         description 'Универсальная edge-система, разворачиваемая на объекте рядом с полевыми протоколами и отвечающая за сбор данных, нормализацию, фильтрацию, буферизацию и доставку событий.'
-        technology 'Edge collector / normalization / buffering / delivery'
+        technology 'apps/wm_edge_agent / Edge collector / normalization / buffering / delivery'
 
-        -> monitoring-alarm-platform 'Получает retained runtime/source configs и публикует реализованные telemetry events через MQTT; service topics остаются target contract'
+        -> monitoring-alarm-platform 'Получает retained agent runtime/source configs и публикует реализованные telemetry events через MQTT; status topics остаются target contract'
     }
 
     monitoring-alarm-platform = developed-system 'Monitoring & Alarm Platform' {

@@ -4,13 +4,13 @@ from starlette.requests import Request
 from wtforms import StringField
 
 from wm_config_registry.application.use_cases.config_revisions import (
-    CreateRuntimeConfigRevision,
-    CreateRuntimeConfigRevisionCommand,
+    CreateAgentRuntimeConfigRevision,
+    CreateAgentRuntimeConfigRevisionCommand,
     CreateSourceConfigRevision,
     CreateSourceConfigRevisionCommand,
 )
 from wm_config_registry.domain.entities import (
-    RuntimeConfigRevision,
+    AgentRuntimeConfigRevision,
     SourceConfigRevision,
 )
 from wm_config_registry.infrastructure.backoffice_selectors import (
@@ -34,21 +34,21 @@ from wm_config_registry.infrastructure.backoffice_support import (
     parse_issued_at,
 )
 from wm_config_registry.infrastructure.postgres.models import (
+    AgentRuntimeConfigRevisionModel,
     ConfigOutboxModel,
-    RuntimeConfigRevisionModel,
     SourceConfigRevisionModel,
 )
 
 
-class RuntimeConfigRevisionBackofficeView(
+class AgentRuntimeConfigRevisionBackofficeView(
     AppendOnlyBackofficeModelView,
-    model=RuntimeConfigRevisionModel,
+    model=AgentRuntimeConfigRevisionModel,
 ):
-    name = "Runtime Config Revision"
-    name_plural = "Runtime Config Revisions"
+    name = "Agent Runtime Config Revision"
+    name_plural = "Agent Runtime Config Revisions"
     category = "Config Revisions"
     column_list = model_columns(
-        RuntimeConfigRevisionModel,
+        AgentRuntimeConfigRevisionModel,
         "tenant_id",
         "agent_id",
         "config_revision",
@@ -56,17 +56,17 @@ class RuntimeConfigRevisionBackofficeView(
         "issued_at",
         "created_at",
     )
-    column_details_list = all_model_columns(RuntimeConfigRevisionModel)
+    column_details_list = all_model_columns(AgentRuntimeConfigRevisionModel)
     form_columns = [
         "config_revision",
         "issued_at",
-        "runtime_payload_json",
+        "agent_runtime_payload_json",
     ]
     form_create_rules = [
         AGENT_SELECTOR_FIELD,
         "config_revision",
         "issued_at",
-        "runtime_payload_json",
+        "agent_runtime_payload_json",
     ]
     form_overrides = {"issued_at": StringField}
 
@@ -85,22 +85,22 @@ class RuntimeConfigRevisionBackofficeView(
 
     async def insert_model(self, request: Request, data: dict[str, object]) -> object:
         selection = _require_agent_selection(data.get(AGENT_SELECTOR_FIELD))
-        revision = await CreateRuntimeConfigRevision(
+        revision = await CreateAgentRuntimeConfigRevision(
             get_request_state(request).unit_of_work_factory()
         ).execute(
-            CreateRuntimeConfigRevisionCommand(
+            CreateAgentRuntimeConfigRevisionCommand(
                 tenant_id=selection.tenant_id,
                 asset_id=selection.asset_id,
                 agent_id=selection.agent_id,
                 config_revision=str(data["config_revision"]),
                 issued_at=parse_issued_at(data.get("issued_at")),
-                runtime_payload_json=json_object(
-                    data.get("runtime_payload_json"),
-                    field_name="runtime_payload_json",
+                agent_runtime_payload_json=json_object(
+                    data.get("agent_runtime_payload_json"),
+                    field_name="agent_runtime_payload_json",
                 ),
             )
         )
-        return _runtime_config_revision_model(revision)
+        return _agent_runtime_config_revision_model(revision)
 
 
 class SourceConfigRevisionBackofficeView(
@@ -190,17 +190,17 @@ class ConfigOutboxBackofficeView(ReadOnlyBackofficeModelView, model=ConfigOutbox
     column_details_list = all_model_columns(ConfigOutboxModel)
 
 
-def _runtime_config_revision_model(
-    revision: RuntimeConfigRevision,
-) -> RuntimeConfigRevisionModel:
-    return RuntimeConfigRevisionModel(
+def _agent_runtime_config_revision_model(
+    revision: AgentRuntimeConfigRevision,
+) -> AgentRuntimeConfigRevisionModel:
+    return AgentRuntimeConfigRevisionModel(
         tenant_id=revision.tenant_id,
         asset_id=revision.asset_id,
         agent_id=revision.agent_id,
         config_revision=revision.config_revision,
         status=revision.status.value,
         issued_at=revision.issued_at,
-        runtime_payload_json=dict(revision.runtime_payload_json),
+        agent_runtime_payload_json=dict(revision.agent_runtime_payload_json),
         created_at=revision.created_at,
     )
 

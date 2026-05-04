@@ -7,10 +7,10 @@ from uuid import UUID
 
 from wm_config_registry.domain.entities import (
     Agent,
+    AgentRuntimeConfigRevision,
     Asset,
     ConfigOutboxRecord,
     Point,
-    RuntimeConfigRevision,
     Source,
     SourceConfigRevision,
     Tenant,
@@ -118,8 +118,8 @@ class PointRepository(Protocol):
     async def delete(self, tenant_id: str, point_id: str) -> None: ...
 
 
-class RuntimeConfigRevisionRepository(Protocol):
-    async def add(self, revision: RuntimeConfigRevision) -> None: ...
+class AgentRuntimeConfigRevisionRepository(Protocol):
+    async def add(self, revision: AgentRuntimeConfigRevision) -> None: ...
 
     async def get(
         self,
@@ -127,7 +127,7 @@ class RuntimeConfigRevisionRepository(Protocol):
         asset_id: str,
         agent_id: str,
         config_revision: str,
-    ) -> RuntimeConfigRevision | None: ...
+    ) -> AgentRuntimeConfigRevision | None: ...
 
     async def has_any_for_agent(
         self,
@@ -242,7 +242,7 @@ class UnitOfWork(Protocol):
     agents: AgentRepository
     sources: SourceRepository
     points: PointRepository
-    runtime_config_revisions: RuntimeConfigRevisionRepository
+    agent_runtime_config_revisions: AgentRuntimeConfigRevisionRepository
     source_config_revisions: SourceConfigRevisionRepository
     config_outbox: ConfigOutboxRepository
 

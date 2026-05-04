@@ -3,7 +3,7 @@
 Рабочий путь runtime-конфигурации теперь один:
 
 1. локальный `edge.bootstrap-config.v1`
-2. retained `wm.edge.runtime-config.v1`
+2. retained `wm.edge.agent-runtime-config.v1`
 3. retained `wm.edge.source-config.v1`
 
 Этот каталог хранит только developer examples:
@@ -21,7 +21,7 @@ config материализуется Redpanda Connect projection.
 Текущие integration-тесты используют именно этот split:
 
 - временный локальный `bootstrap.yaml`, созданный в `tmp_path` на время теста
-- retained runtime/source config, материализованный из Kafka delivery records
+- retained agent runtime/source config, материализованный из Kafka delivery records
   по данным `config.bundle.yaml`
 - затем `wm_edge_agent` валидирует и использует уже собранный MQTT-side runtime state
 
@@ -32,9 +32,9 @@ YAML/JSON документы подхватывают значения из уж
 Fail-fast проверки нового потока:
 
 - `bootstrap.agent_id` должен совпадать с `runtime_config.agent_id`
-- для каждого `source_id` из retained runtime config должен существовать retained source config
-- `tenant_id`, `asset_id`, `agent_id` и `config_revision` в source config должны совпадать с root runtime config
-- `source_config_revision` и `enabled` в source config должны совпадать с root runtime config
+- для каждого `source_id` из retained agent runtime config должен существовать retained source config
+- `tenant_id`, `asset_id`, `agent_id` и `config_revision` в source config должны совпадать с root agent runtime config
+- `source_config_revision` и `enabled` в source config должны совпадать с root agent runtime config
 - `point_key` должен быть percent-encoded представлением `point_ref`
 - `change_threshold` допускается только для числовых значений
 

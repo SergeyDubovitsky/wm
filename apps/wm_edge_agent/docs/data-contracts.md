@@ -3,7 +3,7 @@
 Дата: 2026-05-02
 Статус: guide
 
-Этот документ является guide-ом по контрактам `Edge Telemetry Agent`.
+Этот документ является guide-ом по контрактам `wm_edge_agent`.
 Канонический source of truth для схем находится в
 [`docs/contracts/wm-edge-agent/`](../../../docs/contracts/wm-edge-agent/).
 
@@ -12,19 +12,19 @@
 | Область | Source of truth |
 | --- | --- |
 | Bootstrap-конфигурация агента | `docs/contracts/wm-edge-agent/schemas/edge.bootstrap-config.v1.schema.json` |
-| Retained runtime/source configs | `docs/contracts/wm-edge-agent/schemas/wm.edge.runtime-config.v1.schema.json`, `docs/contracts/wm-edge-agent/schemas/wm.edge.source-config.v1.schema.json` |
+| Retained agent runtime/source configs | `docs/contracts/wm-edge-agent/schemas/wm.edge.agent-runtime-config.v1.schema.json`, `docs/contracts/wm-edge-agent/schemas/wm.edge.source-config.v1.schema.json` |
 | Каноническое telemetry event внутри wm-edge-agent | `docs/contracts/wm-edge-agent/schemas/edge.telemetry-event.v1.schema.json` |
 | SQLite Point State Cache | `docs/contracts/wm-edge-agent/schemas/edge.sqlite-point-state-cache.v1.schema.json` |
 | SQLite Delivery Outbox | `docs/contracts/wm-edge-agent/schemas/edge.sqlite-outbox-record.v1.schema.json` |
 | MQTT messages и topic tree | `docs/contracts/wm-edge-agent/README.md` и `docs/contracts/wm-edge-agent/mqtt-topic-tree.v1.md` |
-| Revision-модель runtime/source config | `docs/contracts/wm-edge-agent/config-revision-model.md` |
+| Revision-модель agent runtime/source config | `docs/contracts/wm-edge-agent/config-revision-model.md` |
 
 ## Runtime dataflow
 
 ```text
 Observation
   -> Bootstrap Config
-  -> Retained Runtime Config
+  -> Retained Agent Runtime Config
   -> Retained Source Configs by source_id
   -> Protocol Decoder / Normalizer
   -> In-memory Last Value Cache
@@ -38,14 +38,15 @@ Observation
 ## Основные правила
 
 - `event_id` является непрозрачной непустой строкой для дедупликации, а не UUID-only типом.
-- `tenant_id` приходит из retained runtime config и публикуется в MQTT telemetry payload как claim.
+- `tenant_id` приходит из retained agent runtime config и публикуется в MQTT telemetry payload как claim.
 - `source_config_revision` связывает telemetry event с retained source config.
 - `point_key` строится как обратимое percent-encoding от `point_ref`.
 - `command` points по умолчанию не публикуются как telemetry, если `publish.enabled` не задан явно.
 - `storage.sqlite_path` указывает на локальное техническое SQLite-хранилище агента, а не только на outbox.
 - SQLite на edge не является историческим архивом телеметрии и не заменяет `Telemetry Store`.
 - `SQLite Point State Cache` используется для warm restart, change filtering и восстановления sequence.
-- Runtime/source configs публикуются config publisher tool-ом как retained MQTT messages.
+- Agent runtime/source configs публикуются через `wm_config_registry`,
+  Kafka delivery log и Redpanda Connect projection как retained MQTT messages.
 - В текущей реализации wm-edge-agent публикует telemetry; config status и operational status остаются следующей фазой.
 
 ## Связанные документы

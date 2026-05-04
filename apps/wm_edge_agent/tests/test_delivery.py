@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from wm_edge_agent.application.configuration import build_runtime_config
+from wm_edge_agent.application.configuration import build_agent_runtime_config
 from wm_edge_agent.application.delivery import DeliveryWorker
 from wm_edge_agent.domain.events import MqttPublication, TelemetryEvent
 
@@ -53,7 +53,7 @@ class FakeOutbox:
 
 
 def _runtime_config():
-    return build_runtime_config(
+    return build_agent_runtime_config(
         bootstrap_data={
             "agent_id": "wm-edge-agent-001",
             "delivery": {
@@ -85,8 +85,8 @@ def _runtime_config():
                 "metrics_bind": "0.0.0.0:9108",
             },
         },
-        runtime_data={
-            "message_type": "wm.edge.runtime-config.v1",
+        agent_runtime_data={
+            "message_type": "wm.edge.agent-runtime-config.v1",
             "tenant_id": "tenant-001",
             "asset_id": "demo-stand-01",
             "agent_id": "wm-edge-agent-001",

@@ -7,10 +7,10 @@ from uuid import UUID
 
 from wm_config_registry.domain.entities import (
     Agent,
+    AgentRuntimeConfigRevision,
     Asset,
     ConfigOutboxRecord,
     Point,
-    RuntimeConfigRevision,
     Source,
     SourceConfigRevision,
     Tenant,
@@ -232,12 +232,12 @@ class InMemoryPointRepository:
 
 
 @dataclass
-class InMemoryRuntimeConfigRevisionRepository:
-    _items: dict[tuple[str, str, str, str], RuntimeConfigRevision] = field(
+class InMemoryAgentRuntimeConfigRevisionRepository:
+    _items: dict[tuple[str, str, str, str], AgentRuntimeConfigRevision] = field(
         default_factory=dict
     )
 
-    async def add(self, revision: RuntimeConfigRevision) -> None:
+    async def add(self, revision: AgentRuntimeConfigRevision) -> None:
         self._items[
             (
                 revision.tenant_id,
@@ -253,7 +253,7 @@ class InMemoryRuntimeConfigRevisionRepository:
         asset_id: str,
         agent_id: str,
         config_revision: str,
-    ) -> RuntimeConfigRevision | None:
+    ) -> AgentRuntimeConfigRevision | None:
         return self._items.get((tenant_id, asset_id, agent_id, config_revision))
 
     async def has_any_for_agent(
@@ -499,7 +499,7 @@ class InMemoryUnitOfWork:
     agents: InMemoryAgentRepository
     sources: InMemorySourceRepository
     points: InMemoryPointRepository
-    runtime_config_revisions: InMemoryRuntimeConfigRevisionRepository
+    agent_runtime_config_revisions: InMemoryAgentRuntimeConfigRevisionRepository
     source_config_revisions: InMemorySourceConfigRevisionRepository
     config_outbox: InMemoryConfigOutboxRepository
     committed: bool = False
@@ -526,8 +526,8 @@ class InMemoryUnitOfWorkFactory:
     agents: InMemoryAgentRepository = field(default_factory=InMemoryAgentRepository)
     sources: InMemorySourceRepository = field(default_factory=InMemorySourceRepository)
     points: InMemoryPointRepository = field(default_factory=InMemoryPointRepository)
-    runtime_config_revisions: InMemoryRuntimeConfigRevisionRepository = field(
-        default_factory=InMemoryRuntimeConfigRevisionRepository
+    agent_runtime_config_revisions: InMemoryAgentRuntimeConfigRevisionRepository = field(
+        default_factory=InMemoryAgentRuntimeConfigRevisionRepository
     )
     source_config_revisions: InMemorySourceConfigRevisionRepository = field(
         default_factory=InMemorySourceConfigRevisionRepository
@@ -543,7 +543,7 @@ class InMemoryUnitOfWorkFactory:
             agents=self.agents,
             sources=self.sources,
             points=self.points,
-            runtime_config_revisions=self.runtime_config_revisions,
+            agent_runtime_config_revisions=self.agent_runtime_config_revisions,
             source_config_revisions=self.source_config_revisions,
             config_outbox=self.config_outbox,
         )

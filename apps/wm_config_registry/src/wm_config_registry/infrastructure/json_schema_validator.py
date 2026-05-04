@@ -43,7 +43,7 @@ class JsonSchemaConfigPayloadValidator:
     ) -> JsonSchemaConfigPayloadValidator:
         return cls(
             runtime_schema=_load_schema(
-                edge_contract_dir / "wm.edge.runtime-config.v1.schema.json"
+                edge_contract_dir / "wm.edge.agent-runtime-config.v1.schema.json"
             ),
             source_schema=_load_schema(
                 edge_contract_dir / "wm.edge.source-config.v1.schema.json"
@@ -60,9 +60,9 @@ class JsonSchemaConfigPayloadValidator:
             kafka_contract_dir=contract_dir.parents[1] / "kafka" / "schemas",
         )
 
-    def validate_runtime_config(self, payload: dict[str, Any]) -> None:
+    def validate_agent_runtime_config(self, payload: dict[str, Any]) -> None:
         _raise_if_invalid(
-            message_type="wm.edge.runtime-config.v1",
+            message_type="wm.edge.agent-runtime-config.v1",
             validator=self._runtime_validator,
             payload=payload,
         )

@@ -18,7 +18,7 @@ MQTT, Kafka и ClickHouse contracts.
 Идентичность разделяется на уровни:
 
 - `tenant_id` — клиент/tenant платформы, приходит в wm-edge-agent из
-  server-issued runtime config
+  server-issued agent runtime config
 - `asset_id` — бизнес-идентификатор объекта автоматизации в системе мониторинга
 - `agent_id` — технический идентификатор экземпляра wm-edge-agent
 - `source_id` — идентификатор конкретного protocol source внутри agent
@@ -35,7 +35,7 @@ ClickHouse storage как идентификатор конкретного по
 
 ## Правила
 
-- `tenant_id` должен присутствовать в server-issued runtime/source config и
+- `tenant_id` должен присутствовать в server-issued agent runtime/source config и
   telemetry payload.
 - `asset_id`, `agent_id` и `source_id` должны соответствовать MQTT path-id
   contract.
@@ -62,7 +62,7 @@ ClickHouse storage как идентификатор конкретного по
 
 ## Source Of Truth
 
-- Runtime/source configuration contracts: `docs/contracts/wm-edge-agent/`
+- Agent runtime/source configuration contracts: `docs/contracts/wm-edge-agent/`
 - MQTT topic tree: `docs/contracts/wm-edge-agent/mqtt-topic-tree.v1.md`
 - Platform ingestion mapping: `docs/contracts/platform-ingestion/`
 - Storage model: `docs/contracts/clickhouse/`

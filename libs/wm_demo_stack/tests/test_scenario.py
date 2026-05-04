@@ -140,13 +140,13 @@ def test_bootstrap_messages_are_derived_from_bundle(tmp_path: Path) -> None:
     messages = scenario.bootstrap_messages()
 
     assert [message.topic for message in messages] == [
-        scenario.settings.scope.runtime_config_topic(),
+        scenario.settings.scope.agent_runtime_config_topic(),
         scenario.settings.scope.source_config_topic("knx_main"),
         scenario.settings.scope.source_status_topic("knx_main"),
         scenario.settings.scope.agent_lwt_topic(),
     ]
     assert all(message.retain for message in messages)
-    assert messages[0].payload["message_type"] == "wm.edge.runtime-config.v1"
+    assert messages[0].payload["message_type"] == "wm.edge.agent-runtime-config.v1"
     assert messages[1].payload["message_type"] == "wm.edge.source-config.v1"
     assert messages[2].payload["tenant_id"] == "tenant-001"
     assert messages[2].payload["state"] == "connected"
@@ -169,7 +169,7 @@ def test_run_demo_republishes_retained_messages_on_schedule(tmp_path: Path) -> N
     topics = [message.topic for message in publisher.messages]
 
     assert result == 0
-    assert topics.count(settings.scope.runtime_config_topic()) == 2
+    assert topics.count(settings.scope.agent_runtime_config_topic()) == 2
     assert topics.count(settings.scope.source_config_topic("knx_main")) == 2
     assert topics.count(settings.scope.source_status_topic("knx_main")) == 3
     assert topics.count(settings.scope.agent_lwt_topic()) == 3
@@ -202,17 +202,17 @@ def test_config_delivery_records_are_derived_from_bundle(tmp_path: Path) -> None
     records = config_delivery_records(settings)
 
     assert [record.key for record in records] == [
-        "tenant-001|demo-stand-01|manual-edge-demo|runtime",
+        "tenant-001|demo-stand-01|manual-edge-demo|agent_runtime",
         "tenant-001|demo-stand-01|manual-edge-demo|source:knx_main",
     ]
     assert records[0].topic == "wm.platform.edge.configs.v1"
     assert records[0].payload["message_type"] == (
         "wm.platform.edge.config.delivery.v1"
     )
-    assert records[0].payload["config_scope"] == "runtime"
-    assert records[0].payload["payload_message_type"] == "wm.edge.runtime-config.v1"
+    assert records[0].payload["config_scope"] == "agent_runtime"
+    assert records[0].payload["payload_message_type"] == "wm.edge.agent-runtime-config.v1"
     assert records[0].payload["target_mqtt_topic"] == (
-        "wm/v1/agents/manual-edge-demo/config/runtime"
+        "wm/v1/agents/manual-edge-demo/config/agent-runtime"
     )
     assert records[1].payload["config_scope"] == "source:knx_main"
     assert records[1].payload["source_config_revision"] == (

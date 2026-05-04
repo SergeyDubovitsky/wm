@@ -15,7 +15,7 @@
 компонентах”, а уже реализованный рабочий baseline:
 
 - `Edge Telemetry Agent`
-- server-issued runtime config через retained `MQTT`
+- server-issued agent runtime config через retained `MQTT`
 - reliable telemetry delivery через `MQTT`
 - локальный ingestion slice `MQTT -> Redpanda Connect -> Kafka`
 - versioned config bundle и integration-тесты для этого контура
@@ -44,7 +44,7 @@
 
 - Monorepo с Python workspace, LikeC4-моделью, архитектурными документами и
   contract registry.
-- `Edge Telemetry Agent` с bootstrap config, загрузкой retained runtime/source
+- `Edge Telemetry Agent` с bootstrap config, загрузкой retained agent runtime/source
   config из MQTT, fail-fast validation и CLI:
   `check-config`, `show-config`, `enqueue-demo-event`, `deliver-once`.
 - Runtime-модель `tenant_id`, `asset_id`, `agent_id`, `source_id`,
@@ -82,7 +82,7 @@
   platform backend: authn/authz, richer revision workflow, rollout controls,
   approval/publish process и API boundaries beyond current internal/backoffice
   scope.
-- Tenant-facing UI для редактирования runtime/source config. На текущем этапе
+- Tenant-facing UI для редактирования agent runtime/source config. На текущем этапе
   source of truth уже переехал в `Config Registry`/`PostgreSQL`, а versioned
   YAML bundle остается import/bootstrap path; полноценный внешний UI и workflow
   публикации остаются следующими шагами.
@@ -127,14 +127,14 @@
 | Открытые вопросы | `docs/architecture/open-questions.md` |
 | Контракты данных и topic/table names | `docs/contracts/` |
 | Edge guide-документация | `apps/wm_edge_agent/docs/` |
-| Demo/runtime config bundle | `environments/demo-stand/wm_edge_agent/` |
+| Demo/agent runtime config bundle | `environments/demo-stand/wm_edge_agent/` |
 
 ## ADR Reading Guide
 
 Для большинства задач агенту не нужно читать все ADR. Используйте такой порядок:
 
 1. Для ориентации: этот документ и `docs/architecture/glossary.md`.
-2. Для edge runtime config: `ADR-008`, затем `docs/contracts/wm-edge-agent/`.
+2. Для edge agent runtime config: `ADR-008`, затем `docs/contracts/wm-edge-agent/`.
 3. Для MQTT delivery и topic tree: `ADR-005`, затем
    `docs/contracts/wm-edge-agent/mqtt-topic-tree.v1.md`.
 4. Для identity model: `ADR-004`.
@@ -156,7 +156,7 @@
 - production MQTT broker, TLS, ACL и secrets handling;
 - production scope `Config Registry` и `Platform API` поверх текущего
   foundation-среза;
-- limits и lifecycle для retained runtime/source config;
+- limits и lifecycle для retained agent runtime/source config;
 - эволюция YAML config bundle из import/bootstrap path в полностью platform-led
   authoring workflow;
 - production host/deployment model для edge runtime.

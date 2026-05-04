@@ -53,7 +53,7 @@ def upgrade() -> None:
             name="ck_config_outbox_status",
         ),
         sa.CheckConstraint(
-            "(config_scope = 'runtime' and source_id is null "
+            "(config_scope = 'agent_runtime' and source_id is null "
             "and source_config_revision is null) "
             "or (config_scope like 'source:%' and source_id is not null "
             "and source_config_revision is not null)",

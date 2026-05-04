@@ -12,38 +12,38 @@ from wm_config_registry.application.errors import (
 )
 from wm_config_registry.application.ports.unit_of_work import UnitOfWork
 from wm_config_registry.domain.entities import (
-    RuntimeConfigRevision,
+    AgentRuntimeConfigRevision,
     SourceConfigRevision,
 )
 from wm_config_registry.domain.value_objects import ConfigRevisionStatus
 
 
 @dataclass(frozen=True)
-class CreateRuntimeConfigRevisionCommand:
+class CreateAgentRuntimeConfigRevisionCommand:
     tenant_id: str
     asset_id: str
     agent_id: str
     config_revision: str
     issued_at: datetime
-    runtime_payload_json: dict[str, Any] = field(default_factory=dict)
+    agent_runtime_payload_json: dict[str, Any] = field(default_factory=dict)
     status: ConfigRevisionStatus = ConfigRevisionStatus.DRAFT
 
 
-class CreateRuntimeConfigRevision:
+class CreateAgentRuntimeConfigRevision:
     def __init__(self, unit_of_work: UnitOfWork) -> None:
         self._unit_of_work = unit_of_work
 
     async def execute(
         self,
-        command: CreateRuntimeConfigRevisionCommand,
-    ) -> RuntimeConfigRevision:
-        revision = RuntimeConfigRevision(
+        command: CreateAgentRuntimeConfigRevisionCommand,
+    ) -> AgentRuntimeConfigRevision:
+        revision = AgentRuntimeConfigRevision(
             tenant_id=command.tenant_id,
             asset_id=command.asset_id,
             agent_id=command.agent_id,
             config_revision=command.config_revision,
             issued_at=command.issued_at,
-            runtime_payload_json=dict(command.runtime_payload_json),
+            agent_runtime_payload_json=dict(command.agent_runtime_payload_json),
             status=command.status,
         )
 
@@ -62,7 +62,7 @@ class CreateRuntimeConfigRevision:
                     revision.agent_id,
                 )
             if (
-                await unit_of_work.runtime_config_revisions.get(
+                await unit_of_work.agent_runtime_config_revisions.get(
                     revision.tenant_id,
                     revision.asset_id,
                     revision.agent_id,
@@ -76,7 +76,7 @@ class CreateRuntimeConfigRevision:
                     revision.agent_id,
                     revision.config_revision,
                 )
-            await unit_of_work.runtime_config_revisions.add(revision)
+            await unit_of_work.agent_runtime_config_revisions.add(revision)
             await unit_of_work.commit()
 
         return revision

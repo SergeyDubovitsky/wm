@@ -1,0 +1,11 @@
+model {
+    extend edge-telemetry-agent {
+        agent-runtime-config-cache = container 'RetainedConfigLoader' {
+            description 'Загружает retained server-issued agent runtime/source конфигурацию: wm.edge.agent-runtime-config.v1 и wm.edge.source-config.v1, разбитые по source_id.'
+            technology 'wm_edge_agent.infrastructure.mqtt_retained_config.RetainedConfigLoader'
+            style {
+                shape storage
+            }
+        }
+    }
+}

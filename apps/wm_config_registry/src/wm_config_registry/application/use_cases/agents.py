@@ -132,7 +132,7 @@ class DeleteAgent:
                     command.agent_id,
                     reason="linked sources still exist",
                 )
-            if await unit_of_work.runtime_config_revisions.has_any_for_agent(
+            if await unit_of_work.agent_runtime_config_revisions.has_any_for_agent(
                 command.tenant_id,
                 command.asset_id,
                 command.agent_id,
@@ -141,7 +141,7 @@ class DeleteAgent:
                     command.tenant_id,
                     command.asset_id,
                     command.agent_id,
-                    reason="runtime config revisions still exist",
+                    reason="agent runtime config revisions still exist",
                 )
             if await unit_of_work.config_outbox.has_any_for_agent(
                 command.tenant_id,

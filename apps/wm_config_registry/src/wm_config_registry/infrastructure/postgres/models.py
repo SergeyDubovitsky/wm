@@ -267,27 +267,27 @@ class PointModel(Base):
     )
 
 
-class RuntimeConfigRevisionModel(Base):
-    __tablename__ = "runtime_config_revisions"
+class AgentRuntimeConfigRevisionModel(Base):
+    __tablename__ = "agent_runtime_config_revisions"
     __table_args__ = (
         PrimaryKeyConstraint(
             "tenant_id",
             "asset_id",
             "agent_id",
             "config_revision",
-            name="pk_runtime_config_revisions",
+            name="pk_agent_runtime_config_revisions",
         ),
         ForeignKeyConstraint(
             ["tenant_id", "asset_id", "agent_id"],
             ["agents.tenant_id", "agents.asset_id", "agents.agent_id"],
-            name="fk_runtime_config_revisions_agent",
+            name="fk_agent_runtime_config_revisions_agent",
         ),
         CheckConstraint(
             "status in ('draft', 'rendered', 'active', 'superseded', 'failed')",
-            name="ck_runtime_config_revisions_status",
+            name="ck_agent_runtime_config_revisions_status",
         ),
         Index(
-            "uq_runtime_config_revisions_active",
+            "uq_agent_runtime_config_revisions_active",
             "tenant_id",
             "asset_id",
             "agent_id",
@@ -302,7 +302,7 @@ class RuntimeConfigRevisionModel(Base):
     config_revision: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False)
     issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    runtime_payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    agent_runtime_payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -330,10 +330,10 @@ class SourceConfigRevisionModel(Base):
         ForeignKeyConstraint(
             ["tenant_id", "asset_id", "agent_id", "config_revision"],
             [
-                "runtime_config_revisions.tenant_id",
-                "runtime_config_revisions.asset_id",
-                "runtime_config_revisions.agent_id",
-                "runtime_config_revisions.config_revision",
+                "agent_runtime_config_revisions.tenant_id",
+                "agent_runtime_config_revisions.asset_id",
+                "agent_runtime_config_revisions.agent_id",
+                "agent_runtime_config_revisions.config_revision",
             ],
             name="fk_source_config_revisions_runtime",
         ),
@@ -373,7 +373,7 @@ class ConfigOutboxModel(Base):
             name="ck_config_outbox_status",
         ),
         CheckConstraint(
-            "(config_scope = 'runtime' and source_id is null "
+            "(config_scope = 'agent_runtime' and source_id is null "
             "and source_config_revision is null) "
             "or (config_scope like 'source:%' and source_id is not null "
             "and source_config_revision is not null)",

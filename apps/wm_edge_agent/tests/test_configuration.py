@@ -5,9 +5,9 @@ import json
 import pytest
 
 from wm_edge_agent.application.configuration import (
-    build_runtime_config,
+    build_agent_runtime_config,
+    load_agent_runtime_config,
     load_bootstrap_config,
-    load_runtime_config,
 )
 from wm_edge_agent.domain.config import ConfigurationError
 
@@ -46,9 +46,9 @@ def _bootstrap_data() -> dict[str, object]:
     }
 
 
-def _runtime_payload() -> dict[str, object]:
+def _agent_runtime_payload() -> dict[str, object]:
     return {
-        "message_type": "wm.edge.runtime-config.v1",
+        "message_type": "wm.edge.agent-runtime-config.v1",
         "tenant_id": "tenant-001",
         "asset_id": "demo-stand-01",
         "agent_id": "wm-edge-agent-001",
@@ -177,10 +177,10 @@ observability:
     assert bootstrap.delivery.mqtt.broker == "mqtt://localhost:1883"
 
 
-def test_build_runtime_config_assembles_runtime() -> None:
-    runtime = build_runtime_config(
+def test_build_agent_runtime_config_assembles_runtime() -> None:
+    runtime = build_agent_runtime_config(
         bootstrap_data=_bootstrap_data(),
-        runtime_data=_runtime_payload(),
+        agent_runtime_data=_agent_runtime_payload(),
         source_documents=[_source_payload()],
     )
 
@@ -194,52 +194,52 @@ def test_build_runtime_config_assembles_runtime() -> None:
     assert runtime.point("knx_main", "2/0/0").publish.change_threshold == 1.0
 
 
-def test_build_runtime_config_rejects_agent_mismatch() -> None:
-    runtime_payload = _runtime_payload()
-    runtime_payload["agent_id"] = "other-agent"
+def test_build_agent_runtime_config_rejects_agent_mismatch() -> None:
+    agent_runtime_payload = _agent_runtime_payload()
+    agent_runtime_payload["agent_id"] = "other-agent"
 
     with pytest.raises(ConfigurationError, match="agent_id"):
-        build_runtime_config(
+        build_agent_runtime_config(
             bootstrap_data=_bootstrap_data(),
-            runtime_data=runtime_payload,
+            agent_runtime_data=agent_runtime_payload,
             source_documents=[_source_payload()],
         )
 
 
-def test_build_runtime_config_rejects_missing_source_config() -> None:
+def test_build_agent_runtime_config_rejects_missing_source_config() -> None:
     with pytest.raises(ConfigurationError, match="Missing retained source config"):
-        build_runtime_config(
+        build_agent_runtime_config(
             bootstrap_data=_bootstrap_data(),
-            runtime_data=_runtime_payload(),
+            agent_runtime_data=_agent_runtime_payload(),
             source_documents=[],
         )
 
 
-def test_build_runtime_config_rejects_source_revision_mismatch() -> None:
+def test_build_agent_runtime_config_rejects_source_revision_mismatch() -> None:
     source_payload = _source_payload()
     source_payload["source_config_revision"] = "rev-other"
 
     with pytest.raises(ConfigurationError, match="source_config_revision"):
-        build_runtime_config(
+        build_agent_runtime_config(
             bootstrap_data=_bootstrap_data(),
-            runtime_data=_runtime_payload(),
+            agent_runtime_data=_agent_runtime_payload(),
             source_documents=[source_payload],
         )
 
 
-def test_build_runtime_config_rejects_threshold_for_boolean_point() -> None:
+def test_build_agent_runtime_config_rejects_threshold_for_boolean_point() -> None:
     source_payload = _source_payload()
     source_payload["points"][0]["publish"]["change_threshold"] = 0.5
 
     with pytest.raises(ConfigurationError, match="change_threshold"):
-        build_runtime_config(
+        build_agent_runtime_config(
             bootstrap_data=_bootstrap_data(),
-            runtime_data=_runtime_payload(),
+            agent_runtime_data=_agent_runtime_payload(),
             source_documents=[source_payload],
         )
 
 
-def test_load_runtime_config_fetches_retained_documents(
+def test_load_agent_runtime_config_fetches_retained_documents(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -252,14 +252,14 @@ def test_load_runtime_config_fetches_retained_documents(
 
         def load(self):
             class Docs:
-                runtime_config = _runtime_payload()
+                agent_runtime_config = _agent_runtime_payload()
                 source_configs = {"knx_main": _source_payload()}
 
             return Docs()
 
     monkeypatch.setattr("wm_edge_agent.application.configuration.RetainedConfigLoader", FakeLoader)
 
-    runtime = load_runtime_config(bootstrap_path)
+    runtime = load_agent_runtime_config(bootstrap_path)
 
     assert runtime.tenant_id == "tenant-001"
     assert sorted(runtime.sources) == ["knx_main"]
@@ -286,37 +286,37 @@ def test_load_bootstrap_config_rejects_invalid_topic_root(tmp_path) -> None:
         load_bootstrap_config(bootstrap_path)
 
 
-def test_build_runtime_config_rejects_invalid_asset_id() -> None:
-    runtime_payload = _runtime_payload()
-    runtime_payload["asset_id"] = "Demo Stand 01"
+def test_build_agent_runtime_config_rejects_invalid_asset_id() -> None:
+    agent_runtime_payload = _agent_runtime_payload()
+    agent_runtime_payload["asset_id"] = "Demo Stand 01"
 
-    with pytest.raises(ConfigurationError, match="runtime config.asset_id"):
-        build_runtime_config(
+    with pytest.raises(ConfigurationError, match="agent runtime config.asset_id"):
+        build_agent_runtime_config(
             bootstrap_data=_bootstrap_data(),
-            runtime_data=runtime_payload,
+            agent_runtime_data=agent_runtime_payload,
             source_documents=[_source_payload()],
         )
 
 
-def test_build_runtime_config_rejects_invalid_source_id() -> None:
-    runtime_payload = _runtime_payload()
-    runtime_payload["sources"][0]["source_id"] = "knx/main"
+def test_build_agent_runtime_config_rejects_invalid_source_id() -> None:
+    agent_runtime_payload = _agent_runtime_payload()
+    agent_runtime_payload["sources"][0]["source_id"] = "knx/main"
 
-    with pytest.raises(ConfigurationError, match="runtime config.sources.0.source_id"):
-        build_runtime_config(
+    with pytest.raises(ConfigurationError, match="agent runtime config.sources.0.source_id"):
+        build_agent_runtime_config(
             bootstrap_data=_bootstrap_data(),
-            runtime_data=runtime_payload,
+            agent_runtime_data=agent_runtime_payload,
             source_documents=[_source_payload()],
         )
 
 
-def test_build_runtime_config_rejects_invalid_source_config_source_id() -> None:
+def test_build_agent_runtime_config_rejects_invalid_source_config_source_id() -> None:
     source_payload = _source_payload()
     source_payload["source_id"] = "knx main"
 
     with pytest.raises(ConfigurationError, match="source config #0.source_id"):
-        build_runtime_config(
+        build_agent_runtime_config(
             bootstrap_data=_bootstrap_data(),
-            runtime_data=_runtime_payload(),
+            agent_runtime_data=_agent_runtime_payload(),
             source_documents=[source_payload],
         )

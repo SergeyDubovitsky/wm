@@ -242,7 +242,7 @@ environments/
   endpoint-данных
 - config delivery pipeline читает bundle или Platform Store, валидирует
   revision, пишет Kafka delivery record и материализует retained MQTT
-  runtime/source configs через Redpanda Connect projection
+  agent runtime/source configs через Redpanda Connect projection
 
 Для `wm_edge_agent` это особенно важно: runtime boundary агента — retained MQTT
 configs, а authoring boundary первого этапа — versioned YAML config bundle.

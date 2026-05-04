@@ -12,7 +12,7 @@
 Текущий практический фокус проекта: демо-стенд `KNX` как первый реализуемый адаптер и MVP без управляющих действий в production data path.
 
 Проект уже достиг `MVP baseline`: текущий реализованный baseline включает
-`Edge Telemetry Agent`, retained runtime/source config path и local platform
+`Edge Telemetry Agent`, retained agent runtime/source config path и local platform
 slice `MQTT -> Redpanda Connect -> Kafka`. Более широкая platform-часть ниже в
 документе остается целевой post-MVP эволюцией.
 
@@ -70,7 +70,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 
 - Edge-first. Сборщик работает в сети объекта и не зависит от постоянной доступности внешнего контура.
 - Read-only by default. В production data path web-monitoring контура сервис читает и наблюдает сигналы, но не управляет ими.
-- Server-issued config. Все известные точки, `value_model`, параметры чтения и правила публикации приходят в wm-edge-agent как retained runtime/source configs; целевой поток доставки: PostgreSQL config revisions -> config outbox -> Kafka -> Redpanda Connect -> MQTT retained topics.
+- Server-issued config. Все известные точки, `value_model`, параметры чтения и правила публикации приходят в wm-edge-agent как retained agent runtime/source configs; целевой поток доставки: PostgreSQL config revisions -> config outbox -> Kafka -> Redpanda Connect -> MQTT retained topics.
 - Hybrid acquisition. Основной поток данных приходит из event/listen режима там, где он поддерживается; активное чтение включается только для whitelist endpoints.
 - Loose coupling. Протокольная интеграция, правила фильтрации и доставка во внешний контур разделены по компонентам.
 - Fail-safe degradation. При потере backend события не теряются сразу, а уходят в локальный Delivery Outbox.
@@ -86,7 +86,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 - публиковать аналоговые сигналы по достижению порога изменения
 - логировать события связи, декодирования и доставки
 - буферизовать неотправленные события локально
-- принимать `MQTT` telemetry events и status topics в центральной платформе; retained runtime/source configs являются delivery projection для wm-edge-agent
+- принимать `MQTT` telemetry events и status topics в центральной платформе; retained agent runtime/source configs являются delivery projection для wm-edge-agent
 - хранить телеметрию, source config snapshots и историю `alarm`
 - выполнять правила `alarm` и маршрутизировать уведомления
 - предоставлять операторский UI и backend API для мониторинга и работы с `alarm`
@@ -113,9 +113,9 @@ Source of truth для `C1/C2` и следующих уровней декомп
 
 Целевой production-поток следующего этапа поверх текущего `MVP`:
 
-1. `Config Registry` хранит rendered runtime/source config revisions в PostgreSQL и создает `config_outbox` record.
+1. `Config Registry` хранит rendered agent runtime/source config revisions в PostgreSQL и создает `config_outbox` record.
 2. `Config Event Publisher` публикует `wm.platform.edge.config.delivery.v1` records в Kafka topic `wm.platform.edge.configs.v1`.
-3. `Redpanda Connect` материализует config delivery records в retained MQTT runtime/source topics; wm-edge-agent получает `tenant_id`, `asset_id`, `sources` и `points` из этих retained configs.
+3. `Redpanda Connect` материализует config delivery records в retained MQTT agent runtime/source topics; wm-edge-agent получает `tenant_id`, `asset_id`, `sources` и `points` из этих retained configs.
 4. `Source Config Snapshot Projector` строит `wm.platform.source.configs.v1` из `wm.platform.edge.configs.v1`; retained MQTT source configs не являются authoritative Kafka ingress для source config snapshots.
 5. `Edge Telemetry Agent` в текущем runtime baseline публикует telemetry events по `MQTT 5.0`; source connection status, config status и agent LWT/status остаются target contracts следующей runtime-фазы.
 6. `MQTT Ingestion Gateway` принимает MQTT-поток, валидирует payload и восстанавливает routing context.
@@ -145,7 +145,7 @@ Source of truth для ingestion, Kafka topics, ClickHouse contracts и migratio
 | Компонент | Ответственность |
 | --- | --- |
 | `Bootstrap Config Loader` | Загружает минимальную локальную конфигурацию запуска: `agent_id`, MQTT endpoint, credentials/secret refs, local storage и observability |
-| `Retained Config Loader` | Получает `wm.edge.runtime-config.v1` и `wm.edge.source-config.v1` из MQTT, валидирует revision и собирает runtime config |
+| `Retained Config Loader` | Получает `wm.edge.agent-runtime-config.v1` и `wm.edge.source-config.v1` из MQTT, валидирует revision и собирает agent runtime config |
 | `Southbound Connection Manager` | Устанавливает протокольные соединения, отслеживает состояние каналов, выполняет reconnect |
 | `Protocol Event Listener` | Получает входящие события, выделяет endpoint, направление и raw payload |
 | `Selective Read Scheduler` | Выполняет `read_on_start` и `periodic_read` только по whitelist endpoints |
@@ -211,8 +211,8 @@ production-контуре как слой визуализации.
 ### 1. Холодный старт
 
 1. Сервис загружает `edge.bootstrap-config.v1`.
-2. Подключается к MQTT broker и подписывается на retained runtime/source config topics.
-3. Получает `wm.edge.runtime-config.v1`, затем `wm.edge.source-config.v1` для каждого активного `source_id`.
+2. Подключается к MQTT broker и подписывается на retained agent runtime/source config topics.
+3. Получает `wm.edge.agent-runtime-config.v1`, затем `wm.edge.source-config.v1` для каждого активного `source_id`.
 4. Валидирует `tenant_id`, `asset_id`, `config_revision` и `source_config_revision`; публикация `status/config` остается target contract следующей runtime-фазы.
 5. Поднимает southbound-соединение для активных адаптеров.
 6. Выполняет `read_on_start` по разрешенным endpoints.
@@ -310,7 +310,7 @@ production-контуре как слой визуализации.
 - listen/poll + `read_on_start`
 - структурированный лог
 - `SQLite Local State Store`: Point State Cache и Delivery Outbox
-- `MQTT 5.0` transport для retained runtime/source configs, telemetry events и status topics
+- `MQTT 5.0` transport для retained agent runtime/source configs, telemetry events и status topics
 
 ### Этап 2. Production hardening
 

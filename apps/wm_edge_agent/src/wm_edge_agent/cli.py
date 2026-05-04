@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
-from wm_edge_agent.application.configuration import load_runtime_config
+from wm_edge_agent.application.configuration import load_agent_runtime_config
 from wm_edge_agent.application.delivery import DeliveryWorker
 from wm_edge_agent.application.processing import ObservationProcessor
 from wm_edge_agent.domain.config import (
@@ -40,14 +40,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     check_config = subparsers.add_parser(
         "check-config",
-        help="Load bootstrap config and validate retained runtime/source configs",
+        help="Load bootstrap config and validate retained agent runtime/source configs",
     )
     _add_bootstrap_config_argument(check_config)
     check_config.set_defaults(handler=_handle_check_config)
 
     show_config = subparsers.add_parser(
         "show-config",
-        help="Print a normalized runtime configuration summary",
+        help="Print a normalized agent runtime configuration summary",
     )
     _add_bootstrap_config_argument(show_config)
     show_config.add_argument(
@@ -112,7 +112,7 @@ def _add_bootstrap_config_argument(parser: argparse.ArgumentParser) -> None:
 
 
 def _handle_check_config(args: argparse.Namespace) -> int:
-    runtime = load_runtime_config(args.bootstrap_config)
+    runtime = load_agent_runtime_config(args.bootstrap_config)
     summary = _runtime_summary(runtime, args.bootstrap_config)
     print(
         "Configuration OK: "
@@ -127,7 +127,7 @@ def _handle_check_config(args: argparse.Namespace) -> int:
 
 
 def _handle_show_config(args: argparse.Namespace) -> int:
-    runtime = load_runtime_config(args.bootstrap_config)
+    runtime = load_agent_runtime_config(args.bootstrap_config)
     summary = _runtime_summary(runtime, args.bootstrap_config)
     if args.format == "json":
         print(json.dumps(summary, ensure_ascii=False, indent=2))
@@ -137,7 +137,7 @@ def _handle_show_config(args: argparse.Namespace) -> int:
 
 
 def _handle_enqueue_demo_event(args: argparse.Namespace) -> int:
-    runtime = load_runtime_config(args.bootstrap_config)
+    runtime = load_agent_runtime_config(args.bootstrap_config)
     point = _select_demo_point(runtime, source_id=args.source_id, point_ref=args.point_ref)
     value = _coerce_demo_value(args.value, value_type=point.value_type)
     state_cache = SQLitePointStateCache(runtime.storage.sqlite_path)
@@ -176,7 +176,7 @@ def _handle_enqueue_demo_event(args: argparse.Namespace) -> int:
 
 
 def _handle_deliver_once(args: argparse.Namespace) -> int:
-    runtime = load_runtime_config(args.bootstrap_config)
+    runtime = load_agent_runtime_config(args.bootstrap_config)
     mqtt = runtime.delivery.mqtt
     if mqtt is None or not mqtt.enabled:
         raise RuntimeError("MQTT delivery settings are not configured or disabled")

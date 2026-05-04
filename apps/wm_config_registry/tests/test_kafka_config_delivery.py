@@ -44,7 +44,7 @@ async def test_kafka_config_record_publisher_serializes_outbox_record() -> None:
     assert producer.produced == [
         {
             "topic": "wm.platform.edge.configs.v1",
-            "key": b"tenant-a|asset-a|agent-a|runtime",
+            "key": b"tenant-a|asset-a|agent-a|agent_runtime",
             "value": (
                 b'{"message_type":"wm.platform.edge.config.delivery.v1",'
                 b'"tenant_id":"tenant-a","payload":{"ok":true}}'
@@ -77,14 +77,14 @@ async def test_kafka_config_record_publisher_fails_on_flush_timeout() -> None:
 def _outbox_record() -> ConfigOutboxRecord:
     return ConfigOutboxRecord.new(
         tenant_id="tenant-a",
-        idempotency_key="tenant-a|asset-a|agent-a|rev-001|runtime",
+        idempotency_key="tenant-a|asset-a|agent-a|rev-001|agent_runtime",
         asset_id="asset-a",
         agent_id="agent-a",
         config_revision="rev-001",
-        config_scope="runtime",
+        config_scope="agent_runtime",
         source_id=None,
         source_config_revision=None,
-        kafka_key="tenant-a|asset-a|agent-a|runtime",
+        kafka_key="tenant-a|asset-a|agent-a|agent_runtime",
         payload_json={
             "message_type": "wm.platform.edge.config.delivery.v1",
             "tenant_id": "tenant-a",

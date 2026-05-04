@@ -12,8 +12,8 @@ import yaml
 
 from wm_demo_stack.bundle import load_bundle
 from wm_demo_stack.models import TopicScope
-from wm_demo_stack.scenario import runtime_config_payload, source_config_payload
-from wm_edge_agent.application.configuration import load_runtime_config
+from wm_demo_stack.scenario import agent_runtime_config_payload, source_config_payload
+from wm_edge_agent.application.configuration import load_agent_runtime_config
 from wm_edge_agent.application.delivery import DeliveryWorker
 from wm_edge_agent.application.processing import ObservationProcessor
 from wm_edge_agent.domain.events import Observation
@@ -97,7 +97,7 @@ def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
     subscriber.subscribe(topic, qos=1)
     assert subscribed.wait(timeout=10), "MQTT subscriber did not subscribe in time"
 
-    runtime = load_runtime_config(bootstrap_path)
+    runtime = load_agent_runtime_config(bootstrap_path)
     processor = ObservationProcessor(runtime, agent_id=runtime.agent_id)
     observed_at = datetime.now(tz=UTC).replace(microsecond=0)
     result = processor.process(
@@ -384,22 +384,22 @@ def _seed_config_delivery_records(*, local_stack, bundle) -> None:
         asset_id=bundle.asset_id,
         agent_id=bundle.agent_id,
     )
-    runtime_payload = runtime_config_payload(settings)
+    agent_runtime_payload = agent_runtime_config_payload(settings)
     runtime_record = _config_delivery_record(
         bundle=bundle,
-        config_scope="runtime",
+        config_scope="agent_runtime",
         source_id=None,
         source_config_revision=None,
-        target_mqtt_topic=scope.runtime_config_topic(),
-        payload_message_type="wm.edge.runtime-config.v1",
-        payload=runtime_payload,
+        target_mqtt_topic=scope.agent_runtime_config_topic(),
+        payload_message_type="wm.edge.agent-runtime-config.v1",
+        payload=agent_runtime_payload,
     )
     local_stack.produce_kafka_text(
         "wm.platform.edge.configs.v1",
         json.dumps(runtime_record, ensure_ascii=True, separators=(",", ":")),
-        key=f"{bundle.tenant_id}|{bundle.asset_id}|{bundle.agent_id}|runtime",
+        key=f"{bundle.tenant_id}|{bundle.asset_id}|{bundle.agent_id}|agent_runtime",
     )
-    runtime_message = local_stack.wait_for_mqtt_json(scope.runtime_config_topic())
+    runtime_message = local_stack.wait_for_mqtt_json(scope.agent_runtime_config_topic())
     assert runtime_message.retained is True
     assert runtime_message.payload["config_revision"] == bundle.config_revision
 

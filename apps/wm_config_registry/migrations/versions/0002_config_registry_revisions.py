@@ -21,7 +21,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.create_table(
-        "runtime_config_revisions",
+        "agent_runtime_config_revisions",
         sa.Column("tenant_id", sa.Text(), nullable=False),
         sa.Column("asset_id", sa.Text(), nullable=False),
         sa.Column("agent_id", sa.Text(), nullable=False),
@@ -29,31 +29,31 @@ def upgrade() -> None:
         sa.Column("status", sa.Text(), nullable=False),
         sa.Column("issued_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column(
-            "runtime_payload_json",
+            "agent_runtime_payload_json",
             postgresql.JSONB(astext_type=sa.Text()),
             nullable=False,
         ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint(
             "status in ('draft', 'rendered', 'active', 'superseded', 'failed')",
-            name="ck_runtime_config_revisions_status",
+            name="ck_agent_runtime_config_revisions_status",
         ),
         sa.ForeignKeyConstraint(
             ["tenant_id", "asset_id", "agent_id"],
             ["agents.tenant_id", "agents.asset_id", "agents.agent_id"],
-            name="fk_runtime_config_revisions_agent",
+            name="fk_agent_runtime_config_revisions_agent",
         ),
         sa.PrimaryKeyConstraint(
             "tenant_id",
             "asset_id",
             "agent_id",
             "config_revision",
-            name="pk_runtime_config_revisions",
+            name="pk_agent_runtime_config_revisions",
         ),
     )
     op.create_index(
-        "uq_runtime_config_revisions_active",
-        "runtime_config_revisions",
+        "uq_agent_runtime_config_revisions_active",
+        "agent_runtime_config_revisions",
         ["tenant_id", "asset_id", "agent_id"],
         unique=True,
         postgresql_where=sa.text("status = 'active'"),
@@ -92,10 +92,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["tenant_id", "asset_id", "agent_id", "config_revision"],
             [
-                "runtime_config_revisions.tenant_id",
-                "runtime_config_revisions.asset_id",
-                "runtime_config_revisions.agent_id",
-                "runtime_config_revisions.config_revision",
+                "agent_runtime_config_revisions.tenant_id",
+                "agent_runtime_config_revisions.asset_id",
+                "agent_runtime_config_revisions.agent_id",
+                "agent_runtime_config_revisions.config_revision",
             ],
             name="fk_source_config_revisions_runtime",
         ),
@@ -124,7 +124,7 @@ def downgrade() -> None:
     )
     op.drop_table("source_config_revisions")
     op.drop_index(
-        "uq_runtime_config_revisions_active",
-        table_name="runtime_config_revisions",
+        "uq_agent_runtime_config_revisions_active",
+        table_name="agent_runtime_config_revisions",
     )
-    op.drop_table("runtime_config_revisions")
+    op.drop_table("agent_runtime_config_revisions")

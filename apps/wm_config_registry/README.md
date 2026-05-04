@@ -8,9 +8,9 @@
 - FastAPI app factory
 - domain entities/value objects для registry-модели
 - application use cases и repository/unit-of-work protocols
-- render use case для `wm.edge.runtime-config.v1` и
+- render use case для `wm.edge.agent-runtime-config.v1` и
   `wm.edge.source-config.v1` с JSON Schema validation
-- persistence для rendered `runtime_config_revisions` и
+- persistence для rendered `agent_runtime_config_revisions` и
   `source_config_revisions`
 - transactional `config_outbox` pending records для Kafka-first edge config
   delivery
@@ -22,14 +22,14 @@
   контейнера outbox worker-а
 - internal backoffice UI на `/backoffice` в `internal_mode`
 - local Redpanda Connect projection
-  `wm.platform.edge.configs.v1 -> MQTT retained runtime/source config topics`
+  `wm.platform.edge.configs.v1 -> MQTT retained agent runtime/source config topics`
 - временный in-memory adapter для unit/API smoke-тестов
 - PostgreSQL adapter для `tenants`, `assets`, `agents`, `sources` и `points`
 - local Docker image для `wm-config-registry` и
   `wm-config-registry-outbox-worker`
 - Alembic migrations для registry tables:
   `tenants`, `assets`, `agents`, `sources`, `points`
-- `runtime_config_revisions`, `source_config_revisions`
+- `agent_runtime_config_revisions`, `source_config_revisions`
 - `config_outbox`
 - endpoints `GET /health`, `GET /ready`, `POST /tenants`, `GET /tenants`,
   `POST /tenants/{tenant_id}/assets`, `GET /tenants/{tenant_id}/assets`,
@@ -77,7 +77,7 @@ CONFIG_REGISTRY_DATABASE_URL=postgresql+asyncpg://wm:change-me-local-postgres@lo
 - `sources`: `Agent` selector + `source_id`, `source_type`, `enabled`, `name`,
   `description`
 - `points`: `Source` selector + business-поля точки
-- `runtime_config_revisions`: `Agent` selector + revision payload
+- `agent_runtime_config_revisions`: `Agent` selector + revision payload
 - `source_config_revisions`: `Source` selector + revision payload
 
 Системные поля вроде `status`, `created_at`, `updated_at` и родительские ключи
@@ -90,7 +90,7 @@ CONFIG_REGISTRY_DATABASE_URL=postgresql+asyncpg://wm:change-me-local-postgres@lo
 
 В backoffice этот render action живет прямо на `Agent` list/detail как
 `Собрать config`. Action работает в agent scope: собирает
-runtime/source config revision для выбранного агента и создает
+agent runtime/source config revision для выбранного агента и создает
 `config_outbox` тем же application path, что и HTTP API.
 Internal outbox actions `POST /backoffice/config-outbox/retry` и
 `POST /backoffice/config-outbox/dead-letter` также вызывают application use

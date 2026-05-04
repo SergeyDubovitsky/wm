@@ -6,10 +6,11 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.integration_storage]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+@pytest.mark.integration_smoke
 def test_kafka_connect_writes_raw_json_to_clickhouse_landing_and_contract_table(
     local_storage_stack,
 ) -> None:
@@ -382,6 +383,8 @@ def test_invalid_storage_record_goes_to_kafka_connect_dlq(local_storage_stack) -
 
     _key, dlq_payload = local_storage_stack.consume_kafka_json(
         "wm.platform.telemetry-store.dlq.v1",
+        predicate=lambda _key, payload: payload.get("event_id")
+        == "storage-invalid-001",
         timeout=60,
     )
     row_count = local_storage_stack.clickhouse_query(

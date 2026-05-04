@@ -96,6 +96,8 @@ uv run --group lint ruff check apps libs tests infra tools
 
 ```bash
 uv sync --all-packages --group integration
+docker compose --env-file .env.example -f infra/local/compose.yaml build \
+  kafka-connect grafana wm-config-registry
 uv run --group integration pytest \
   tests/integration/test_config_registry_kafka_publisher.py \
   tests/integration/test_config_registry_postgres.py \
@@ -104,6 +106,21 @@ uv run --group integration pytest \
   tests/integration/test_kafka_to_clickhouse_storage.py \
   tests/integration/test_grafana_clickhouse.py
 ```
+
+Быстрый smoke-срез:
+
+```bash
+uv run --group integration pytest tests/integration -m integration_smoke
+```
+
+Integration fixtures переиспользуют основные Docker Compose stack в пределах
+pytest session; Postgres-only fixture остается module-scoped, чтобы API
+persistence assertions не видели данные из других модулей. Изоляция сценариев
+держится через уникальные tenant/key/event ids,
+targeted cleanup таблиц и фильтрацию Kafka records по ожидаемым ключам.
+Предварительный `docker compose build` не обязателен, если локальные images уже
+собраны, но в CI его стоит выполнять один раз перед `pytest`, а не внутри
+каждого тестового setup.
 
 Текущее покрытие integration-набора:
 

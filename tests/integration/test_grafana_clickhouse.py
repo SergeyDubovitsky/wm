@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.integration_grafana]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DASHBOARD_FILE = (
     REPO_ROOT / "infra" / "local" / "grafana" / "dashboards" / "telemetry-overview.json"
@@ -18,6 +18,7 @@ DASHBOARD_UID = "wm-telemetry-overview"
 RUN_ID = "grafana-it"
 
 
+@pytest.mark.integration_smoke
 def test_grafana_reads_clickhouse_telemetry_read_models(
     local_grafana_clickhouse_stack,
 ) -> None:

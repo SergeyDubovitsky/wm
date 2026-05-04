@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from wm_config_registry.application.config_defaults import (
+    normalize_acquisition_settings,
+    normalize_publish_settings,
+)
 from wm_config_registry.application.errors import (
     AgentNotFoundError,
     ConfigRenderError,
@@ -104,6 +108,10 @@ class RenderAgentConfig:
         points: list[Point],
     ) -> RenderedSourceConfig:
         source_config_revision = _source_config_revision(command, source.source_id)
+        acquisition_defaults = normalize_acquisition_settings(
+            source.acquisition_defaults_json
+        )
+        publish_defaults = normalize_publish_settings(source.publish_defaults_json)
         payload = {
             "message_type": "wm.edge.source-config.v1",
             "tenant_id": command.tenant_id,
@@ -115,10 +123,14 @@ class RenderAgentConfig:
             "source_type": source.source_type,
             "enabled": source.enabled,
             "connection": dict(source.connection_json),
-            "acquisition_defaults": dict(source.acquisition_defaults_json),
-            "publish_defaults": dict(source.publish_defaults_json),
+            "acquisition_defaults": acquisition_defaults,
+            "publish_defaults": publish_defaults,
             "points": [
-                _point_payload(point, source=source)
+                _point_payload(
+                    point,
+                    acquisition_defaults=acquisition_defaults,
+                    publish_defaults=publish_defaults,
+                )
                 for point in points
                 if point.enabled
             ],
@@ -168,7 +180,12 @@ def _source_config_revision(
     return f"{command.config_revision}-{source_id}"
 
 
-def _point_payload(point: Point, *, source: Source) -> dict[str, Any]:
+def _point_payload(
+    point: Point,
+    *,
+    acquisition_defaults: dict[str, Any],
+    publish_defaults: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "point_key": point.point_key,
         "point_ref": point.point_ref,
@@ -178,14 +195,8 @@ def _point_payload(point: Point, *, source: Source) -> dict[str, Any]:
         "value_model": point.value_model,
         "signal_type": point.signal_type.value,
         "unit": point.unit,
-        "acquisition": _settings_with_defaults(
-            point.acquisition_json,
-            source.acquisition_defaults_json,
-        ),
-        "publish": _settings_with_defaults(
-            point.publish_json,
-            source.publish_defaults_json,
-        ),
+        "acquisition": _settings_with_defaults(point.acquisition_json, acquisition_defaults),
+        "publish": _settings_with_defaults(point.publish_json, publish_defaults),
         "tags": dict(point.tags_json),
     }
 

@@ -22,6 +22,10 @@ class TenantRepository(Protocol):
 
     async def get(self, tenant_id: str) -> Tenant | None: ...
 
+    async def update(self, tenant: Tenant) -> None: ...
+
+    async def delete(self, tenant_id: str) -> None: ...
+
     async def list(self) -> list[Tenant]: ...
 
 
@@ -30,6 +34,10 @@ class AssetRepository(Protocol):
 
     async def get(self, tenant_id: str, asset_id: str) -> Asset | None: ...
 
+    async def update(self, asset: Asset) -> None: ...
+
+    async def delete(self, tenant_id: str, asset_id: str) -> None: ...
+
     async def list_for_tenant(self, tenant_id: str) -> list[Asset]: ...
 
 
@@ -37,6 +45,10 @@ class AgentRepository(Protocol):
     async def add(self, agent: Agent) -> None: ...
 
     async def get(self, tenant_id: str, asset_id: str, agent_id: str) -> Agent | None: ...
+
+    async def update(self, agent: Agent) -> None: ...
+
+    async def delete(self, tenant_id: str, asset_id: str, agent_id: str) -> None: ...
 
     async def list_for_asset(self, tenant_id: str, asset_id: str) -> list[Agent]: ...
 
@@ -58,6 +70,16 @@ class SourceRepository(Protocol):
         asset_id: str,
         agent_id: str,
     ) -> list[Source]: ...
+
+    async def update(self, source: Source) -> None: ...
+
+    async def delete(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> None: ...
 
 
 class PointRepository(Protocol):
@@ -91,6 +113,10 @@ class PointRepository(Protocol):
         source_id: str,
     ) -> list[Point]: ...
 
+    async def update(self, point: Point) -> None: ...
+
+    async def delete(self, tenant_id: str, point_id: str) -> None: ...
+
 
 class RuntimeConfigRevisionRepository(Protocol):
     async def add(self, revision: RuntimeConfigRevision) -> None: ...
@@ -102,6 +128,13 @@ class RuntimeConfigRevisionRepository(Protocol):
         agent_id: str,
         config_revision: str,
     ) -> RuntimeConfigRevision | None: ...
+
+    async def has_any_for_agent(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+    ) -> bool: ...
 
 
 class SourceConfigRevisionRepository(Protocol):
@@ -124,6 +157,14 @@ class SourceConfigRevisionRepository(Protocol):
         config_revision: str,
     ) -> list[SourceConfigRevision]: ...
 
+    async def has_any_for_source(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> bool: ...
+
 
 class ConfigOutboxRepository(Protocol):
     async def add(self, record: ConfigOutboxRecord) -> None: ...
@@ -140,6 +181,21 @@ class ConfigOutboxRepository(Protocol):
         agent_id: str,
         config_revision: str,
     ) -> list[ConfigOutboxRecord]: ...
+
+    async def has_any_for_agent(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+    ) -> bool: ...
+
+    async def has_any_for_source(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> bool: ...
 
     async def reserve_available(
         self,

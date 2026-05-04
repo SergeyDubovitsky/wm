@@ -3,30 +3,165 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
+from wm_config_registry.application.use_cases.agents import (
+    CreateAgent,
+    CreateAgentCommand,
+)
+from wm_config_registry.application.use_cases.assets import (
+    CreateAsset,
+    CreateAssetCommand,
+)
+from wm_config_registry.application.use_cases.config_revisions import (
+    CreateRuntimeConfigRevision,
+    CreateRuntimeConfigRevisionCommand,
+)
+from wm_config_registry.application.use_cases.points import (
+    CreatePoint,
+    CreatePointCommand,
+)
+from wm_config_registry.application.use_cases.sources import (
+    CreateSource,
+    CreateSourceCommand,
+)
+from wm_config_registry.application.use_cases.tenants import (
+    CreateTenant,
+    CreateTenantCommand,
+)
+from wm_config_registry.domain.value_objects import SignalType, ValueType
 from wm_config_registry.infrastructure.backoffice import (
     BACKOFFICE_CUSTOM_VIEWS,
     BACKOFFICE_VIEWS,
     AgentBackofficeView,
     AssetBackofficeView,
     ConfigOutboxActionsBackofficeView,
+    ConfigOutboxBackofficeView,
     PointBackofficeView,
-    RenderConfigBackofficeView,
+    RuntimeConfigRevisionBackofficeView,
     SourceBackofficeView,
+    SourceConfigRevisionBackofficeView,
     TenantBackofficeView,
+)
+from wm_config_registry.infrastructure.backoffice_actions import (
+    render_agent_config_for_agent,
+)
+from wm_config_registry.infrastructure.backoffice_selectors import (
+    AGENT_SELECTOR_FIELD,
+    ASSET_SELECTOR_FIELD,
+    SOURCE_SELECTOR_FIELD,
+    TENANT_SELECTOR_FIELD,
+    AgentSelection,
+    AssetSelection,
+    SourceSelection,
+    encode_agent_selection,
+    encode_asset_selection,
+    encode_source_selection,
 )
 from wm_config_registry.infrastructure.memory.unit_of_work import (
     InMemoryUnitOfWorkFactory,
+)
+from wm_config_registry.infrastructure.postgres.models import (
+    AgentModel,
+    AssetModel,
+    ConfigOutboxModel,
+    PointModel,
+    RuntimeConfigRevisionModel,
+    SourceConfigRevisionModel,
+    SourceModel,
+    TenantModel,
 )
 from wm_config_registry.main import create_app
 from wm_config_registry.settings import ConfigRegistrySettings
 
 CONFIG_REGISTRY_SRC = Path(__file__).resolve().parents[1] / "src" / "wm_config_registry"
+
+LIST_VIEW_COLUMNS: tuple[tuple[type[object], type[object], tuple[str, ...]], ...] = (
+    (TenantBackofficeView, TenantModel, ("tenant_id", "name", "status", "updated_at")),
+    (
+        AssetBackofficeView,
+        AssetModel,
+        ("tenant_id", "asset_id", "name", "status", "updated_at"),
+    ),
+    (
+        AgentBackofficeView,
+        AgentModel,
+        ("tenant_id", "asset_id", "agent_id", "name", "status", "updated_at"),
+    ),
+    (
+        SourceBackofficeView,
+        SourceModel,
+        (
+            "tenant_id",
+            "asset_id",
+            "agent_id",
+            "source_id",
+            "source_type",
+            "enabled",
+            "name",
+            "updated_at",
+        ),
+    ),
+    (
+        PointBackofficeView,
+        PointModel,
+        (
+            "tenant_id",
+            "source_id",
+            "point_id",
+            "point_key",
+            "name",
+            "value_type",
+            "signal_type",
+            "enabled",
+            "updated_at",
+        ),
+    ),
+    (
+        RuntimeConfigRevisionBackofficeView,
+        RuntimeConfigRevisionModel,
+        ("tenant_id", "agent_id", "config_revision", "status", "issued_at", "created_at"),
+    ),
+    (
+        SourceConfigRevisionBackofficeView,
+        SourceConfigRevisionModel,
+        (
+            "tenant_id",
+            "source_id",
+            "source_config_revision",
+            "config_revision",
+            "status",
+            "issued_at",
+            "created_at",
+        ),
+    ),
+    (
+        ConfigOutboxBackofficeView,
+        ConfigOutboxModel,
+        (
+            "status",
+            "tenant_id",
+            "agent_id",
+            "config_revision",
+            "config_scope",
+            "message_type",
+            "source_id",
+            "attempt_count",
+            "updated_at",
+        ),
+    ),
+)
+
+BUSINESS_VIEWS: tuple[type[object], ...] = (
+    TenantBackofficeView,
+    AssetBackofficeView,
+    AgentBackofficeView,
+    SourceBackofficeView,
+    PointBackofficeView,
+)
 
 
 def test_backoffice_mounts_in_internal_mode_with_postgres_uow() -> None:
@@ -53,66 +188,842 @@ def test_backoffice_is_not_mounted_without_postgres_uow() -> None:
         assert not _has_route_prefix(client.app, "/backoffice")
 
 
-def test_backoffice_model_views_enable_full_internal_crud() -> None:
-    assert BACKOFFICE_VIEWS
-    for view in BACKOFFICE_VIEWS:
+def test_backoffice_business_views_use_application_backed_crud() -> None:
+    for view in BUSINESS_VIEWS:
         assert view.can_create is True
         assert view.can_edit is True
         assert view.can_delete is True
         assert view.can_view_details is True
+        assert view.can_export is True
 
 
-def test_backoffice_registers_render_config_custom_view() -> None:
-    assert RenderConfigBackofficeView in BACKOFFICE_CUSTOM_VIEWS
+def test_backoffice_append_only_and_action_driven_views_have_explicit_capabilities() -> None:
+    assert RuntimeConfigRevisionBackofficeView.can_create is True
+    assert RuntimeConfigRevisionBackofficeView.can_edit is False
+    assert RuntimeConfigRevisionBackofficeView.can_delete is False
+
+    assert SourceConfigRevisionBackofficeView.can_create is True
+    assert SourceConfigRevisionBackofficeView.can_edit is False
+    assert SourceConfigRevisionBackofficeView.can_delete is False
+
+    assert ConfigOutboxBackofficeView.can_create is False
+    assert ConfigOutboxBackofficeView.can_edit is False
+    assert ConfigOutboxBackofficeView.can_delete is False
+
+
+def test_backoffice_registers_custom_operator_views() -> None:
     assert ConfigOutboxActionsBackofficeView in BACKOFFICE_CUSTOM_VIEWS
+    assert len(BACKOFFICE_CUSTOM_VIEWS) == 1
 
 
-@pytest.mark.parametrize(
-    ("path", "field_names"),
-    [
-        ("/backoffice/tenant-model/create", ["tenant_id", "name"]),
-        (
-            "/backoffice/asset-model/create",
-            ["tenant_id", "asset_id", "name", "description"],
-        ),
-        (
-            "/backoffice/agent-model/create",
-            ["asset_id", "agent_id", "name"],
-        ),
-        (
-            "/backoffice/source-model/create",
-            ["agent_id", "source_id"],
-        ),
-        (
-            "/backoffice/point-model/create",
-            ["source_id", "point_id"],
-        ),
-    ],
-)
-def test_backoffice_create_forms_include_pk_and_fk_fields(
-    path: str,
-    field_names: list[str],
-) -> None:
+def test_backoffice_view_registry_contains_business_and_technical_views() -> None:
+    assert BACKOFFICE_VIEWS
+    assert TenantBackofficeView in BACKOFFICE_VIEWS
+    assert RuntimeConfigRevisionBackofficeView in BACKOFFICE_VIEWS
+    assert ConfigOutboxBackofficeView in BACKOFFICE_VIEWS
+
+
+def test_backoffice_bulk_action_affordances_follow_view_capabilities() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    agent_view = next(
+        view for view in app.state.backoffice.views if isinstance(view, AgentBackofficeView)
+    )
+    runtime_view = next(
+        view
+        for view in app.state.backoffice.views
+        if isinstance(view, RuntimeConfigRevisionBackofficeView)
+    )
+    source_view = next(
+        view
+        for view in app.state.backoffice.views
+        if isinstance(view, SourceConfigRevisionBackofficeView)
+    )
+
+    assert agent_view.show_bulk_actions is True
+    assert runtime_view.show_bulk_actions is False
+    assert source_view.show_bulk_actions is False
+
+
+def test_backoffice_tenant_create_form_hides_system_fields() -> None:
     app = create_app(settings=_settings(internal_mode=True))
     app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
 
     with TestClient(app) as client:
-        response = client.get(path)
+        response = client.get("/backoffice/tenant-model/create")
 
     assert response.status_code == 200
-    for field_name in field_names:
-        assert f'name="{field_name}"' in response.text
+    assert 'name="tenant_id"' in response.text
+    assert 'name="name"' in response.text
+    assert 'name="status"' not in response.text
+    assert 'name="created_at"' not in response.text
+    assert 'name="updated_at"' not in response.text
 
 
 @pytest.mark.asyncio
-async def test_backoffice_render_config_form_shows_operator_button_and_hint() -> None:
-    response = await RenderConfigBackofficeView().render_config_form(object())
-    html = response.body.decode()
+async def test_backoffice_asset_create_form_uses_tenant_selector() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.get("/backoffice/asset-model/create")
 
     assert response.status_code == 200
-    assert "Обновить config state" in html
-    assert "Без этого retained MQTT config для wm-edge-agent не изменится" in html
-    assert "создает config_outbox records" in html
+    assert f'name="{TENANT_SELECTOR_FIELD}"' in response.text
+    assert 'name="tenant_id"' not in response.text
+    assert 'name="asset_id"' in response.text
+    assert "Tenant Backoffice (tenant-backoffice)" in response.text
+
+
+@pytest.mark.asyncio
+async def test_backoffice_agent_create_form_uses_asset_selector() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.get("/backoffice/agent-model/create")
+
+    assert response.status_code == 200
+    assert f'name="{ASSET_SELECTOR_FIELD}"' in response.text
+    assert 'name="tenant_id"' not in response.text
+    assert 'name="asset_id"' not in response.text
+    assert 'name="agent_id"' in response.text
+    assert (
+        "Tenant Backoffice (tenant-backoffice) / Asset Backoffice (asset-backoffice)"
+    ) in response.text
+
+
+@pytest.mark.asyncio
+async def test_backoffice_source_create_form_uses_agent_selector() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.get("/backoffice/source-model/create")
+
+    assert response.status_code == 200
+    assert f'name="{AGENT_SELECTOR_FIELD}"' in response.text
+    assert 'name="tenant_id"' not in response.text
+    assert 'name="asset_id"' not in response.text
+    assert 'name="agent_id"' not in response.text
+    assert 'name="source_id"' in response.text
+    assert 'name="connection_json"' not in response.text
+
+
+@pytest.mark.asyncio
+async def test_backoffice_point_create_form_uses_source_selector() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.get("/backoffice/point-model/create")
+
+    assert response.status_code == 200
+    assert f'name="{SOURCE_SELECTOR_FIELD}"' in response.text
+    assert 'name="tenant_id"' not in response.text
+    assert 'name="asset_id"' not in response.text
+    assert 'name="agent_id"' not in response.text
+    assert 'name="source_id"' not in response.text
+    assert 'name="point_id"' in response.text
+    assert 'name="acquisition_json"' not in response.text
+
+
+@pytest.mark.asyncio
+async def test_runtime_config_revision_create_form_uses_agent_selector() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.get("/backoffice/runtime-config-revision-model/create")
+
+    assert response.status_code == 200
+    assert f'name="{AGENT_SELECTOR_FIELD}"' in response.text
+    assert 'name="agent_id"' not in response.text
+    assert 'name="config_revision"' in response.text
+    assert 'name="issued_at"' in response.text
+    assert 'name="runtime_payload_json"' in response.text
+    assert 'name="status"' not in response.text
+
+
+@pytest.mark.asyncio
+async def test_source_config_revision_create_form_uses_source_selector() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.get("/backoffice/source-config-revision-model/create")
+
+    assert response.status_code == 200
+    assert f'name="{SOURCE_SELECTOR_FIELD}"' in response.text
+    assert 'name="source_id"' not in response.text
+    assert 'name="source_config_revision"' in response.text
+    assert 'name="source_payload_json"' in response.text
+    assert 'name="status"' not in response.text
+
+
+@pytest.mark.asyncio
+async def test_backoffice_agent_edit_form_keeps_asset_selector_in_ui() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/backoffice/agent-model/edit/tenant-backoffice;asset-backoffice;agent-backoffice"
+        )
+
+    assert response.status_code == 200
+    assert f'name="{ASSET_SELECTOR_FIELD}"' in response.text
+    assert 'disabled' in response.text
+    assert 'name="bootstrap_hint_json"' in response.text
+
+
+@pytest.mark.asyncio
+async def test_backoffice_source_edit_form_keeps_agent_selector_in_ui() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/backoffice/source-model/edit/"
+            "tenant-backoffice;asset-backoffice;agent-backoffice;source-backoffice"
+        )
+
+    assert response.status_code == 200
+    assert f'name="{AGENT_SELECTOR_FIELD}"' in response.text
+    assert 'disabled' in response.text
+    assert 'name="connection_json"' in response.text
+
+
+@pytest.mark.asyncio
+async def test_backoffice_point_edit_form_keeps_source_selector_in_ui() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/backoffice/point-model/edit/tenant-backoffice;point-backoffice"
+        )
+
+    assert response.status_code == 200
+    assert f'name="{SOURCE_SELECTOR_FIELD}"' in response.text
+    assert 'disabled' in response.text
+    assert 'name="acquisition_json"' in response.text
+
+
+def test_backoffice_can_create_tenant_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/tenant-model/create",
+            data={
+                "tenant_id": "tenant-ui",
+                "name": "Tenant UI",
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+        tenants = client.get("/tenants").json()
+
+    assert response.status_code == 302
+    assert any(tenant["tenant_id"] == "tenant-ui" for tenant in tenants)
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_create_asset_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/asset-model/create",
+            data={
+                TENANT_SELECTOR_FIELD: "tenant-backoffice",
+                "asset_id": "asset-ui",
+                "name": "Asset UI",
+                "description": "Created from mounted backoffice form",
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+        assets = client.get("/tenants/tenant-backoffice/assets").json()
+
+    assert response.status_code == 302
+    assert any(asset["asset_id"] == "asset-ui" for asset in assets)
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_create_agent_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/agent-model/create",
+            data={
+                ASSET_SELECTOR_FIELD: encode_asset_selection(
+                    AssetSelection(
+                        tenant_id="tenant-backoffice",
+                        asset_id="asset-backoffice",
+                    )
+                ),
+                "agent_id": "agent-ui",
+                "name": "Agent UI",
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+        agents = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice/agents"
+        ).json()
+
+    assert response.status_code == 302
+    assert any(agent["agent_id"] == "agent-ui" for agent in agents)
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_create_source_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/source-model/create",
+            data={
+                AGENT_SELECTOR_FIELD: encode_agent_selection(
+                    AgentSelection(
+                        tenant_id="tenant-backoffice",
+                        asset_id="asset-backoffice",
+                        agent_id="agent-backoffice",
+                    )
+                ),
+                "source_id": "source-ui",
+                "source_type": "knx",
+                "enabled": "y",
+                "name": "Source UI",
+                "description": "Created from mounted backoffice form",
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+        sources = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice"
+            "/agents/agent-backoffice/sources"
+        ).json()
+
+    assert response.status_code == 302
+    assert any(source["source_id"] == "source-ui" for source in sources)
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_create_point_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/point-model/create",
+            data={
+                SOURCE_SELECTOR_FIELD: encode_source_selection(
+                    SourceSelection(
+                        tenant_id="tenant-backoffice",
+                        asset_id="asset-backoffice",
+                        agent_id="agent-backoffice",
+                        source_id="source-backoffice",
+                    )
+                ),
+                "point_id": "point-ui",
+                "point_key": "2%2F3%2F4",
+                "point_ref": "2/3/4",
+                "name": "Point UI",
+                "description": "Created from mounted backoffice form",
+                "value_type": "number",
+                "value_model": "knx.dpt.9.001",
+                "signal_type": "sensor",
+                "unit": "C",
+                "enabled": "y",
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+        points = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice"
+            "/agents/agent-backoffice/sources/source-backoffice/points"
+        ).json()
+
+    assert response.status_code == 302
+    assert any(point["point_id"] == "point-ui" for point in points)
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_update_tenant_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/tenant-model/edit/tenant-backoffice",
+            data={
+                "name": "Tenant Backoffice Updated",
+                "status": "disabled",
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+        tenants = client.get("/tenants").json()
+
+    assert response.status_code == 302
+    assert any(
+        tenant["tenant_id"] == "tenant-backoffice"
+        and tenant["name"] == "Tenant Backoffice Updated"
+        for tenant in tenants
+    )
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_update_asset_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/asset-model/edit/tenant-backoffice;asset-backoffice",
+            data={
+                "name": "Asset Backoffice Updated",
+                "description": "Updated from mounted edit form",
+                "status": "disabled",
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+        assets = client.get("/tenants/tenant-backoffice/assets").json()
+
+    assert response.status_code == 302
+    assert any(
+        asset["asset_id"] == "asset-backoffice"
+        and asset["name"] == "Asset Backoffice Updated"
+        for asset in assets
+    )
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_update_agent_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/agent-model/edit/"
+            "tenant-backoffice;asset-backoffice;agent-backoffice",
+            data={
+                "name": "Agent Backoffice Updated",
+                "status": "disabled",
+                "bootstrap_hint_json": '{"mode":"manual"}',
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+        agents = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice/agents"
+        ).json()
+
+    assert response.status_code == 302
+    assert any(
+        agent["agent_id"] == "agent-backoffice"
+        and agent["name"] == "Agent Backoffice Updated"
+        for agent in agents
+    )
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_update_source_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/source-model/edit/"
+            "tenant-backoffice;asset-backoffice;agent-backoffice;source-backoffice",
+            data={
+                "source_type": "knx",
+                "enabled": "off",
+                "name": "Source Backoffice Updated",
+                "description": "Updated from mounted edit form",
+                "connection_json": '{"host":"127.0.0.1"}',
+                "acquisition_defaults_json": '{"listen": true, "read_on_start": true, "periodic_interval_seconds": 60}',
+                "publish_defaults_json": '{"enabled": true, "change_threshold": 0.5}',
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+        sources = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice"
+            "/agents/agent-backoffice/sources"
+        ).json()
+
+    assert response.status_code == 302
+    assert any(
+        source["source_id"] == "source-backoffice"
+        and source["name"] == "Source Backoffice Updated"
+        for source in sources
+    )
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_update_point_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/point-model/edit/tenant-backoffice;point-backoffice",
+            data={
+                "point_key": "1%2F2%2F4",
+                "point_ref": "1/2/4",
+                "name": "Point Backoffice Updated",
+                "description": "Updated from mounted edit form",
+                "value_type": "number",
+                "value_model": "knx.dpt.9.001",
+                "signal_type": "sensor",
+                "unit": "F",
+                "enabled": "off",
+                "acquisition_json": '{"debounce_ms": 500}',
+                "publish_json": '{"enabled": true}',
+                "tags_json": '{"room": "lab"}',
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+        points = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice"
+            "/agents/agent-backoffice/sources/source-backoffice/points"
+        ).json()
+
+    assert response.status_code == 302
+    assert any(
+        point["point_id"] == "point-backoffice"
+        and point["name"] == "Point Backoffice Updated"
+        and point["point_key"] == "1%2F2%2F4"
+        for point in points
+    )
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_delete_tenant_via_mounted_delete_route() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await CreateTenant(app.state.unit_of_work_factory()).execute(
+        CreateTenantCommand(tenant_id="tenant-delete", name="Tenant Delete")
+    )
+
+    with TestClient(app) as client:
+        response = client.request(
+            "DELETE",
+            "/backoffice/tenant-model/delete?pks=tenant-delete",
+            headers={"referer": "http://testserver/backoffice/tenant-model/list"},
+        )
+        tenants = client.get("/tenants").json()
+
+    assert response.status_code == 200
+    assert not any(tenant["tenant_id"] == "tenant-delete" for tenant in tenants)
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_delete_asset_via_mounted_delete_route() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+    await CreateAsset(app.state.unit_of_work_factory()).execute(
+        CreateAssetCommand(
+            tenant_id="tenant-backoffice",
+            asset_id="asset-delete",
+            name="Asset Delete",
+        )
+    )
+
+    with TestClient(app) as client:
+        response = client.request(
+            "DELETE",
+            "/backoffice/asset-model/delete?pks=tenant-backoffice;asset-delete",
+            headers={"referer": "http://testserver/backoffice/asset-model/list"},
+        )
+        assets = client.get("/tenants/tenant-backoffice/assets").json()
+
+    assert response.status_code == 200
+    assert not any(asset["asset_id"] == "asset-delete" for asset in assets)
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_delete_agent_via_mounted_delete_route() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+    await CreateAgent(app.state.unit_of_work_factory()).execute(
+        CreateAgentCommand(
+            tenant_id="tenant-backoffice",
+            asset_id="asset-backoffice",
+            agent_id="agent-delete",
+        )
+    )
+
+    with TestClient(app) as client:
+        response = client.request(
+            "DELETE",
+            "/backoffice/agent-model/delete?"
+            "pks=tenant-backoffice;asset-backoffice;agent-delete",
+            headers={"referer": "http://testserver/backoffice/agent-model/list"},
+        )
+        agents = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice/agents"
+        ).json()
+
+    assert response.status_code == 200
+    assert not any(agent["agent_id"] == "agent-delete" for agent in agents)
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_delete_source_via_mounted_delete_route() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+    await CreateSource(app.state.unit_of_work_factory()).execute(
+        CreateSourceCommand(
+            tenant_id="tenant-backoffice",
+            asset_id="asset-backoffice",
+            agent_id="agent-backoffice",
+            source_id="source-delete",
+            source_type="knx",
+            acquisition_defaults_json={
+                "listen": True,
+                "read_on_start": False,
+                "periodic_interval_seconds": None,
+            },
+            publish_defaults_json={
+                "enabled": True,
+                "change_threshold": None,
+            },
+        )
+    )
+
+    with TestClient(app) as client:
+        response = client.request(
+            "DELETE",
+            "/backoffice/source-model/delete?"
+            "pks=tenant-backoffice;asset-backoffice;agent-backoffice;source-delete",
+            headers={"referer": "http://testserver/backoffice/source-model/list"},
+        )
+        sources = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice"
+            "/agents/agent-backoffice/sources"
+        ).json()
+
+    assert response.status_code == 200
+    assert not any(source["source_id"] == "source-delete" for source in sources)
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_delete_point_via_mounted_delete_route() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+    await CreatePoint(app.state.unit_of_work_factory()).execute(
+        CreatePointCommand(
+            tenant_id="tenant-backoffice",
+            asset_id="asset-backoffice",
+            agent_id="agent-backoffice",
+            source_id="source-backoffice",
+            point_id="point-delete",
+            point_key="3%2F3%2F3",
+            point_ref="3/3/3",
+            name="Point Delete",
+            value_type=ValueType.NUMBER,
+            value_model="knx.dpt.9.001",
+            signal_type=SignalType.SENSOR,
+            enabled=True,
+        )
+    )
+
+    with TestClient(app) as client:
+        response = client.request(
+            "DELETE",
+            "/backoffice/point-model/delete?pks=tenant-backoffice;point-delete",
+            headers={"referer": "http://testserver/backoffice/point-model/list"},
+        )
+        points = client.get(
+            "/tenants/tenant-backoffice/assets/asset-backoffice"
+            "/agents/agent-backoffice/sources/source-backoffice/points"
+        ).json()
+
+    assert response.status_code == 200
+    assert not any(point["point_id"] == "point-delete" for point in points)
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_create_runtime_config_revision_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/runtime-config-revision-model/create",
+            data={
+                AGENT_SELECTOR_FIELD: encode_agent_selection(
+                    AgentSelection(
+                        tenant_id="tenant-backoffice",
+                        asset_id="asset-backoffice",
+                        agent_id="agent-backoffice",
+                    )
+                ),
+                "config_revision": "rev-ui",
+                "issued_at": "2026-05-04T06:58:00Z",
+                "runtime_payload_json": '{"demo": true}',
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+
+    async with app.state.unit_of_work_factory() as unit_of_work:
+        revision = await unit_of_work.runtime_config_revisions.get(
+            "tenant-backoffice",
+            "asset-backoffice",
+            "agent-backoffice",
+            "rev-ui",
+        )
+
+    assert response.status_code == 302
+    assert revision is not None
+    assert revision.runtime_payload_json == {"demo": True}
+
+
+@pytest.mark.asyncio
+async def test_backoffice_can_create_source_config_revision_via_mounted_form() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+    await CreateRuntimeConfigRevision(app.state.unit_of_work_factory()).execute(
+        CreateRuntimeConfigRevisionCommand(
+            tenant_id="tenant-backoffice",
+            asset_id="asset-backoffice",
+            agent_id="agent-backoffice",
+            config_revision="rev-ui",
+            issued_at=datetime(2026, 5, 4, 6, 58, tzinfo=UTC),
+            runtime_payload_json={"demo": True},
+        )
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/backoffice/source-config-revision-model/create",
+            data={
+                SOURCE_SELECTOR_FIELD: encode_source_selection(
+                    SourceSelection(
+                        tenant_id="tenant-backoffice",
+                        asset_id="asset-backoffice",
+                        agent_id="agent-backoffice",
+                        source_id="source-backoffice",
+                    )
+                ),
+                "source_config_revision": "src-rev-ui",
+                "config_revision": "rev-ui",
+                "issued_at": "2026-05-04T06:58:01Z",
+                "source_payload_json": '{"demo": true}',
+                "save": "Save",
+            },
+            follow_redirects=False,
+        )
+
+    async with app.state.unit_of_work_factory() as unit_of_work:
+        revision = await unit_of_work.source_config_revisions.get(
+            "tenant-backoffice",
+            "asset-backoffice",
+            "agent-backoffice",
+            "source-backoffice",
+            "src-rev-ui",
+        )
+
+    assert response.status_code == 302
+    assert revision is not None
+    assert revision.source_payload_json == {"demo": True}
+
+
+@pytest.mark.asyncio
+async def test_backoffice_config_revision_edit_and_delete_are_disabled() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+    await CreateRuntimeConfigRevision(app.state.unit_of_work_factory()).execute(
+        CreateRuntimeConfigRevisionCommand(
+            tenant_id="tenant-backoffice",
+            asset_id="asset-backoffice",
+            agent_id="agent-backoffice",
+            config_revision="rev-disabled",
+            issued_at=datetime(2026, 5, 4, 7, 0, tzinfo=UTC),
+            runtime_payload_json={"demo": True},
+        )
+    )
+
+    with TestClient(app) as client:
+        edit_response = client.get(
+            "/backoffice/runtime-config-revision-model/edit/"
+            "tenant-backoffice;asset-backoffice;agent-backoffice;rev-disabled"
+        )
+        delete_response = client.request(
+            "DELETE",
+            "/backoffice/runtime-config-revision-model/delete?"
+            "pks=tenant-backoffice;asset-backoffice;agent-backoffice;rev-disabled",
+        )
+
+    assert edit_response.status_code == 403
+    assert delete_response.status_code == 403
+
+
+@pytest.mark.parametrize(("view", "model", "expected_columns"), LIST_VIEW_COLUMNS)
+def test_backoffice_list_views_show_compact_column_sets(
+    view: type[object],
+    model: type[object],
+    expected_columns: tuple[str, ...],
+) -> None:
+    assert [column.name for column in view.column_list] == list(expected_columns)
+    assert [column.name for column in view.column_details_list] == [
+        column.name for column in model.__table__.columns
+    ]
+
+
+@pytest.mark.asyncio
+async def test_backoffice_agent_list_exposes_render_config_action() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
+
+    agent_view = next(
+        view for view in app.state.backoffice.views if isinstance(view, AgentBackofficeView)
+    )
+
+    with TestClient(app) as client:
+        legacy_response = client.get("/backoffice/render-config")
+
+    assert agent_view._custom_actions_in_list["render-agent-config"] == "Собрать config"
+    assert agent_view._custom_actions_in_detail["render-agent-config"] == "Собрать config"
+    assert legacy_response.status_code == 404
 
 
 def test_sqladmin_dependency_stays_out_of_domain_and_application_layers() -> None:
@@ -125,828 +1036,62 @@ def test_sqladmin_dependency_stays_out_of_domain_and_application_layers() -> Non
             assert "sqladmin" not in path.read_text(encoding="utf-8")
 
 
-@pytest.mark.asyncio
-async def test_backoffice_create_tenant_uses_application_use_case() -> None:
-    app = create_app()
-    view = TenantBackofficeView()
-    request = SimpleNamespace(app=app)
+def test_custom_list_template_keeps_sqladmin_bulk_action_modals() -> None:
+    template = (
+        Path.cwd() / "templates" / "sqladmin" / "list.html"
+    ).read_text(encoding="utf-8")
 
-    created = await view.insert_model(
-        request,
-        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
-    )
-
-    with TestClient(app) as client:
-        tenants = client.get("/tenants").json()
-
-    assert created.tenant_id == "tenant-backoffice"
-    assert created.status == "active"
-    assert tenants[0]["tenant_id"] == "tenant-backoffice"
-    assert tenants[0]["name"] == "Tenant Backoffice"
-    assert tenants[0]["status"] == "active"
-    assert tenants[0]["created_at"].endswith("Z")
-    assert tenants[0]["updated_at"].endswith("Z")
-
-
-def test_backoffice_create_tenant_post_uses_root_app_state_when_mounted() -> None:
-    app = create_app(settings=_settings(internal_mode=True))
-    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
-
-    with TestClient(app) as client:
-        response = client.post(
-            "/backoffice/tenant-model/create",
-            data={
-                "tenant_id": "tenant-mounted",
-                "name": "Tenant Mounted",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        tenants = client.get("/tenants").json()
-
-    assert response.status_code == 302
-    assert response.headers["location"].endswith("/backoffice/tenant-model/list")
-    assert tenants[0]["tenant_id"] == "tenant-mounted"
-    assert tenants[0]["name"] == "Tenant Mounted"
-
-
-def test_backoffice_asset_create_form_renders_tenant_dropdown() -> None:
-    app = create_app(settings=_settings(internal_mode=True))
-    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
-
-    with TestClient(app) as client:
-        tenant_response = client.post(
-            "/backoffice/tenant-model/create",
-            data={
-                "tenant_id": "tenant-dropdown",
-                "name": "Tenant Dropdown",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        response = client.get("/backoffice/asset-model/create")
-
-    assert tenant_response.status_code == 302
-    assert '<select class="form-control" id="tenant_id" name="tenant_id" required>' in (
-        response.text
-    )
-    assert 'value="tenant-dropdown"' in response.text
-    assert "Tenant Dropdown (tenant-dropdown)" in response.text
-    assert 'textarea class="form-control" id="tenant_id"' not in response.text
-
-
-def test_backoffice_create_asset_post_uses_selected_tenant_when_mounted() -> None:
-    app = create_app(settings=_settings(internal_mode=True))
-    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
-
-    with TestClient(app) as client:
-        tenant_response = client.post(
-            "/backoffice/tenant-model/create",
-            data={
-                "tenant_id": "tenant-mounted",
-                "name": "Tenant Mounted",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        response = client.post(
-            "/backoffice/asset-model/create",
-            data={
-                "tenant_id": "tenant-mounted",
-                "asset_id": "asset-mounted",
-                "name": "Asset Mounted",
-                "description": "Mounted asset",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        assets = client.get("/tenants/tenant-mounted/assets").json()
-
-    assert tenant_response.status_code == 302
-    assert response.status_code == 302
-    assert response.headers["location"].endswith("/backoffice/asset-model/list")
-    assert assets[0]["tenant_id"] == "tenant-mounted"
-    assert assets[0]["asset_id"] == "asset-mounted"
-    assert assets[0]["name"] == "Asset Mounted"
-
-
-def test_backoffice_agent_create_form_renders_asset_dropdown_without_tenant_field() -> None:
-    app = create_app(settings=_settings(internal_mode=True))
-    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
-
-    with TestClient(app) as client:
-        tenant_response = client.post(
-            "/backoffice/tenant-model/create",
-            data={
-                "tenant_id": "tenant-agent-form",
-                "name": "Tenant Agent Form",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        asset_response = client.post(
-            "/backoffice/asset-model/create",
-            data={
-                "tenant_id": "tenant-agent-form",
-                "asset_id": "asset-agent-form",
-                "name": "Asset Agent Form",
-                "description": "Agent form asset",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        response = client.get("/backoffice/agent-model/create")
-
-    assert tenant_response.status_code == 302
-    assert asset_response.status_code == 302
-    assert '<select class="form-control" id="asset_id" name="asset_id" required>' in (
-        response.text
-    )
-    assert "Tenant Agent Form (tenant-agent-form) / Asset Agent Form (asset-agent-form)" in (
-        response.text
-    )
-    assert 'name="tenant_id"' not in response.text
-    assert 'textarea class="form-control" id="asset_id"' not in response.text
-
-
-def test_backoffice_create_agent_post_uses_selected_asset_when_mounted() -> None:
-    app = create_app(settings=_settings(internal_mode=True))
-    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
-
-    with TestClient(app) as client:
-        tenant_response = client.post(
-            "/backoffice/tenant-model/create",
-            data={
-                "tenant_id": "tenant-agent-mounted",
-                "name": "Tenant Agent Mounted",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        asset_response = client.post(
-            "/backoffice/asset-model/create",
-            data={
-                "tenant_id": "tenant-agent-mounted",
-                "asset_id": "asset-agent-mounted",
-                "name": "Asset Agent Mounted",
-                "description": "Mounted agent asset",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        response = client.post(
-            "/backoffice/agent-model/create",
-            data={
-                "asset_id": json.dumps(
-                    {
-                        "tenant_id": "tenant-agent-mounted",
-                        "asset_id": "asset-agent-mounted",
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                "agent_id": "agent-mounted",
-                "name": "Agent Mounted",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        agents = client.get(
-            "/tenants/tenant-agent-mounted/assets/asset-agent-mounted/agents"
-        ).json()
-
-    assert tenant_response.status_code == 302
-    assert asset_response.status_code == 302
-    assert response.status_code == 302
-    assert response.headers["location"].endswith("/backoffice/agent-model/list")
-    assert agents[0]["tenant_id"] == "tenant-agent-mounted"
-    assert agents[0]["asset_id"] == "asset-agent-mounted"
-    assert agents[0]["agent_id"] == "agent-mounted"
-    assert agents[0]["name"] == "Agent Mounted"
-
-
-def test_backoffice_source_create_form_renders_agent_dropdown_without_parent_fields() -> None:
-    app = create_app(settings=_settings(internal_mode=True))
-    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
-
-    with TestClient(app) as client:
-        tenant_response = client.post(
-            "/backoffice/tenant-model/create",
-            data={
-                "tenant_id": "tenant-source-form",
-                "name": "Tenant Source Form",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        asset_response = client.post(
-            "/backoffice/asset-model/create",
-            data={
-                "tenant_id": "tenant-source-form",
-                "asset_id": "asset-source-form",
-                "name": "Asset Source Form",
-                "description": "Source form asset",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        agent_response = client.post(
-            "/backoffice/agent-model/create",
-            data={
-                "asset_id": json.dumps(
-                    {
-                        "tenant_id": "tenant-source-form",
-                        "asset_id": "asset-source-form",
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                "agent_id": "agent-source-form",
-                "name": "Agent Source Form",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        response = client.get("/backoffice/source-model/create")
-
-    assert tenant_response.status_code == 302
-    assert asset_response.status_code == 302
-    assert agent_response.status_code == 302
-    assert '<select class="form-control" id="agent_id" name="agent_id" required>' in (
-        response.text
-    )
-    assert (
-        "Tenant Source Form (tenant-source-form) / "
-        "Asset Source Form (asset-source-form) / "
-        "Agent Source Form (agent-source-form)"
-    ) in response.text
-    assert 'name="tenant_id"' not in response.text
-    assert 'name="asset_id"' not in response.text
-    assert 'textarea class="form-control" id="agent_id"' not in response.text
-
-
-def test_backoffice_create_source_post_uses_selected_agent_when_mounted() -> None:
-    app = create_app(settings=_settings(internal_mode=True))
-    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
-
-    with TestClient(app) as client:
-        tenant_response = client.post(
-            "/backoffice/tenant-model/create",
-            data={
-                "tenant_id": "tenant-source-mounted",
-                "name": "Tenant Source Mounted",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        asset_response = client.post(
-            "/backoffice/asset-model/create",
-            data={
-                "tenant_id": "tenant-source-mounted",
-                "asset_id": "asset-source-mounted",
-                "name": "Asset Source Mounted",
-                "description": "Mounted source asset",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        agent_response = client.post(
-            "/backoffice/agent-model/create",
-            data={
-                "asset_id": json.dumps(
-                    {
-                        "tenant_id": "tenant-source-mounted",
-                        "asset_id": "asset-source-mounted",
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                "agent_id": "agent-source-mounted",
-                "name": "Agent Source Mounted",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        response = client.post(
-            "/backoffice/source-model/create",
-            data={
-                "agent_id": json.dumps(
-                    {
-                        "tenant_id": "tenant-source-mounted",
-                        "asset_id": "asset-source-mounted",
-                        "agent_id": "agent-source-mounted",
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                "source_id": "source-mounted",
-                "source_type": "knx",
-                "enabled": "y",
-                "name": "Source Mounted",
-                "description": "Mounted source",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        sources = client.get(
-            "/tenants/tenant-source-mounted/assets/asset-source-mounted"
-            "/agents/agent-source-mounted/sources"
-        ).json()
-
-    assert tenant_response.status_code == 302
-    assert asset_response.status_code == 302
-    assert agent_response.status_code == 302
-    assert response.status_code == 302
-    assert response.headers["location"].endswith("/backoffice/source-model/list")
-    assert sources[0]["tenant_id"] == "tenant-source-mounted"
-    assert sources[0]["asset_id"] == "asset-source-mounted"
-    assert sources[0]["agent_id"] == "agent-source-mounted"
-    assert sources[0]["source_id"] == "source-mounted"
-    assert sources[0]["name"] == "Source Mounted"
-
-
-def test_backoffice_point_create_form_renders_source_dropdown_without_parent_fields() -> None:
-    app = create_app(settings=_settings(internal_mode=True))
-    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
-
-    with TestClient(app) as client:
-        tenant_response = client.post(
-            "/backoffice/tenant-model/create",
-            data={
-                "tenant_id": "tenant-point-form",
-                "name": "Tenant Point Form",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        asset_response = client.post(
-            "/backoffice/asset-model/create",
-            data={
-                "tenant_id": "tenant-point-form",
-                "asset_id": "asset-point-form",
-                "name": "Asset Point Form",
-                "description": "Point form asset",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        agent_response = client.post(
-            "/backoffice/agent-model/create",
-            data={
-                "asset_id": json.dumps(
-                    {
-                        "tenant_id": "tenant-point-form",
-                        "asset_id": "asset-point-form",
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                "agent_id": "agent-point-form",
-                "name": "Agent Point Form",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        source_response = client.post(
-            "/backoffice/source-model/create",
-            data={
-                "agent_id": json.dumps(
-                    {
-                        "tenant_id": "tenant-point-form",
-                        "asset_id": "asset-point-form",
-                        "agent_id": "agent-point-form",
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                "source_id": "source-point-form",
-                "source_type": "knx",
-                "enabled": "y",
-                "name": "Source Point Form",
-                "description": "Point form source",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        response = client.get("/backoffice/point-model/create")
-
-    assert tenant_response.status_code == 302
-    assert asset_response.status_code == 302
-    assert agent_response.status_code == 302
-    assert source_response.status_code == 302
-    assert '<select class="form-control" id="source_id" name="source_id" required>' in (
-        response.text
-    )
-    assert (
-        "Tenant Point Form (tenant-point-form) / "
-        "Asset Point Form (asset-point-form) / "
-        "Agent Point Form (agent-point-form) / "
-        "Source Point Form (source-point-form)"
-    ) in response.text
-    assert 'name="tenant_id"' not in response.text
-    assert 'name="asset_id"' not in response.text
-    assert 'name="agent_id"' not in response.text
-    assert 'textarea class="form-control" id="source_id"' not in response.text
-
-
-def test_backoffice_create_point_post_uses_selected_source_when_mounted() -> None:
-    app = create_app(settings=_settings(internal_mode=True))
-    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
-
-    with TestClient(app) as client:
-        tenant_response = client.post(
-            "/backoffice/tenant-model/create",
-            data={
-                "tenant_id": "tenant-point-mounted",
-                "name": "Tenant Point Mounted",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        asset_response = client.post(
-            "/backoffice/asset-model/create",
-            data={
-                "tenant_id": "tenant-point-mounted",
-                "asset_id": "asset-point-mounted",
-                "name": "Asset Point Mounted",
-                "description": "Mounted point asset",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        agent_response = client.post(
-            "/backoffice/agent-model/create",
-            data={
-                "asset_id": json.dumps(
-                    {
-                        "tenant_id": "tenant-point-mounted",
-                        "asset_id": "asset-point-mounted",
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                "agent_id": "agent-point-mounted",
-                "name": "Agent Point Mounted",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        source_response = client.post(
-            "/backoffice/source-model/create",
-            data={
-                "agent_id": json.dumps(
-                    {
-                        "tenant_id": "tenant-point-mounted",
-                        "asset_id": "asset-point-mounted",
-                        "agent_id": "agent-point-mounted",
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                "source_id": "source-point-mounted",
-                "source_type": "knx",
-                "enabled": "y",
-                "name": "Source Point Mounted",
-                "description": "Mounted point source",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        response = client.post(
-            "/backoffice/point-model/create",
-            data={
-                "source_id": json.dumps(
-                    {
-                        "tenant_id": "tenant-point-mounted",
-                        "asset_id": "asset-point-mounted",
-                        "agent_id": "agent-point-mounted",
-                        "source_id": "source-point-mounted",
-                    },
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                "point_id": "point-mounted",
-                "point_key": "2%2F2%2F2",
-                "point_ref": "2/2/2",
-                "name": "Point Mounted",
-                "value_type": "number",
-                "value_model": "knx.dpt.9.001",
-                "signal_type": "sensor",
-                "unit": "C",
-                "enabled": "y",
-                "save": "Save",
-            },
-            follow_redirects=False,
-        )
-        points = client.get(
-            "/tenants/tenant-point-mounted/assets/asset-point-mounted"
-            "/agents/agent-point-mounted/sources/source-point-mounted/points"
-        ).json()
-
-    assert tenant_response.status_code == 302
-    assert asset_response.status_code == 302
-    assert agent_response.status_code == 302
-    assert source_response.status_code == 302
-    assert response.status_code == 302
-    assert response.headers["location"].endswith("/backoffice/point-model/list")
-    assert points[0]["tenant_id"] == "tenant-point-mounted"
-    assert points[0]["asset_id"] == "asset-point-mounted"
-    assert points[0]["agent_id"] == "agent-point-mounted"
-    assert points[0]["source_id"] == "source-point-mounted"
-    assert points[0]["point_id"] == "point-mounted"
-    assert points[0]["name"] == "Point Mounted"
+    assert "sqladmin/modals/delete.html" in template
+    assert "sqladmin/modals/list_action_confirmation.html" in template
 
 
 @pytest.mark.asyncio
-async def test_backoffice_create_asset_uses_application_use_case() -> None:
-    app = create_app()
-    request = SimpleNamespace(app=app)
-    await TenantBackofficeView().insert_model(
-        request,
-        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
-    )
-
-    created = await AssetBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "name": "Asset Backoffice",
-            "description": "Created through backoffice use case",
-        },
-    )
+async def test_backoffice_agent_render_config_action_uses_application_use_cases() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(app)
 
     with TestClient(app) as client:
-        assets = client.get("/tenants/tenant-backoffice/assets").json()
-
-    assert created.tenant_id == "tenant-backoffice"
-    assert created.asset_id == "asset-backoffice"
-    assert created.status == "active"
-    assert assets[0]["asset_id"] == "asset-backoffice"
-    assert assets[0]["description"] == "Created through backoffice use case"
-
-
-@pytest.mark.asyncio
-async def test_backoffice_create_agent_uses_application_use_case() -> None:
-    app = create_app()
-    request = SimpleNamespace(app=app)
-    await TenantBackofficeView().insert_model(
-        request,
-        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
-    )
-    await AssetBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "name": "Asset Backoffice",
-        },
-    )
-
-    created = await AgentBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-            "name": "Agent Backoffice",
-        },
-    )
-
-    with TestClient(app) as client:
-        agents = client.get(
-            "/tenants/tenant-backoffice/assets/asset-backoffice/agents"
-        ).json()
-
-    assert created.agent_id == "agent-backoffice"
-    assert created.status == "active"
-    assert agents[0]["agent_id"] == "agent-backoffice"
-    assert agents[0]["bootstrap_hint_json"] == {}
-
-
-@pytest.mark.asyncio
-async def test_backoffice_create_source_uses_application_use_case() -> None:
-    app = create_app()
-    request = SimpleNamespace(app=app)
-    await TenantBackofficeView().insert_model(
-        request,
-        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
-    )
-    await AssetBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "name": "Asset Backoffice",
-        },
-    )
-    await AgentBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-        },
-    )
-
-    created = await SourceBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-            "source_id": "source-backoffice",
-            "source_type": "knx",
-            "enabled": True,
-            "name": "Source Backoffice",
-        },
-    )
-
-    with TestClient(app) as client:
-        sources = client.get(
-            "/tenants/tenant-backoffice/assets/asset-backoffice"
-            "/agents/agent-backoffice/sources"
-        ).json()
-
-    assert created.source_id == "source-backoffice"
-    assert created.enabled is True
-    assert sources[0]["source_id"] == "source-backoffice"
-    assert sources[0]["connection_json"] == {}
-
-
-@pytest.mark.asyncio
-async def test_backoffice_create_point_uses_application_use_case() -> None:
-    app = create_app()
-    request = SimpleNamespace(app=app)
-    await TenantBackofficeView().insert_model(
-        request,
-        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
-    )
-    await AssetBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "name": "Asset Backoffice",
-        },
-    )
-    await AgentBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-        },
-    )
-    await SourceBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-            "source_id": "source-backoffice",
-            "source_type": "knx",
-        },
-    )
-
-    created = await PointBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-            "source_id": "source-backoffice",
-            "point_id": "point-backoffice",
-            "point_key": "1%2F2%2F3",
-            "point_ref": "1/2/3",
-            "name": "Point Backoffice",
-            "value_type": "number",
-            "value_model": "knx.dpt.9.001",
-            "signal_type": "sensor",
-            "unit": "C",
-            "enabled": "true",
-        },
-    )
-
-    with TestClient(app) as client:
-        points = client.get(
-            "/tenants/tenant-backoffice/assets/asset-backoffice"
-            "/agents/agent-backoffice/sources/source-backoffice/points"
-        ).json()
-
-    assert created.point_id == "point-backoffice"
-    assert created.value_type == "number"
-    assert points[0]["point_key"] == "1%2F2%2F3"
-    assert points[0]["acquisition_json"] == {}
-
-
-@pytest.mark.asyncio
-async def test_backoffice_render_config_action_uses_application_use_cases() -> None:
-    app = create_app()
-    request = SimpleNamespace(app=app)
-    await TenantBackofficeView().insert_model(
-        request,
-        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
-    )
-    await AssetBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "name": "Asset Backoffice",
-        },
-    )
-    await AgentBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-        },
-    )
-    await SourceBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-            "source_id": "source-backoffice",
-            "source_type": "knx",
-        },
-    )
-    await PointBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-            "source_id": "source-backoffice",
-            "point_id": "point-backoffice",
-            "point_key": "1%2F2%2F3",
-            "point_ref": "1/2/3",
-            "name": "Point Backoffice",
-            "value_type": "number",
-            "value_model": "knx.dpt.9.001",
-            "signal_type": "sensor",
-            "enabled": True,
-        },
-    )
-
-    response = await RenderConfigBackofficeView().render_config(
-        FakeJsonRequest(
-            app,
-            {
-                "tenant_id": "tenant-backoffice",
-                "asset_id": "asset-backoffice",
-                "agent_id": "agent-backoffice",
-                "config_revision": "rev-backoffice-001",
-                "issued_at": "2026-05-03T12:00:00Z",
-                "source_config_revisions": {
-                    "source-backoffice": "rev-backoffice-001-source"
-                },
-            },
+        response = client.get(
+            "/backoffice/agent-model/action/render-agent-config",
+            params={"pks": "tenant-backoffice;asset-backoffice;agent-backoffice"},
+            headers={"referer": "http://testserver/backoffice/agent-model/list"},
         )
-    )
-    duplicate_response = await RenderConfigBackofficeView().render_config(
-        FakeJsonRequest(
-            app,
-            {
-                "tenant_id": "tenant-backoffice",
-                "asset_id": "asset-backoffice",
-                "agent_id": "agent-backoffice",
-                "config_revision": "rev-backoffice-001",
-                "issued_at": "2026-05-03T12:00:00Z",
-                "source_config_revisions": {
-                    "source-backoffice": "rev-backoffice-001-source"
-                },
-            },
-        )
-    )
-    form_response = await RenderConfigBackofficeView().render_config(
-        FakeFormRequest(
-            app,
-            {
-                "tenant_id": "tenant-backoffice",
-                "asset_id": "asset-backoffice",
-                "agent_id": "agent-backoffice",
-                "config_revision": "rev-backoffice-form-001",
-                "issued_at": "2026-05-03T12:01:00Z",
-                "source_config_revisions": (
-                    '{"source-backoffice":"rev-backoffice-form-001-source"}'
-                ),
-            },
-        )
+
+    html = response.text
+    assert response.status_code == 200
+    assert "Собрать config" in html
+    assert "Успешно обработано агентов: 1." in html
+    assert "agent-backoffice" in html
+    assert "revision=backoffice-" in html
+    assert "outbox_records=2" in html
+    assert "Вернуться в список" in html
+
+
+@pytest.mark.asyncio
+async def test_backoffice_agent_render_config_action_backfills_legacy_settings() -> None:
+    app = create_app(settings=_settings(internal_mode=True))
+    app.state.unit_of_work_factory = InMemoryUnitOfWorkFactory()
+    await _seed_registry_tree(
+        app,
+        acquisition_defaults={},
+        publish_defaults={},
+        point_acquisition={},
+        point_publish={},
     )
 
-    body = json.loads(response.body)
-    form_html = form_response.body.decode()
-    assert response.status_code == 201
-    assert body["config_revision"] == "rev-backoffice-001"
-    assert body["outbox_record_count"] == 2
-    assert duplicate_response.status_code == 409
-    assert form_response.status_code == 201
-    assert "Config state обновлен" in form_html
-    assert "rev-backoffice-form-001" in form_html
+    with TestClient(app) as client:
+        response = client.get(
+            "/backoffice/agent-model/action/render-agent-config",
+            params={"pks": "tenant-backoffice;asset-backoffice;agent-backoffice"},
+            headers={"referer": "http://testserver/backoffice/agent-model/list"},
+        )
+
+    html = response.text
+    assert response.status_code == 200
+    assert "Успешно обработано агентов: 1." in html
+    assert "Создано записей в config_outbox: 2." in html
+    assert "payload violates contract" not in html
 
 
 @pytest.mark.asyncio
@@ -1015,78 +1160,100 @@ class FakeJsonRequest:
         return self._payload
 
 
-class FakeFormRequest:
-    headers = {"content-type": "application/x-www-form-urlencoded"}
-
-    def __init__(self, app: object, payload: dict[str, Any]) -> None:
+class FakePageRequest:
+    def __init__(self, app: object) -> None:
         self.app = app
-        self._payload = payload
 
-    async def form(self) -> dict[str, Any]:
-        return self._payload
+
+async def _seed_registry_tree(
+    app: object,
+    *,
+    acquisition_defaults: dict[str, object] | None = None,
+    publish_defaults: dict[str, object] | None = None,
+    point_acquisition: dict[str, object] | None = None,
+    point_publish: dict[str, object] | None = None,
+) -> None:
+    unit_of_work_factory = app.state.unit_of_work_factory
+    await CreateTenant(unit_of_work_factory()).execute(
+        CreateTenantCommand(
+            tenant_id="tenant-backoffice",
+            name="Tenant Backoffice",
+        )
+    )
+    await CreateAsset(unit_of_work_factory()).execute(
+        CreateAssetCommand(
+            tenant_id="tenant-backoffice",
+            asset_id="asset-backoffice",
+            name="Asset Backoffice",
+        )
+    )
+    await CreateAgent(unit_of_work_factory()).execute(
+        CreateAgentCommand(
+            tenant_id="tenant-backoffice",
+            asset_id="asset-backoffice",
+            agent_id="agent-backoffice",
+        )
+    )
+    await CreateSource(unit_of_work_factory()).execute(
+        CreateSourceCommand(
+            tenant_id="tenant-backoffice",
+            asset_id="asset-backoffice",
+            agent_id="agent-backoffice",
+            source_id="source-backoffice",
+            source_type="knx",
+            acquisition_defaults_json=(
+                dict(acquisition_defaults)
+                if acquisition_defaults is not None
+                else {
+                    "listen": True,
+                    "read_on_start": False,
+                    "periodic_interval_seconds": None,
+                }
+            ),
+            publish_defaults_json=(
+                dict(publish_defaults)
+                if publish_defaults is not None
+                else {
+                    "enabled": True,
+                    "change_threshold": None,
+                }
+            ),
+        )
+    )
+    await CreatePoint(unit_of_work_factory()).execute(
+        CreatePointCommand(
+            tenant_id="tenant-backoffice",
+            asset_id="asset-backoffice",
+            agent_id="agent-backoffice",
+            source_id="source-backoffice",
+            point_id="point-backoffice",
+            point_key="1%2F2%2F3",
+            point_ref="1/2/3",
+            name="Point Backoffice",
+            value_type=ValueType.NUMBER,
+            value_model="knx.dpt.9.001",
+            signal_type=SignalType.SENSOR,
+            enabled=True,
+            acquisition_json=(
+                dict(point_acquisition)
+                if point_acquisition is not None
+                else {}
+            ),
+            publish_json=(
+                dict(point_publish)
+                if point_publish is not None
+                else {}
+            ),
+        )
+    )
 
 
 async def _render_backoffice_config(app: object) -> None:
-    request = SimpleNamespace(app=app)
-    await TenantBackofficeView().insert_model(
-        request,
-        {"tenant_id": "tenant-backoffice", "name": "Tenant Backoffice"},
-    )
-    await AssetBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "name": "Asset Backoffice",
-        },
-    )
-    await AgentBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-        },
-    )
-    await SourceBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-            "source_id": "source-backoffice",
-            "source_type": "knx",
-        },
-    )
-    await PointBackofficeView().insert_model(
-        request,
-        {
-            "tenant_id": "tenant-backoffice",
-            "asset_id": "asset-backoffice",
-            "agent_id": "agent-backoffice",
-            "source_id": "source-backoffice",
-            "point_id": "point-backoffice",
-            "point_key": "1%2F2%2F3",
-            "point_ref": "1/2/3",
-            "name": "Point Backoffice",
-            "value_type": "number",
-            "value_model": "knx.dpt.9.001",
-            "signal_type": "sensor",
-            "enabled": True,
-        },
-    )
-    await RenderConfigBackofficeView().render_config(
-        FakeJsonRequest(
-            app,
-            {
-                "tenant_id": "tenant-backoffice",
-                "asset_id": "asset-backoffice",
-                "agent_id": "agent-backoffice",
-                "config_revision": "rev-backoffice-actions-001",
-                "issued_at": "2026-05-03T12:00:00Z",
-                "source_config_revisions": {
-                    "source-backoffice": "rev-backoffice-actions-001-source"
-                },
-            },
-        )
+    await _seed_registry_tree(app)
+    await render_agent_config_for_agent(
+        FakePageRequest(app),
+        tenant_id="tenant-backoffice",
+        asset_id="asset-backoffice",
+        agent_id="agent-backoffice",
+        issued_at=datetime(2026, 5, 3, 12, 0, tzinfo=UTC),
     )

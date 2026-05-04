@@ -4,7 +4,9 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "wm-edge-agent",
+    "wm-knx-demo",
     "wm-config-registry",
+    "wm-knx-parser",
     "wm-demo-stack",
     "wm-clickhouse",
 ]
@@ -28,7 +30,9 @@ package = false
 
 [tool.uv.sources]
 wm-edge-agent = { workspace = true }
+wm-knx-demo = { workspace = true }
 wm-config-registry = { workspace = true }
+wm-knx-parser = { workspace = true }
 wm-demo-stack = { workspace = true }
 wm-clickhouse = { workspace = true }
 

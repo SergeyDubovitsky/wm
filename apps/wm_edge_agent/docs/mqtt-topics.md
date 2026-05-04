@@ -14,7 +14,7 @@ schemas находится в:
 
 | Message contract | Назначение |
 | --- | --- |
-| `wm.edge.runtime-config.v1` | Retained root runtime config агента |
+| `wm.edge.agent-runtime-config.v1` | Retained root agent runtime config агента |
 | `wm.edge.source-config.v1` | Retained source config по `source_id` |
 | `wm.edge.config.status.v1` | Target contract для retained status применения конфигурации |
 | `wm.telemetry.event.v1` | Реализованный thin telemetry payload; identity берется из MQTT topic path |

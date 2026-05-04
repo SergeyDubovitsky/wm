@@ -17,7 +17,7 @@ from wm_edge_agent.modeling import FrozenEdgeModel
 
 
 class RetainedConfigDocuments(FrozenEdgeModel):
-    runtime_config: dict[str, object]
+    agent_runtime_config: dict[str, object]
     source_configs: dict[str, dict[str, object]]
 
 
@@ -36,7 +36,7 @@ class _RetainedCollector:
         self._settings = settings
         self._agent_id = agent_id
         self._condition = threading.Condition()
-        self._runtime_payload: dict[str, object] | None = None
+        self._agent_runtime_payload: dict[str, object] | None = None
         self._source_payloads: dict[str, dict[str, object]] = {}
         self._error: Exception | None = None
         self._source_topic_pattern = re.compile(
@@ -87,13 +87,13 @@ class _RetainedCollector:
                         raise ConfigurationError(f"Failed to fetch retained config: {self._error}")
                     if self._is_complete():
                         return RetainedConfigDocuments(
-                            runtime_config=self._runtime_payload or {},
+                            agent_runtime_config=self._agent_runtime_payload or {},
                             source_configs=dict(self._source_payloads),
                         )
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         raise ConfigurationError(
-                            "Timed out waiting for retained runtime/source config "
+                            "Timed out waiting for retained agent-runtime/source config "
                             f"for agent {self._agent_id}"
                         )
                     self._condition.wait(timeout=remaining)
@@ -115,13 +115,13 @@ class _RetainedCollector:
                 self._error = RuntimeError(f"connect reason_code={reason_code}")
                 self._condition.notify_all()
             return
-        runtime_topic = (
-            f"{self._settings.topic_root}/agents/{self._agent_id}/config/runtime"
+        agent_runtime_topic = (
+            f"{self._settings.topic_root}/agents/{self._agent_id}/config/agent-runtime"
         )
         source_topic = (
             f"{self._settings.topic_root}/agents/{self._agent_id}/sources/+/config"
         )
-        client.subscribe(runtime_topic, qos=self._settings.qos)
+        client.subscribe(agent_runtime_topic, qos=self._settings.qos)
         client.subscribe(source_topic, qos=self._settings.qos)
 
     def _on_disconnect(
@@ -135,7 +135,7 @@ class _RetainedCollector:
         if not reason_code.is_failure:
             return
         with self._condition:
-            if self._runtime_payload is None:
+            if self._agent_runtime_payload is None:
                 self._error = RuntimeError(f"disconnect reason_code={reason_code}")
                 self._condition.notify_all()
 
@@ -156,12 +156,12 @@ class _RetainedCollector:
             return
 
         topic = message.topic
-        runtime_topic = (
-            f"{self._settings.topic_root}/agents/{self._agent_id}/config/runtime"
+        agent_runtime_topic = (
+            f"{self._settings.topic_root}/agents/{self._agent_id}/config/agent-runtime"
         )
         with self._condition:
-            if topic == runtime_topic:
-                self._runtime_payload = payload
+            if topic == agent_runtime_topic:
+                self._agent_runtime_payload = payload
             else:
                 match = self._source_topic_pattern.match(topic)
                 if match is not None:
@@ -169,16 +169,16 @@ class _RetainedCollector:
             self._condition.notify_all()
 
     def _is_complete(self) -> bool:
-        if self._runtime_payload is None:
+        if self._agent_runtime_payload is None:
             return False
-        for source_id in _required_source_ids(self._runtime_payload):
+        for source_id in _required_source_ids(self._agent_runtime_payload):
             if source_id not in self._source_payloads:
                 return False
         return True
 
 
-def _required_source_ids(runtime_payload: dict[str, object]) -> list[str]:
-    sources = runtime_payload.get("sources")
+def _required_source_ids(agent_runtime_payload: dict[str, object]) -> list[str]:
+    sources = agent_runtime_payload.get("sources")
     if not isinstance(sources, list):
         return []
     required: list[str] = []

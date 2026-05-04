@@ -1,8 +1,8 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://industrial-edge-web-monitoring.local/contracts/wm-edge-agent/wm.edge.runtime-config.v1.schema.json",
-    "title": "wm.edge.runtime-config.v1",
-    "description": "Retained root runtime config for one Edge Telemetry Agent.",
+    "$id": "https://industrial-edge-web-monitoring.local/contracts/wm-edge-agent/wm.edge.agent-runtime-config.v1.schema.json",
+    "title": "wm.edge.agent-runtime-config.v1",
+    "description": "Retained root agent runtime config for one Edge Telemetry Agent.",
     "type": "object",
     "additionalProperties": false,
     "required": [
@@ -16,7 +16,7 @@
     ],
     "properties": {
         "message_type": {
-            "const": "wm.edge.runtime-config.v1"
+            "const": "wm.edge.agent-runtime-config.v1"
         },
         "tenant_id": {
             "type": "string",

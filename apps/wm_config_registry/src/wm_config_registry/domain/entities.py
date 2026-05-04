@@ -212,13 +212,13 @@ class Point:
 
 
 @dataclass(frozen=True)
-class RuntimeConfigRevision:
+class AgentRuntimeConfigRevision:
     tenant_id: str
     asset_id: str
     agent_id: str
     config_revision: str
     issued_at: datetime
-    runtime_payload_json: dict[str, Any]
+    agent_runtime_payload_json: dict[str, Any]
     status: ConfigRevisionStatus = ConfigRevisionStatus.RENDERED
     created_at: datetime = field(default_factory=utc_now)
 

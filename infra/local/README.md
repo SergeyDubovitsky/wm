@@ -32,8 +32,8 @@
 - `redpanda-connect` — connector pipeline, который читает `wm/v1/#`,
   обогащает telemetry retained source config и пишет platform records в Kafka
 - `redpanda-connect-config-projection` — connector pipeline, который читает
-  `wm.platform.edge.configs.v1` и материализует retained runtime/source config
-  topics для wm-edge-agent
+  `wm.platform.edge.configs.v1` и материализует retained agent runtime/source
+  config topics для wm-edge-agent
 - `redpanda-connect-source-config-snapshot` — connector pipeline, который
   строит canonical `wm.platform.source.config.v1` snapshots из
   `wm.platform.edge.configs.v1`
@@ -271,7 +271,7 @@ CLI:
 - по умолчанию импортирует bundle в `Config Registry API`, вызывает
   `render-config`, а отдельный `wm-config-registry-outbox-worker` публикует
   Kafka config delivery records в `wm.platform.edge.configs.v1`
-- retained `wm.edge.runtime-config.v1` и `wm.edge.source-config.v1`
+- retained `wm.edge.agent-runtime-config.v1` и `wm.edge.source-config.v1`
   материализуются через `redpanda-connect-config-projection`
 - публикует demo telemetry events
 - публикует retained source connection status и agent LWT
@@ -286,7 +286,7 @@ CLI:
 При запущенном `redpanda-connect-config-projection` records из
 `wm.platform.edge.configs.v1` материализуются в retained MQTT topics:
 
-- runtime config -> `wm/v1/agents/{agent_id}/config/runtime`
+- agent runtime config -> `wm/v1/agents/{agent_id}/config/agent-runtime`
 - source config -> `wm/v1/agents/{agent_id}/sources/{source_id}/config`
 
 При запущенном `redpanda-connect-source-config-snapshot` source delivery records
@@ -325,7 +325,7 @@ uv run --group integration pytest \
   raw `PahoMqttPublisher -> MQTT` и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
 - `test_edge_agent_knx_to_mqtt.py` проверяет lower-level wm-edge-agent путь:
   тестовая fixture seed-ит Kafka config delivery records, дальше проверяется
-  `retained runtime/source config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+  `retained agent runtime/source config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
 - `test_kafka_to_clickhouse_storage.py` проверяет путь
   `Kafka -> Kafka Connect -> ClickHouse raw landing -> contract table`,
   byte-for-byte сохранение Kafka value в `payload_json` и storage DLQ для

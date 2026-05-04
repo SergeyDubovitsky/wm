@@ -12,11 +12,11 @@ from wm_demo_stack.models import (
 from wm_demo_stack.runtime import RuntimePort, SystemRuntime, now_utc_iso
 from wm_demo_stack.scenario import (
     DemoScenario,
+    agent_runtime_config_payload,
     connection_payload,
     lwt_payload,
     publish_messages,
     run_demo,
-    runtime_config_payload,
     source_config_payload,
     telemetry_payload,
     temperature_value,
@@ -40,7 +40,7 @@ __all__ = [
     "now_utc_iso",
     "publish_messages",
     "run_demo",
-    "runtime_config_payload",
+    "agent_runtime_config_payload",
     "source_config_payload",
     "telemetry_payload",
     "temperature_value",

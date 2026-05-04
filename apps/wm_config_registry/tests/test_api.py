@@ -267,7 +267,7 @@ def test_render_config_endpoint_stores_revision_and_outbox_records() -> None:
     payload = response.json()
     assert payload["tenant_id"] == "tenant-a"
     assert payload["config_revision"] == "rev-api-001"
-    assert payload["runtime_payload"]["message_type"] == "wm.edge.runtime-config.v1"
+    assert payload["agent_runtime_payload"]["message_type"] == "wm.edge.agent-runtime-config.v1"
     assert payload["source_payloads"][0]["source_id"] == "knx-main"
     assert payload["outbox_record_count"] == 2
     assert duplicate_response.status_code == 409

@@ -10,7 +10,7 @@ SignalType = Literal["command", "feedback", "status", "sensor"]
 
 
 class ConfigurationError(ValueError):
-    """Raised when the runtime configuration is invalid."""
+    """Raised when the agent runtime configuration is invalid."""
 
 
 class AcquisitionSettings(FrozenEdgeModel):

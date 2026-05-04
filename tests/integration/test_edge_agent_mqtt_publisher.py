@@ -11,7 +11,7 @@ import yaml
 
 from wm_demo_stack.bundle import load_bundle
 from wm_demo_stack.models import TopicScope
-from wm_demo_stack.scenario import runtime_config_payload, source_config_payload
+from wm_demo_stack.scenario import agent_runtime_config_payload, source_config_payload
 from wm_edge_agent.cli import main
 from wm_edge_agent.domain.config import MqttSettings
 from wm_edge_agent.domain.events import MqttPublication
@@ -246,8 +246,8 @@ def _seed_retained_config(*, local_stack, bundle) -> None:
         port=local_stack.mqtt_port,
         username=local_stack.mqtt_username,
         password=local_stack.mqtt_password,
-        topic=scope.runtime_config_topic(),
-        payload=runtime_config_payload(settings),
+        topic=scope.agent_runtime_config_topic(),
+        payload=agent_runtime_config_payload(settings),
         retain=True,
     )
     for source in bundle.sources:

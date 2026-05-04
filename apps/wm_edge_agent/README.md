@@ -32,7 +32,7 @@ uv run --group integration pytest \
 
 - `test_edge_agent_mqtt_publisher.py` — transport smoke и CLI-сценарий `enqueue-demo-event -> deliver-once`
 - `test_edge_agent_knx_to_mqtt.py` — реальный `ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT` для demo `knx_main`
-- retained runtime/source config в wm-edge-agent integration fixture seed-ится
+- retained agent runtime/source config в wm-edge-agent integration fixture seed-ится
   напрямую через Kafka config delivery records, чтобы изолировать runtime агента.
   Production-like local demo seed идет через
   `Config Registry API -> outbox worker -> Kafka -> retained MQTT projection`.

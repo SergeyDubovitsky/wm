@@ -1,7 +1,7 @@
 model {
     extend monitoring-alarm-platform {
         keycloak = container 'Keycloak' {
-            description 'Сервис identity and access management: realms, пользователи, роли, клиенты и выпуск токенов для Platform Frontend и Platform API.'
+            description 'Сервис identity and access management: realms, пользователи, роли, клиенты и выпуск токенов для Platform Frontend и будущего tenant-facing API.'
             technology 'Keycloak / OIDC / OAuth 2.0'
             icon tech:oauth
 

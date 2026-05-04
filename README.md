@@ -11,7 +11,7 @@
 
 Текущий `MVP baseline` в репозитории:
 
-- `Edge Telemetry Agent` с bootstrap-конфигом, загрузкой retained runtime/source config из `MQTT`, processing pipeline и `SQLite Delivery Outbox`
+- `Edge Telemetry Agent` с bootstrap-конфигом, загрузкой retained agent runtime/source config из `MQTT`, processing pipeline и `SQLite Delivery Outbox`
 - локальный platform slice `MQTT -> Redpanda Connect -> Kafka`
 - versioned config bundle для `demo-stand`
 - contract registry, архитектурные документы и integration-тесты для этого потока
@@ -20,7 +20,7 @@
 slices:
 
 - `Config Registry` на `FastAPI + PostgreSQL` с `tenant/asset/agent/source/point` CRUD, render config revisions и transactional outbox
-- Kafka-first config delivery path `PostgreSQL -> wm.platform.edge.configs.v1 -> Redpanda Connect -> retained MQTT runtime/source config`
+- Kafka-first config delivery path `PostgreSQL -> wm.platform.edge.configs.v1 -> Redpanda Connect -> retained MQTT agent runtime/source config`
 - локальный storage/read path `Kafka -> Kafka Connect -> ClickHouse`, `Grafana` datasource provisioning и read-model PoC
 
 Целевая `Monitoring & Alarm Platform` проектируется для двух deployment modes:
@@ -153,7 +153,7 @@ uv run --group integration pytest \
 - [`apps/wm_edge_agent/docs/mqtt-topics.md`](apps/wm_edge_agent/docs/mqtt-topics.md) — guide по MQTT publish contract и
   ссылкам на канонический topic tree
 - [`apps/wm_edge_agent/config/examples/bootstrap.example.yaml`](apps/wm_edge_agent/config/examples/bootstrap.example.yaml) — bootstrap example для edge agent
-- [`apps/wm_edge_agent/config/examples/config.bundle.example.yaml`](apps/wm_edge_agent/config/examples/config.bundle.example.yaml) — config bundle example для Kafka-first retained runtime/source config projection
+- [`apps/wm_edge_agent/config/examples/config.bundle.example.yaml`](apps/wm_edge_agent/config/examples/config.bundle.example.yaml) — config bundle example для Kafka-first retained agent runtime/source config projection
 - [`apps/wm_edge_agent/config/README.md`](apps/wm_edge_agent/config/README.md) — описание структуры конфигурации и разделения examples/environment configs
 
 ## LikeC4

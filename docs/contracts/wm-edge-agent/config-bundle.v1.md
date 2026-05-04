@@ -3,7 +3,7 @@
 Дата: 2026-05-03
 Статус: working draft
 
-Этот контракт фиксирует versioned import/bootstrap path для edge runtime config
+Этот контракт фиксирует versioned import/bootstrap path для edge agent runtime config
 рядом с `Config Registry` из `ADR-010`.
 
 ## Назначение
@@ -13,12 +13,12 @@ Versioned YAML config bundle больше не является primary source o
 с PostgreSQL-backed `Config Registry`/`Platform Store` как runtime source of
 truth.
 
-Config delivery pipeline валидирует bundle, строит runtime/source payloads,
+Config delivery pipeline валидирует bundle, строит agent runtime/source payloads,
 публикует config delivery records `wm.platform.edge.config.delivery.v1` в Kafka
 и материализует retained MQTT topics через Redpanda Connect projection.
 
 Edge-agent не читает этот bundle напрямую. Его runtime boundary — retained MQTT
-topics `wm.edge.runtime-config.v1` и `wm.edge.source-config.v1`.
+topics `wm.edge.agent-runtime-config.v1` и `wm.edge.source-config.v1`.
 
 ## Минимальная структура bundle
 
@@ -68,11 +68,11 @@ sources:
 Для каждого bundle delivery pipeline выпускает:
 
 - один Kafka delivery record `wm.platform.edge.config.delivery.v1` с
-  `config_scope=runtime` для root `wm.edge.runtime-config.v1`
+  `config_scope=agent_runtime` для root `wm.edge.agent-runtime-config.v1`
 - один Kafka delivery record `wm.platform.edge.config.delivery.v1` с
   `config_scope=source:{source_id}` на каждый `wm.edge.source-config.v1`
 - retained MQTT projection root config в
-  `wm/v1/agents/{agent_id}/config/runtime`
+  `wm/v1/agents/{agent_id}/config/agent-runtime`
 - retained MQTT projection source config на каждый `source_id` в
   `wm/v1/agents/{agent_id}/sources/{source_id}/config`
 

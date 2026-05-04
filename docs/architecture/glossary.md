@@ -9,7 +9,7 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 
 ## Основные системы
 
-- `Edge Telemetry Agent` — наша периферийная система на объекте, которая собирает данные из southbound-протоколов, нормализует их, буферизует и публикует наружу.
+- `Edge Telemetry Agent` — продуктово-архитектурное имя периферийной системы; текущий реализованный модуль в коде — `apps/wm_edge_agent` / package `wm_edge_agent`.
 - `Monitoring & Alarm Platform` — наша центральная система, которая может разворачиваться как `self-hosted` инсталляция или в облаке/интернете, принимает события, хранит телеметрию, вычисляет `alarm` и предоставляет UI/API.
 - `deployment parity` — архитектурный принцип проекта: `self-hosted` и `cloud` считаются двумя deployment modes одной платформы и не должны расходиться по baseline contracts, основному data path и acceptance semantics без отдельного ADR.
 
@@ -18,7 +18,7 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `alarm` — доменная сущность тревоги в платформе: правило сработало, есть жизненный цикл, severity, acknowledgement и clear.
 - `notification` — внешнее сообщение по `alarm` или служебному событию, отправляемое через email, SMS, push или webhook.
 - `telemetry event` — нормализованное событие наблюдения по одной точке мониторинга.
-- `Local State Store` — локальное техническое SQLite-хранилище `Edge Telemetry Agent` для Point State Cache, Delivery Outbox, attempts/status и warm restart.
+- `Local State Store` — локальное техническое SQLite-хранилище `wm_edge_agent` для Point State Cache, Delivery Outbox, attempts/status и warm restart.
 - `Point State Cache` — persistent cache последнего наблюденного и опубликованного состояния точки, sequence и качества, используемый для фильтрации изменений и warm restart.
 - `Delivery Outbox` — локальная очередь telemetry events, ожидающих надежной доставки или retry во внешний transport.
 - `status topic` — transport-specific `MQTT` сообщение о состоянии southbound source или самого publisher, например `status/connection` и `status/lwt`.
@@ -32,23 +32,23 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `Telemetry Consumers` — backend workers, которые читают Kafka topics и записывают canonical telemetry events, source config snapshots, source connection history, agent status history и derived events в `Telemetry Store`.
 - `Streaming Analytics` — потоковая обработка telemetry stream для агрегатов, rollups, производных признаков и derived events для `Alarm Rule Engine`; результаты пишет в `Telemetry Store`.
 - `Grafana` — слой визуализации внутри `Monitoring & Alarm Platform`; в production-контуре читает подготовленные данные из `Telemetry Store`.
-- `Platform API` — общий контейнер backend API платформы в LikeC4.
-- `Config Registry` — первый backend-срез внутри `Platform API`: хранит tenants, assets, agents, sources, points и config revisions в PostgreSQL.
+- `Platform API` — целевая tenant-facing backend API boundary платформы; в текущем MVP она еще не является отдельным реализованным модулем.
+- `Config Registry` — первый реализованный backend-срез `apps/wm_config_registry` / package `wm_config_registry`: хранит tenants, assets, agents, sources, points и config revisions в PostgreSQL.
 - `Backoffice Admin UI` — внутренний operational UI на базе `SQLAdmin` для команды платформы; не доступен tenant/client users, допускает internal CRUD shortcut, а выпуск config state выполняется отдельным render action через application use cases и transactional outbox.
-- `Platform Frontend` — отдельное browser-приложение, которое аутентифицируется через Keycloak и работает с платформой через `Platform API`.
+- `Platform Frontend` — целевое browser-приложение, которое будет аутентифицироваться через Keycloak и работать с платформой через tenant-facing API; в текущем MVP отдельный frontend еще не реализован.
 - `Keycloak` — IAM-компонент платформы: пользователи, группы, роли, OIDC clients, sessions и JWT issuance.
-- `JWT` — access token, выпускаемый Keycloak и валидируемый `Platform API` локально по OIDC discovery/JWKS.
+- `JWT` — access token, выпускаемый Keycloak и валидируемый будущими tenant-facing API локально по OIDC discovery/JWKS.
 - `API Gateway` — application-level gateway перед несколькими backend API; решение по нему выносится в отдельный ADR.
-- `southbound-адаптеры` — адаптеры и драйверы, через которые `Edge Telemetry Agent` подключается вниз по стеку к полевым протоколам и локальным источникам данных, например `KNX`, `Modbus`, `OPC UA`, `SCADA`.
-- `northbound delivery` — доставка данных вверх по стеку из `Edge Telemetry Agent` в `Monitoring & Alarm Platform` через внешний transport, например `MQTT`.
+- `southbound-адаптеры` — адаптеры и драйверы, через которые `wm_edge_agent` подключается вниз по стеку к полевым протоколам и локальным источникам данных, например `KNX`, `Modbus`, `OPC UA`, `SCADA`.
+- `northbound delivery` — доставка данных вверх по стеку из `wm_edge_agent` в `Monitoring & Alarm Platform` через внешний transport, например `MQTT`.
 
 ## Конфигурационная модель
 
 - `bootstrap config` — минимальная локальная конфигурация запуска wm-edge-agent: `agent_id`, MQTT endpoint, credentials/secret refs, local storage и observability. Не содержит registry sources/points.
 - `server-issued config` — конфигурация runtime, выданная платформенным контуром через retained MQTT topics.
-- `runtime config` — retained root config агента `wm.edge.runtime-config.v1`: `tenant_id`, `asset_id`, `agent_id`, `config_revision` и список активных sources.
+- `agent runtime config` — retained root config агента `wm.edge.agent-runtime-config.v1`: `tenant_id`, `asset_id`, `agent_id`, `config_revision` и список активных sources.
 - `source config` — retained config конкретного `source_id` `wm.edge.source-config.v1`: connection settings, points, acquisition/publish policies и metadata точек.
-- `config revision` — стабильная версия root runtime config, выпускаемая через Kafka-first delivery log и применяемая wm-edge-agent после материализации в MQTT retained topics.
+- `config revision` — стабильная версия root agent runtime config, выпускаемая через Kafka-first delivery log и применяемая wm-edge-agent после материализации в MQTT retained topics.
 - `source_config_revision` — стабильная версия source config, которую telemetry event указывает как metadata context.
 - `config event publisher` — backend worker, который читает единственную PostgreSQL таблицу `config_outbox` и публикует `wm.platform.edge.config.delivery.v1` records в Kafka topic `wm.platform.edge.configs.v1`.
 - `source config snapshot projector` — consumer, который читает `wm.platform.edge.configs.v1` и публикует canonical `wm.platform.source.config.v1` records в `wm.platform.source.configs.v1`.

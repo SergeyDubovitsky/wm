@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from wm_config_registry.application.config_defaults import (
+    normalize_acquisition_settings,
+    normalize_publish_settings,
+)
 from wm_config_registry.application.errors import (
     AgentNotFoundError,
     ConfigRenderError,
@@ -15,16 +19,16 @@ from wm_config_registry.application.ports.config_validation import (
 )
 from wm_config_registry.application.ports.unit_of_work import UnitOfWork
 from wm_config_registry.domain.entities import (
+    AgentRuntimeConfigRevision,
     ConfigOutboxRecord,
     Point,
-    RuntimeConfigRevision,
     Source,
     SourceConfigRevision,
 )
 
 
 @dataclass(frozen=True)
-class RenderAgentConfigCommand:
+class RenderAgentRuntimeConfigCommand:
     tenant_id: str
     asset_id: str
     agent_id: str
@@ -41,12 +45,12 @@ class RenderedSourceConfig:
 
 
 @dataclass(frozen=True)
-class RenderedAgentConfig:
-    runtime_payload: dict[str, Any]
+class RenderedAgentRuntimeConfig:
+    agent_runtime_payload: dict[str, Any]
     source_payloads: tuple[RenderedSourceConfig, ...]
 
 
-class RenderAgentConfig:
+class RenderAgentRuntimeConfig:
     def __init__(
         self,
         unit_of_work: UnitOfWork,
@@ -55,7 +59,7 @@ class RenderAgentConfig:
         self._unit_of_work = unit_of_work
         self._validator = validator
 
-    async def execute(self, command: RenderAgentConfigCommand) -> RenderedAgentConfig:
+    async def execute(self, command: RenderAgentRuntimeConfigCommand) -> RenderedAgentRuntimeConfig:
         async with self._unit_of_work as unit_of_work:
             agent = await unit_of_work.agents.get(
                 command.tenant_id,
@@ -90,20 +94,24 @@ class RenderAgentConfig:
                 self._validator.validate_source_config(rendered_source.payload)
                 rendered_sources.append(rendered_source)
 
-        runtime_payload = self._runtime_payload(command, rendered_sources)
-        self._validator.validate_runtime_config(runtime_payload)
-        return RenderedAgentConfig(
-            runtime_payload=runtime_payload,
+        agent_runtime_payload = self._agent_runtime_payload(command, rendered_sources)
+        self._validator.validate_agent_runtime_config(agent_runtime_payload)
+        return RenderedAgentRuntimeConfig(
+            agent_runtime_payload=agent_runtime_payload,
             source_payloads=tuple(rendered_sources),
         )
 
     def _render_source(
         self,
-        command: RenderAgentConfigCommand,
+        command: RenderAgentRuntimeConfigCommand,
         source: Source,
         points: list[Point],
     ) -> RenderedSourceConfig:
         source_config_revision = _source_config_revision(command, source.source_id)
+        acquisition_defaults = normalize_acquisition_settings(
+            source.acquisition_defaults_json
+        )
+        publish_defaults = normalize_publish_settings(source.publish_defaults_json)
         payload = {
             "message_type": "wm.edge.source-config.v1",
             "tenant_id": command.tenant_id,
@@ -115,10 +123,14 @@ class RenderAgentConfig:
             "source_type": source.source_type,
             "enabled": source.enabled,
             "connection": dict(source.connection_json),
-            "acquisition_defaults": dict(source.acquisition_defaults_json),
-            "publish_defaults": dict(source.publish_defaults_json),
+            "acquisition_defaults": acquisition_defaults,
+            "publish_defaults": publish_defaults,
             "points": [
-                _point_payload(point, source=source)
+                _point_payload(
+                    point,
+                    acquisition_defaults=acquisition_defaults,
+                    publish_defaults=publish_defaults,
+                )
                 for point in points
                 if point.enabled
             ],
@@ -129,13 +141,13 @@ class RenderAgentConfig:
             payload=payload,
         )
 
-    def _runtime_payload(
+    def _agent_runtime_payload(
         self,
-        command: RenderAgentConfigCommand,
+        command: RenderAgentRuntimeConfigCommand,
         rendered_sources: list[RenderedSourceConfig],
     ) -> dict[str, Any]:
         return {
-            "message_type": "wm.edge.runtime-config.v1",
+            "message_type": "wm.edge.agent-runtime-config.v1",
             "tenant_id": command.tenant_id,
             "asset_id": command.asset_id,
             "agent_id": command.agent_id,
@@ -155,7 +167,7 @@ class RenderAgentConfig:
 
 
 def _source_config_revision(
-    command: RenderAgentConfigCommand,
+    command: RenderAgentRuntimeConfigCommand,
     source_id: str,
 ) -> str:
     if command.source_config_revisions is not None:
@@ -168,7 +180,12 @@ def _source_config_revision(
     return f"{command.config_revision}-{source_id}"
 
 
-def _point_payload(point: Point, *, source: Source) -> dict[str, Any]:
+def _point_payload(
+    point: Point,
+    *,
+    acquisition_defaults: dict[str, Any],
+    publish_defaults: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "point_key": point.point_key,
         "point_ref": point.point_ref,
@@ -178,14 +195,8 @@ def _point_payload(point: Point, *, source: Source) -> dict[str, Any]:
         "value_model": point.value_model,
         "signal_type": point.signal_type.value,
         "unit": point.unit,
-        "acquisition": _settings_with_defaults(
-            point.acquisition_json,
-            source.acquisition_defaults_json,
-        ),
-        "publish": _settings_with_defaults(
-            point.publish_json,
-            source.publish_defaults_json,
-        ),
+        "acquisition": _settings_with_defaults(point.acquisition_json, acquisition_defaults),
+        "publish": _settings_with_defaults(point.publish_json, publish_defaults),
         "tags": dict(point.tags_json),
     }
 
@@ -205,7 +216,7 @@ def _format_datetime(value: datetime) -> str:
     return utc_value.isoformat().replace("+00:00", "Z")
 
 
-class StoreRenderedAgentConfig:
+class StoreRenderedAgentRuntimeConfig:
     def __init__(
         self,
         unit_of_work: UnitOfWork,
@@ -214,17 +225,19 @@ class StoreRenderedAgentConfig:
         self._unit_of_work = unit_of_work
         self._validator = validator
 
-    async def execute(self, rendered: RenderedAgentConfig) -> RuntimeConfigRevision:
-        runtime_payload = rendered.runtime_payload
-        self._validator.validate_runtime_config(runtime_payload)
+    async def execute(self, rendered: RenderedAgentRuntimeConfig) -> AgentRuntimeConfigRevision:
+        agent_runtime_payload = rendered.agent_runtime_payload
+        self._validator.validate_agent_runtime_config(agent_runtime_payload)
         for source in rendered.source_payloads:
             self._validator.validate_source_config(source.payload)
 
-        runtime_revision = _runtime_revision_from_payload(runtime_payload)
+        agent_runtime_revision = _agent_runtime_revision_from_payload(
+            agent_runtime_payload
+        )
         source_revisions = [
             _source_revision_from_payload(
                 source.payload,
-                issued_at=runtime_revision.issued_at,
+                issued_at=agent_runtime_revision.issued_at,
             )
             for source in rendered.source_payloads
         ]
@@ -234,21 +247,23 @@ class StoreRenderedAgentConfig:
 
         async with self._unit_of_work as unit_of_work:
             if (
-                await unit_of_work.runtime_config_revisions.get(
-                    runtime_revision.tenant_id,
-                    runtime_revision.asset_id,
-                    runtime_revision.agent_id,
-                    runtime_revision.config_revision,
+                await unit_of_work.agent_runtime_config_revisions.get(
+                    agent_runtime_revision.tenant_id,
+                    agent_runtime_revision.asset_id,
+                    agent_runtime_revision.agent_id,
+                    agent_runtime_revision.config_revision,
                 )
                 is not None
             ):
                 raise DuplicateConfigRevisionError(
-                    runtime_revision.tenant_id,
-                    runtime_revision.asset_id,
-                    runtime_revision.agent_id,
-                    runtime_revision.config_revision,
+                    agent_runtime_revision.tenant_id,
+                    agent_runtime_revision.asset_id,
+                    agent_runtime_revision.agent_id,
+                    agent_runtime_revision.config_revision,
                 )
-            await unit_of_work.runtime_config_revisions.add(runtime_revision)
+            await unit_of_work.agent_runtime_config_revisions.add(
+                agent_runtime_revision
+            )
             for source_revision in source_revisions:
                 await unit_of_work.source_config_revisions.add(source_revision)
             for outbox_record in outbox_records:
@@ -264,19 +279,19 @@ class StoreRenderedAgentConfig:
                 await unit_of_work.config_outbox.add(outbox_record)
             await unit_of_work.commit()
 
-        return runtime_revision
+        return agent_runtime_revision
 
 
-def _runtime_revision_from_payload(
+def _agent_runtime_revision_from_payload(
     payload: dict[str, Any],
-) -> RuntimeConfigRevision:
-    return RuntimeConfigRevision(
+) -> AgentRuntimeConfigRevision:
+    return AgentRuntimeConfigRevision(
         tenant_id=str(payload["tenant_id"]),
         asset_id=str(payload["asset_id"]),
         agent_id=str(payload["agent_id"]),
         config_revision=str(payload["config_revision"]),
         issued_at=_parse_datetime(str(payload["issued_at"])),
-        runtime_payload_json=dict(payload),
+        agent_runtime_payload_json=dict(payload),
     )
 
 
@@ -302,45 +317,45 @@ def _parse_datetime(value: str) -> datetime:
 
 
 def _outbox_records_for_rendered_config(
-    rendered: RenderedAgentConfig,
+    rendered: RenderedAgentRuntimeConfig,
 ) -> list[ConfigOutboxRecord]:
-    runtime_payload = rendered.runtime_payload
-    tenant_id = str(runtime_payload["tenant_id"])
-    asset_id = str(runtime_payload["asset_id"])
-    agent_id = str(runtime_payload["agent_id"])
-    config_revision = str(runtime_payload["config_revision"])
-    issued_at = str(runtime_payload["issued_at"])
+    agent_runtime_payload = rendered.agent_runtime_payload
+    tenant_id = str(agent_runtime_payload["tenant_id"])
+    asset_id = str(agent_runtime_payload["asset_id"])
+    agent_id = str(agent_runtime_payload["agent_id"])
+    config_revision = str(agent_runtime_payload["config_revision"])
+    issued_at = str(agent_runtime_payload["issued_at"])
 
     records = [
         ConfigOutboxRecord.new(
             tenant_id=tenant_id,
             idempotency_key=(
-                f"{tenant_id}|{asset_id}|{agent_id}|{config_revision}|runtime"
+                f"{tenant_id}|{asset_id}|{agent_id}|{config_revision}|agent_runtime"
             ),
             asset_id=asset_id,
             agent_id=agent_id,
             config_revision=config_revision,
-            config_scope="runtime",
+            config_scope="agent_runtime",
             source_id=None,
             source_config_revision=None,
-            kafka_key=f"{tenant_id}|{asset_id}|{agent_id}|runtime",
+            kafka_key=f"{tenant_id}|{asset_id}|{agent_id}|agent_runtime",
             payload_json={
                 "message_type": "wm.platform.edge.config.delivery.v1",
                 "tenant_id": tenant_id,
                 "asset_id": asset_id,
                 "agent_id": agent_id,
                 "config_revision": config_revision,
-                "config_scope": "runtime",
+                "config_scope": "agent_runtime",
                 "source_id": None,
                 "source_config_revision": None,
-                "target_mqtt_topic": f"wm/v1/agents/{agent_id}/config/runtime",
+                "target_mqtt_topic": f"wm/v1/agents/{agent_id}/config/agent-runtime",
                 "mqtt_retain": True,
                 "mqtt_qos": 1,
                 "operation": "upsert",
-                "payload_message_type": "wm.edge.runtime-config.v1",
-                "payload": dict(runtime_payload),
+                "payload_message_type": "wm.edge.agent-runtime-config.v1",
+                "payload": dict(agent_runtime_payload),
                 "idempotency_key": (
-                    f"{tenant_id}|{asset_id}|{agent_id}|{config_revision}|runtime"
+                    f"{tenant_id}|{asset_id}|{agent_id}|{config_revision}|agent_runtime"
                 ),
                 "issued_at": issued_at,
             },

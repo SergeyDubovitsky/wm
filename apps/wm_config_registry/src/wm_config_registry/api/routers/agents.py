@@ -9,8 +9,8 @@ from wm_config_registry.api.dependencies import (
 )
 from wm_config_registry.api.schemas.agents import AgentCreateRequest, AgentResponse
 from wm_config_registry.api.schemas.config_revisions import (
-    RenderAgentConfigRequest,
-    RenderAgentConfigResponse,
+    RenderAgentRuntimeConfigRequest,
+    RenderAgentRuntimeConfigResponse,
 )
 from wm_config_registry.application.errors import (
     AgentNotFoundError,
@@ -29,9 +29,9 @@ from wm_config_registry.application.use_cases.agents import (
     ListAgents,
 )
 from wm_config_registry.application.use_cases.render_config import (
-    RenderAgentConfig,
-    RenderAgentConfigCommand,
-    StoreRenderedAgentConfig,
+    RenderAgentRuntimeConfig,
+    RenderAgentRuntimeConfigCommand,
+    StoreRenderedAgentRuntimeConfig,
 )
 from wm_config_registry.domain.value_objects import DomainValidationError
 
@@ -99,20 +99,20 @@ async def list_agents(
 
 @router.post(
     "/{agent_id}/render-config",
-    response_model=RenderAgentConfigResponse,
+    response_model=RenderAgentRuntimeConfigResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def render_agent_config(
     tenant_id: str,
     asset_id: str,
     agent_id: str,
-    request: RenderAgentConfigRequest,
+    request: RenderAgentRuntimeConfigRequest,
     unit_of_work_factory: UnitOfWorkFactory = Depends(get_unit_of_work_factory),
     validator: ConfigPayloadValidator = Depends(get_config_payload_validator),
-) -> RenderAgentConfigResponse:
+) -> RenderAgentRuntimeConfigResponse:
     try:
-        rendered = await RenderAgentConfig(unit_of_work_factory(), validator).execute(
-            RenderAgentConfigCommand(
+        rendered = await RenderAgentRuntimeConfig(unit_of_work_factory(), validator).execute(
+            RenderAgentRuntimeConfigCommand(
                 tenant_id=tenant_id,
                 asset_id=asset_id,
                 agent_id=agent_id,
@@ -121,7 +121,7 @@ async def render_agent_config(
                 source_config_revisions=request.source_config_revisions,
             )
         )
-        await StoreRenderedAgentConfig(unit_of_work_factory(), validator).execute(
+        await StoreRenderedAgentRuntimeConfig(unit_of_work_factory(), validator).execute(
             rendered
         )
     except AgentNotFoundError as exc:
@@ -140,4 +140,4 @@ async def render_agent_config(
             detail=str(exc),
         ) from exc
 
-    return RenderAgentConfigResponse.from_rendered(rendered)
+    return RenderAgentRuntimeConfigResponse.from_rendered(rendered)

@@ -28,7 +28,7 @@ pipeline:
         root._point_key = if $parts.length() > 9 && $parts.index(8) == "points" { $parts.index(9) } else { null }
 
     - switch:
-        - check: this.message_type == "wm.edge.runtime-config.v1"
+        - check: this.message_type == "wm.edge.agent-runtime-config.v1"
           processors:
             - cache:
                 resource: runtime_configs

@@ -8,9 +8,9 @@
 - FastAPI app factory
 - domain entities/value objects для registry-модели
 - application use cases и repository/unit-of-work protocols
-- render use case для `wm.edge.runtime-config.v1` и
+- render use case для `wm.edge.agent-runtime-config.v1` и
   `wm.edge.source-config.v1` с JSON Schema validation
-- persistence для rendered `runtime_config_revisions` и
+- persistence для rendered `agent_runtime_config_revisions` и
   `source_config_revisions`
 - transactional `config_outbox` pending records для Kafka-first edge config
   delivery
@@ -22,14 +22,14 @@
   контейнера outbox worker-а
 - internal backoffice UI на `/backoffice` в `internal_mode`
 - local Redpanda Connect projection
-  `wm.platform.edge.configs.v1 -> MQTT retained runtime/source config topics`
+  `wm.platform.edge.configs.v1 -> MQTT retained agent runtime/source config topics`
 - временный in-memory adapter для unit/API smoke-тестов
 - PostgreSQL adapter для `tenants`, `assets`, `agents`, `sources` и `points`
 - local Docker image для `wm-config-registry` и
   `wm-config-registry-outbox-worker`
 - Alembic migrations для registry tables:
   `tenants`, `assets`, `agents`, `sources`, `points`
-- `runtime_config_revisions`, `source_config_revisions`
+- `agent_runtime_config_revisions`, `source_config_revisions`
 - `config_outbox`
 - endpoints `GET /health`, `GET /ready`, `POST /tenants`, `GET /tenants`,
   `POST /tenants/{tenant_id}/assets`, `GET /tenants/{tenant_id}/assets`,
@@ -66,21 +66,32 @@ CONFIG_REGISTRY_DATABASE_URL=postgresql+asyncpg://wm:change-me-local-postgres@lo
 
 Если `CONFIG_REGISTRY_INTERNAL_MODE=true` и API запущен с PostgreSQL-backed
 `CONFIG_REGISTRY_DATABASE_URL`, дополнительно монтируется internal
-`/backoffice`. В админке включен полный internal CRUD для всех SQLAdmin
-ModelViews. Создание `Tenant`, `Asset`, `Agent`, `Source` и `Point` по-прежнему
-идет через application use cases; update/delete и технические таблицы
-`runtime_config_revisions`, `source_config_revisions`, `config_outbox` работают
-как прямой SQLAdmin ORM shortcut для внутренних операторов.
+`/backoffice`. В админке `details` страницы остаются полным raw ORM-view, а
+`list` страницы показывают только компактный operational набор колонок без
+лишнего горизонтального скролла. Для create-flow используется операторский UX
+поверх application use cases:
+
+- `tenants`: только `tenant_id` и `name`
+- `assets`: `Tenant` selector + `asset_id`, `name`, `description`
+- `agents`: `Asset` selector + `agent_id`, `name`
+- `sources`: `Agent` selector + `source_id`, `source_type`, `enabled`, `name`,
+  `description`
+- `points`: `Source` selector + business-поля точки
+- `agent_runtime_config_revisions`: `Agent` selector + revision payload
+- `source_config_revisions`: `Source` selector + revision payload
+
+Системные поля вроде `status`, `created_at`, `updated_at` и родительские ключи
+для вложенных сущностей не вводятся руками на create-страницах.
 
 Важно: прямое редактирование registry state через CRUD не создает новую
 `config_revision` и не пишет `config_outbox` автоматически. После таких правок
 оператор должен явно вызвать render action, иначе MQTT retained config не
 изменится.
 
-Backoffice page `/backoffice/render-config` показывает оператору подсказку и
-кнопку `Обновить config state`. Submit вызывает `RenderAgentConfig` +
-`StoreRenderedAgentConfig` и создает config revisions / `config_outbox` тем же
-application path, что и HTTP API.
+В backoffice этот render action живет прямо на `Agent` list/detail как
+`Собрать config`. Action работает в agent scope: собирает
+agent runtime/source config revision для выбранного агента и создает
+`config_outbox` тем же application path, что и HTTP API.
 Internal outbox actions `POST /backoffice/config-outbox/retry` и
 `POST /backoffice/config-outbox/dead-letter` также вызывают application use
 cases и не обновляют ORM-модели напрямую.

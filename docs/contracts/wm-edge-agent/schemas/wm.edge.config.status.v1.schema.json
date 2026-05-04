@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://industrial-edge-web-monitoring.local/contracts/wm-edge-agent/wm.edge.config.status.v1.schema.json",
     "title": "wm.edge.config.status.v1",
-    "description": "Retained status message describing the runtime config revision currently applied by an edge agent.",
+    "description": "Retained status message describing the agent runtime config revision currently applied by an edge agent.",
     "type": "object",
     "additionalProperties": false,
     "required": [

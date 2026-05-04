@@ -10,10 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from wm_config_registry.domain.entities import (
     Agent,
+    AgentRuntimeConfigRevision,
     Asset,
     ConfigOutboxRecord,
     Point,
-    RuntimeConfigRevision,
     Source,
     SourceConfigRevision,
     Tenant,
@@ -30,10 +30,10 @@ from wm_config_registry.domain.value_objects import (
 from wm_config_registry.infrastructure.postgres.database import PostgresSessionManager
 from wm_config_registry.infrastructure.postgres.models import (
     AgentModel,
+    AgentRuntimeConfigRevisionModel,
     AssetModel,
     ConfigOutboxModel,
     PointModel,
-    RuntimeConfigRevisionModel,
     SourceConfigRevisionModel,
     SourceModel,
     TenantModel,
@@ -194,32 +194,32 @@ def _point_from_model(model: PointModel) -> Point:
     )
 
 
-def _runtime_config_revision_to_model(
-    revision: RuntimeConfigRevision,
-) -> RuntimeConfigRevisionModel:
-    return RuntimeConfigRevisionModel(
+def _agent_runtime_config_revision_to_model(
+    revision: AgentRuntimeConfigRevision,
+) -> AgentRuntimeConfigRevisionModel:
+    return AgentRuntimeConfigRevisionModel(
         tenant_id=revision.tenant_id,
         asset_id=revision.asset_id,
         agent_id=revision.agent_id,
         config_revision=revision.config_revision,
         status=revision.status.value,
         issued_at=revision.issued_at,
-        runtime_payload_json=dict(revision.runtime_payload_json),
+        agent_runtime_payload_json=dict(revision.agent_runtime_payload_json),
         created_at=revision.created_at,
     )
 
 
-def _runtime_config_revision_from_model(
-    model: RuntimeConfigRevisionModel,
-) -> RuntimeConfigRevision:
-    return RuntimeConfigRevision(
+def _agent_runtime_config_revision_from_model(
+    model: AgentRuntimeConfigRevisionModel,
+) -> AgentRuntimeConfigRevision:
+    return AgentRuntimeConfigRevision(
         tenant_id=model.tenant_id,
         asset_id=model.asset_id,
         agent_id=model.agent_id,
         config_revision=model.config_revision,
         status=ConfigRevisionStatus(model.status),
         issued_at=model.issued_at,
-        runtime_payload_json=dict(model.runtime_payload_json),
+        agent_runtime_payload_json=dict(model.agent_runtime_payload_json),
         created_at=model.created_at,
     )
 
@@ -323,6 +323,16 @@ class PostgresTenantRepository:
         model = await self.session.get(TenantModel, tenant_id)
         return _tenant_from_model(model) if model is not None else None
 
+    async def update(self, tenant: Tenant) -> None:
+        await self.session.merge(_tenant_to_model(tenant))
+        await self.session.flush()
+
+    async def delete(self, tenant_id: str) -> None:
+        model = await self.session.get(TenantModel, tenant_id)
+        if model is not None:
+            await self.session.delete(model)
+            await self.session.flush()
+
     async def list(self) -> list[Tenant]:
         result = await self.session.scalars(
             select(TenantModel).order_by(TenantModel.tenant_id)
@@ -340,6 +350,16 @@ class PostgresAssetRepository:
     async def get(self, tenant_id: str, asset_id: str) -> Asset | None:
         model = await self.session.get(AssetModel, (tenant_id, asset_id))
         return _asset_from_model(model) if model is not None else None
+
+    async def update(self, asset: Asset) -> None:
+        await self.session.merge(_asset_to_model(asset))
+        await self.session.flush()
+
+    async def delete(self, tenant_id: str, asset_id: str) -> None:
+        model = await self.session.get(AssetModel, (tenant_id, asset_id))
+        if model is not None:
+            await self.session.delete(model)
+            await self.session.flush()
 
     async def list_for_tenant(self, tenant_id: str) -> list[Asset]:
         result = await self.session.scalars(
@@ -360,6 +380,16 @@ class PostgresAgentRepository:
     async def get(self, tenant_id: str, asset_id: str, agent_id: str) -> Agent | None:
         model = await self.session.get(AgentModel, (tenant_id, asset_id, agent_id))
         return _agent_from_model(model) if model is not None else None
+
+    async def update(self, agent: Agent) -> None:
+        await self.session.merge(_agent_to_model(agent))
+        await self.session.flush()
+
+    async def delete(self, tenant_id: str, asset_id: str, agent_id: str) -> None:
+        model = await self.session.get(AgentModel, (tenant_id, asset_id, agent_id))
+        if model is not None:
+            await self.session.delete(model)
+            await self.session.flush()
 
     async def list_for_asset(self, tenant_id: str, asset_id: str) -> list[Agent]:
         result = await self.session.scalars(
@@ -393,6 +423,25 @@ class PostgresSourceRepository:
         )
         return _source_from_model(model) if model is not None else None
 
+    async def update(self, source: Source) -> None:
+        await self.session.merge(_source_to_model(source))
+        await self.session.flush()
+
+    async def delete(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> None:
+        model = await self.session.get(
+            SourceModel,
+            (tenant_id, asset_id, agent_id, source_id),
+        )
+        if model is not None:
+            await self.session.delete(model)
+            await self.session.flush()
+
     async def list_for_agent(
         self,
         tenant_id: str,
@@ -421,6 +470,16 @@ class PostgresPointRepository:
     async def get_by_id(self, tenant_id: str, point_id: str) -> Point | None:
         model = await self.session.get(PointModel, (tenant_id, point_id))
         return _point_from_model(model) if model is not None else None
+
+    async def update(self, point: Point) -> None:
+        await self.session.merge(_point_to_model(point))
+        await self.session.flush()
+
+    async def delete(self, tenant_id: str, point_id: str) -> None:
+        model = await self.session.get(PointModel, (tenant_id, point_id))
+        if model is not None:
+            await self.session.delete(model)
+            await self.session.flush()
 
     async def get_by_key(
         self,
@@ -483,11 +542,11 @@ class PostgresPointRepository:
 
 
 @dataclass
-class PostgresRuntimeConfigRevisionRepository:
+class PostgresAgentRuntimeConfigRevisionRepository:
     session: AsyncSession
 
-    async def add(self, revision: RuntimeConfigRevision) -> None:
-        self.session.add(_runtime_config_revision_to_model(revision))
+    async def add(self, revision: AgentRuntimeConfigRevision) -> None:
+        self.session.add(_agent_runtime_config_revision_to_model(revision))
 
     async def get(
         self,
@@ -495,16 +554,33 @@ class PostgresRuntimeConfigRevisionRepository:
         asset_id: str,
         agent_id: str,
         config_revision: str,
-    ) -> RuntimeConfigRevision | None:
+    ) -> AgentRuntimeConfigRevision | None:
         model = await self.session.get(
-            RuntimeConfigRevisionModel,
+            AgentRuntimeConfigRevisionModel,
             (tenant_id, asset_id, agent_id, config_revision),
         )
         return (
-            _runtime_config_revision_from_model(model)
+            _agent_runtime_config_revision_from_model(model)
             if model is not None
             else None
         )
+
+    async def has_any_for_agent(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+    ) -> bool:
+        result = await self.session.scalars(
+            select(AgentRuntimeConfigRevisionModel)
+            .where(
+                AgentRuntimeConfigRevisionModel.tenant_id == tenant_id,
+                AgentRuntimeConfigRevisionModel.asset_id == asset_id,
+                AgentRuntimeConfigRevisionModel.agent_id == agent_id,
+            )
+            .limit(1)
+        )
+        return result.first() is not None
 
 
 @dataclass
@@ -551,6 +627,25 @@ class PostgresSourceConfigRevisionRepository:
         )
         return [_source_config_revision_from_model(model) for model in result]
 
+    async def has_any_for_source(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> bool:
+        result = await self.session.scalars(
+            select(SourceConfigRevisionModel)
+            .where(
+                SourceConfigRevisionModel.tenant_id == tenant_id,
+                SourceConfigRevisionModel.asset_id == asset_id,
+                SourceConfigRevisionModel.agent_id == agent_id,
+                SourceConfigRevisionModel.source_id == source_id,
+            )
+            .limit(1)
+        )
+        return result.first() is not None
+
 
 @dataclass
 class PostgresConfigOutboxRepository:
@@ -589,6 +684,42 @@ class PostgresConfigOutboxRepository:
             .order_by(ConfigOutboxModel.config_scope)
         )
         return [_config_outbox_from_model(model) for model in result]
+
+    async def has_any_for_agent(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+    ) -> bool:
+        result = await self.session.scalars(
+            select(ConfigOutboxModel)
+            .where(
+                ConfigOutboxModel.tenant_id == tenant_id,
+                ConfigOutboxModel.asset_id == asset_id,
+                ConfigOutboxModel.agent_id == agent_id,
+            )
+            .limit(1)
+        )
+        return result.first() is not None
+
+    async def has_any_for_source(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> bool:
+        result = await self.session.scalars(
+            select(ConfigOutboxModel)
+            .where(
+                ConfigOutboxModel.tenant_id == tenant_id,
+                ConfigOutboxModel.asset_id == asset_id,
+                ConfigOutboxModel.agent_id == agent_id,
+                ConfigOutboxModel.source_id == source_id,
+            )
+            .limit(1)
+        )
+        return result.first() is not None
 
     async def reserve_available(
         self,
@@ -711,7 +842,7 @@ class PostgresUnitOfWork:
     agents: PostgresAgentRepository = field(init=False)
     sources: PostgresSourceRepository = field(init=False)
     points: PostgresPointRepository = field(init=False)
-    runtime_config_revisions: PostgresRuntimeConfigRevisionRepository = field(
+    agent_runtime_config_revisions: PostgresAgentRuntimeConfigRevisionRepository = field(
         init=False
     )
     source_config_revisions: PostgresSourceConfigRevisionRepository = field(
@@ -728,7 +859,7 @@ class PostgresUnitOfWork:
         self.agents = PostgresAgentRepository(self._session)
         self.sources = PostgresSourceRepository(self._session)
         self.points = PostgresPointRepository(self._session)
-        self.runtime_config_revisions = PostgresRuntimeConfigRevisionRepository(
+        self.agent_runtime_config_revisions = PostgresAgentRuntimeConfigRevisionRepository(
             self._session
         )
         self.source_config_revisions = PostgresSourceConfigRevisionRepository(

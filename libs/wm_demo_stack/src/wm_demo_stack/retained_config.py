@@ -22,7 +22,7 @@ def wait_for_retained_config_projection(
         return
 
     expected_topics = {
-        settings.scope.runtime_config_topic(),
+        settings.scope.agent_runtime_config_topic(),
         *[
             settings.scope.source_config_topic(source.source_id)
             for source in settings.bundle.sources

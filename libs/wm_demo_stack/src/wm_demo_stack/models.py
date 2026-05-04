@@ -28,8 +28,8 @@ class TopicScope:
     asset_id: str
     agent_id: str
 
-    def runtime_config_topic(self) -> str:
-        return f"{self.topic_root}/agents/{self.agent_id}/config/runtime"
+    def agent_runtime_config_topic(self) -> str:
+        return f"{self.topic_root}/agents/{self.agent_id}/config/agent-runtime"
 
     def source_config_topic(self, source_id: str) -> str:
         return f"{self.topic_root}/agents/{self.agent_id}/sources/{source_id}/config"

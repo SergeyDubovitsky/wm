@@ -1252,6 +1252,8 @@ dependencies = [
     { name = "wm-config-registry" },
     { name = "wm-demo-stack" },
     { name = "wm-edge-agent" },
+    { name = "wm-knx-demo" },
+    { name = "wm-knx-parser" },
 ]
 
 [package.dev-dependencies]
@@ -1274,6 +1276,8 @@ requires-dist = [
     { name = "wm-config-registry", editable = "apps/wm_config_registry" },
     { name = "wm-demo-stack", editable = "libs/wm_demo_stack" },
     { name = "wm-edge-agent", editable = "apps/wm_edge_agent" },
+    { name = "wm-knx-demo", editable = "apps/wm_knx_demo" },
+    { name = "wm-knx-parser", editable = "libs/wm_knx_parser" },
 ]
 
 [package.metadata.requires-dev]

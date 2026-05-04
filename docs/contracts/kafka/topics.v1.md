@@ -25,7 +25,7 @@
 | Consumer group | Reads | Writes / side effects |
 | --- | --- | --- |
 | `telemetry-store-writer.v1` | telemetry, source config, source connection, agent status, derived events | ClickHouse `Telemetry Store` tables |
-| `edge-config-mqtt-projector.v1` | edge config delivery records | MQTT retained runtime/source config topics |
+| `edge-config-mqtt-projector.v1` | edge config delivery records | MQTT retained agent runtime/source config topics |
 | `source-config-snapshot-projector.v1` | edge config delivery records | `wm.platform.source.configs.v1` source config snapshots |
 | `streaming-analytics.v1` | telemetry, source config | derived events, rollups and aggregates |
 | `alarm-rule-engine.v1` | telemetry, source connection, agent status, derived events | alarm history, current alarm workflow state and notifications |
@@ -33,14 +33,14 @@
 ## Common rules
 
 - `tenant_id` обязателен во всех normal platform topics.
-- `tenant_id` присутствует в MQTT telemetry payload как edge claim из server-issued runtime config и валидируется ingestion-слоем.
-- `wm.platform.edge.configs.v1` является Kafka-first delivery log для edge runtime/source configs; wm-edge-agent не читает Kafka, а получает MQTT retained projection.
-- `wm.platform.edge.configs.v1` records обязаны содержать `config_scope`: `runtime` для root config или `source:{source_id}` для source config.
+- `tenant_id` присутствует в MQTT telemetry payload как edge claim из server-issued agent runtime config и валидируется ingestion-слоем.
+- `wm.platform.edge.configs.v1` является Kafka-first delivery log для edge agent runtime/source configs; wm-edge-agent не читает Kafka, а получает MQTT retained projection.
+- `wm.platform.edge.configs.v1` records обязаны содержать `config_scope`: `agent_runtime` для root agent runtime config или `source:{source_id}` для source config.
 - `wm.platform.edge.configs.v1` records обязаны содержать `target_mqtt_topic`, `mqtt_retain=true`, `mqtt_qos=1`, `operation` и `payload`, чтобы MQTT retained projection была детерминированной и восстанавливаемой replay-ем Kafka topic.
 - `wm.platform.source.configs.v1` строится только из `wm.platform.edge.configs.v1`; retained MQTT source configs не являются authoritative Kafka ingress для source config snapshots.
 - `event_id` является непрозрачной непустой строкой; Kafka consumers не должны требовать UUID-only формат.
 - `idempotency_key` обязателен для records, которые пишутся в ClickHouse.
-- `wm.edge.runtime-config.v1` не зеркалится из retained MQTT обратно в Kafka; runtime/source configs попадают в Kafka только как `wm.platform.edge.config.delivery.v1` records из Config Registry/YAML delivery path.
+- `wm.edge.agent-runtime-config.v1` не зеркалится из retained MQTT обратно в Kafka; agent runtime/source configs попадают в Kafka только как `wm.platform.edge.config.delivery.v1` records из Config Registry/YAML delivery path.
 - `wm.edge.config.status.v1` не зеркалится в Kafka topics этого контракта `v1`; он остается retained MQTT/status contract для bootstrap/operations до отдельного runtime-инкремента.
 - Topic names и key templates являются breaking contract surface; изменение требует новой версии topic.
 - Compacted status/config topics хранят latest state по key, но не заменяют ClickHouse snapshots и history.

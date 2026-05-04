@@ -19,9 +19,9 @@ from wm_demo_stack.runtime import RuntimePort
 EDGE_CONFIG_TOPIC = "wm.platform.edge.configs.v1"
 
 
-def runtime_config_payload(settings: DemoSettings) -> dict[str, Any]:
+def agent_runtime_config_payload(settings: DemoSettings) -> dict[str, Any]:
     return {
-        "message_type": "wm.edge.runtime-config.v1",
+        "message_type": "wm.edge.agent-runtime-config.v1",
         "tenant_id": settings.bundle.tenant_id,
         "asset_id": settings.bundle.asset_id,
         "agent_id": settings.bundle.agent_id,
@@ -61,22 +61,22 @@ def source_config_payload(
 
 
 def config_delivery_records(settings: DemoSettings) -> list[KafkaRecord]:
-    runtime_payload = runtime_config_payload(settings)
+    agent_runtime_payload = agent_runtime_config_payload(settings)
     records = [
         KafkaRecord(
             topic=EDGE_CONFIG_TOPIC,
             key=(
                 f"{settings.bundle.tenant_id}|{settings.bundle.asset_id}|"
-                f"{settings.bundle.agent_id}|runtime"
+                f"{settings.bundle.agent_id}|agent_runtime"
             ),
             payload=_config_delivery_record(
                 settings=settings,
-                config_scope="runtime",
+                config_scope="agent_runtime",
                 source_id=None,
                 source_config_revision=None,
-                target_mqtt_topic=settings.scope.runtime_config_topic(),
-                payload_message_type="wm.edge.runtime-config.v1",
-                payload=runtime_payload,
+                target_mqtt_topic=settings.scope.agent_runtime_config_topic(),
+                payload_message_type="wm.edge.agent-runtime-config.v1",
+                payload=agent_runtime_payload,
             ),
         )
     ]
@@ -207,8 +207,8 @@ class DemoScenario:
         if self.settings.publish_config:
             messages.append(
                 PublishMessage(
-                    topic=self.settings.scope.runtime_config_topic(),
-                    payload=runtime_config_payload(self.settings),
+                    topic=self.settings.scope.agent_runtime_config_topic(),
+                    payload=agent_runtime_config_payload(self.settings),
                     retain=True,
                 )
             )

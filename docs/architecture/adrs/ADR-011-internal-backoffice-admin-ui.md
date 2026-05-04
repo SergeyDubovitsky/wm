@@ -74,7 +74,7 @@ FastAPI app
 - админка не должна публиковать Kafka/MQTT messages напрямую
 
 Это значит, что outbox работает с админкой только после явного render action:
-direct CRUD меняет stored config state, но не выпускает новую runtime/source
+direct CRUD меняет stored config state, но не выпускает новую agent runtime/source
 config revision сам по себе.
 
 Проблемный вариант:
@@ -122,7 +122,7 @@ Backoffice views первого инкремента:
 - `Agent`
 - `Source`
 - `Point`
-- `RuntimeConfigRevision`
+- `AgentRuntimeConfigRevision`
 - `SourceConfigRevision`
 - `ConfigOutboxRecord`
 
@@ -131,7 +131,7 @@ Backoffice views первого инкремента:
 - для internal backoffice включается полный SQLAdmin CRUD по всем ModelViews
 - создание `Tenant` / `Object` / `Agent` / `Source` / `Point` идет через
   application use cases, где такие adapters уже реализованы
-- update/delete и технические таблицы `RuntimeConfigRevision`,
+- update/delete и технические таблицы `AgentRuntimeConfigRevision`,
   `SourceConfigRevision`, `ConfigOutboxRecord` допускаются как прямой SQLAdmin
   ORM shortcut для внутренних операторов
 - после прямых CRUD-правок config state оператор обязан явно вызвать

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,9 +12,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from wm_config_registry.application.use_cases.render_config import (
-    RenderAgentConfig,
-    RenderAgentConfigCommand,
-    StoreRenderedAgentConfig,
+    RenderAgentRuntimeConfig,
+    RenderAgentRuntimeConfigCommand,
+    StoreRenderedAgentRuntimeConfig,
 )
 from wm_config_registry.domain.entities import ConfigOutboxRecord
 from wm_config_registry.infrastructure.json_schema_validator import (
@@ -41,30 +42,30 @@ async def test_config_registry_kafka_publisher_writes_config_delivery_record(
 ) -> None:
     record = ConfigOutboxRecord.new(
         tenant_id="tenant-a",
-        idempotency_key="tenant-a|asset-a|agent-a|rev-001|runtime",
+        idempotency_key="tenant-a|asset-a|agent-a|rev-001|agent_runtime",
         asset_id="asset-a",
         agent_id="agent-a",
         config_revision="rev-001",
-        config_scope="runtime",
+        config_scope="agent_runtime",
         source_id=None,
         source_config_revision=None,
-        kafka_key="tenant-a|asset-a|agent-a|runtime",
+        kafka_key="tenant-a|asset-a|agent-a|agent_runtime",
         payload_json={
             "message_type": "wm.platform.edge.config.delivery.v1",
             "tenant_id": "tenant-a",
             "asset_id": "asset-a",
             "agent_id": "agent-a",
             "config_revision": "rev-001",
-            "config_scope": "runtime",
+            "config_scope": "agent_runtime",
             "source_id": None,
             "source_config_revision": None,
-            "target_mqtt_topic": "wm/v1/agents/agent-a/config/runtime",
+            "target_mqtt_topic": "wm/v1/agents/agent-a/config/agent-runtime",
             "mqtt_retain": True,
             "mqtt_qos": 1,
             "operation": "upsert",
-            "payload_message_type": "wm.edge.runtime-config.v1",
+            "payload_message_type": "wm.edge.agent-runtime-config.v1",
             "payload": {
-                "message_type": "wm.edge.runtime-config.v1",
+                "message_type": "wm.edge.agent-runtime-config.v1",
                 "tenant_id": "tenant-a",
                 "asset_id": "asset-a",
                 "agent_id": "agent-a",
@@ -78,7 +79,7 @@ async def test_config_registry_kafka_publisher_writes_config_delivery_record(
                     }
                 ],
             },
-            "idempotency_key": "tenant-a|asset-a|agent-a|rev-001|runtime",
+            "idempotency_key": "tenant-a|asset-a|agent-a|rev-001|agent_runtime",
             "issued_at": "2026-05-03T10:00:00Z",
         },
     )
@@ -94,12 +95,12 @@ async def test_config_registry_kafka_publisher_writes_config_delivery_record(
         timeout=30,
     )
 
-    assert key == "tenant-a|asset-a|agent-a|runtime"
+    assert key == "tenant-a|asset-a|agent-a|agent_runtime"
     assert payload["message_type"] == "wm.platform.edge.config.delivery.v1"
     assert payload["tenant_id"] == "tenant-a"
-    assert payload["config_scope"] == "runtime"
-    assert payload["target_mqtt_topic"] == "wm/v1/agents/agent-a/config/runtime"
-    assert payload["payload"]["message_type"] == "wm.edge.runtime-config.v1"
+    assert payload["config_scope"] == "agent_runtime"
+    assert payload["target_mqtt_topic"] == "wm/v1/agents/agent-a/config/agent-runtime"
+    assert payload["payload"]["message_type"] == "wm.edge.agent-runtime-config.v1"
 
 
 @pytest.mark.asyncio
@@ -116,8 +117,8 @@ async def test_config_registry_cli_publishes_outbox_batch_to_kafka(
     unit_of_work_factory = PostgresUnitOfWorkFactory.from_url(settings.database_url)
     validator = JsonSchemaConfigPayloadValidator.from_contract_dir(CONTRACT_DIR)
     try:
-        rendered = await RenderAgentConfig(unit_of_work_factory(), validator).execute(
-            RenderAgentConfigCommand(
+        rendered = await RenderAgentRuntimeConfig(unit_of_work_factory(), validator).execute(
+            RenderAgentRuntimeConfigCommand(
                 tenant_id="tenant-cli",
                 asset_id="asset-a",
                 agent_id="agent-a",
@@ -126,7 +127,7 @@ async def test_config_registry_cli_publishes_outbox_batch_to_kafka(
                 source_config_revisions={"knx-main": "rev-cli-001-knx-main"},
             )
         )
-        await StoreRenderedAgentConfig(unit_of_work_factory(), validator).execute(
+        await StoreRenderedAgentRuntimeConfig(unit_of_work_factory(), validator).execute(
             rendered
         )
     finally:
@@ -164,13 +165,13 @@ async def test_config_registry_cli_publishes_outbox_batch_to_kafka(
 
     assert result.returncode == 0, result.stderr
     assert "published=2" in result.stdout
-    runtime_key, runtime_payload = local_platform_stack.consume_kafka_json(
+    runtime_key, agent_runtime_payload = local_platform_stack.consume_kafka_json(
         "wm.platform.edge.configs.v1",
         timeout=30,
     )
 
-    assert runtime_key == "tenant-cli|asset-a|agent-a|runtime"
-    assert runtime_payload["config_scope"] == "runtime"
+    assert runtime_key == "tenant-cli|asset-a|agent-a|agent_runtime"
+    assert agent_runtime_payload["config_scope"] == "agent_runtime"
 
 
 def test_config_outbox_worker_container_publishes_records_to_kafka_and_mqtt(
@@ -190,12 +191,12 @@ def test_config_outbox_worker_container_publishes_records_to_kafka_and_mqtt(
         },
     )
 
-    runtime_key, runtime_payload = local_config_delivery_stack.consume_kafka_json(
+    runtime_key, agent_runtime_payload = local_config_delivery_stack.consume_kafka_json(
         "wm.platform.edge.configs.v1",
         timeout=60,
     )
     runtime_message = local_config_delivery_stack.wait_for_mqtt_json(
-        "wm/v1/agents/agent-a/config/runtime",
+        "wm/v1/agents/agent-a/config/agent-runtime",
         timeout=60,
     )
     source_snapshot_key, source_snapshot = (
@@ -206,11 +207,11 @@ def test_config_outbox_worker_container_publishes_records_to_kafka_and_mqtt(
     )
 
     assert rendered["outbox_record_count"] == 2
-    assert runtime_key == "tenant-worker|asset-a|agent-a|runtime"
-    assert runtime_payload["message_type"] == "wm.platform.edge.config.delivery.v1"
-    assert runtime_payload["config_scope"] == "runtime"
-    assert runtime_payload["payload"]["message_type"] == "wm.edge.runtime-config.v1"
-    assert runtime_message.payload["message_type"] == "wm.edge.runtime-config.v1"
+    assert runtime_key == "tenant-worker|asset-a|agent-a|agent_runtime"
+    assert agent_runtime_payload["message_type"] == "wm.platform.edge.config.delivery.v1"
+    assert agent_runtime_payload["config_scope"] == "agent_runtime"
+    assert agent_runtime_payload["payload"]["message_type"] == "wm.edge.agent-runtime-config.v1"
+    assert runtime_message.payload["message_type"] == "wm.edge.agent-runtime-config.v1"
     assert runtime_message.payload["tenant_id"] == "tenant-worker"
     assert runtime_message.payload["config_revision"] == "rev-worker-001"
     assert source_snapshot_key == "tenant-worker|asset-a|agent-a|knx-main"
@@ -226,29 +227,46 @@ def test_config_registry_api_container_uses_local_postgres(
         f"http://127.0.0.1:{local_config_delivery_stack.config_registry_port}"
         "/backoffice/"
     )
-    render_config_url = (
+    legacy_render_config_url = (
         f"http://127.0.0.1:{local_config_delivery_stack.config_registry_port}"
         "/backoffice/render-config"
+    )
+    agent_list_url = (
+        f"http://127.0.0.1:{local_config_delivery_stack.config_registry_port}"
+        "/backoffice/agent-model/list"
     )
     created = local_config_delivery_stack.config_registry_json(
         "POST",
         "/tenants",
         {"tenant_id": "tenant-api-container", "name": "Tenant API Container"},
     )
+    local_config_delivery_stack.config_registry_json(
+        "POST",
+        "/tenants/tenant-api-container/assets",
+        {"asset_id": "asset-api-container", "name": "Asset API Container"},
+    )
+    local_config_delivery_stack.config_registry_json(
+        "POST",
+        "/tenants/tenant-api-container/assets/asset-api-container/agents",
+        {"agent_id": "agent-api-container", "name": "Agent API Container"},
+    )
     tenants = local_config_delivery_stack.config_registry_json("GET", "/tenants")
     with urllib.request.urlopen(backoffice_url, timeout=10) as response:
         backoffice_status = response.status
         backoffice_html = response.read().decode()
-    with urllib.request.urlopen(render_config_url, timeout=10) as response:
-        render_config_status = response.status
-        render_config_html = response.read().decode()
+    with urllib.request.urlopen(agent_list_url, timeout=10) as response:
+        agent_list_status = response.status
+        agent_list_html = response.read().decode()
+    with pytest.raises(urllib.error.HTTPError) as legacy_render_config_error:
+        urllib.request.urlopen(legacy_render_config_url, timeout=10)
 
     assert health == {"status": "ok"}
     assert backoffice_status == 200
+    assert agent_list_status == 200
     assert "Web Monitoring Backoffice" in backoffice_html
-    assert render_config_status == 200
-    assert "Обновить config state" in render_config_html
-    assert "Без этого retained MQTT config" in render_config_html
+    assert "Собрать config" in agent_list_html
+    assert "render-agent-config" in agent_list_html
+    assert legacy_render_config_error.value.code == 404
     assert created["tenant_id"] == "tenant-api-container"
     assert any(
         tenant["tenant_id"] == "tenant-api-container"
@@ -266,16 +284,16 @@ def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
         "asset_id": "asset-a",
         "agent_id": "agent-a",
         "config_revision": "rev-projection-001",
-        "config_scope": "runtime",
+        "config_scope": "agent_runtime",
         "source_id": None,
         "source_config_revision": None,
-        "target_mqtt_topic": "wm/v1/agents/agent-a/config/runtime",
+        "target_mqtt_topic": "wm/v1/agents/agent-a/config/agent-runtime",
         "mqtt_retain": True,
         "mqtt_qos": 1,
         "operation": "upsert",
-        "payload_message_type": "wm.edge.runtime-config.v1",
+        "payload_message_type": "wm.edge.agent-runtime-config.v1",
         "payload": {
-            "message_type": "wm.edge.runtime-config.v1",
+            "message_type": "wm.edge.agent-runtime-config.v1",
             "tenant_id": "tenant-projection",
             "asset_id": "asset-a",
             "agent_id": "agent-a",
@@ -289,7 +307,7 @@ def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
                 }
             ],
         },
-        "idempotency_key": "tenant-projection|asset-a|agent-a|rev-projection-001|runtime",
+        "idempotency_key": "tenant-projection|asset-a|agent-a|rev-projection-001|agent_runtime",
         "issued_at": "2026-05-03T10:00:00Z",
     }
     source_record = {
@@ -354,7 +372,7 @@ def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
     local_platform_stack.produce_kafka_text(
         "wm.platform.edge.configs.v1",
         json.dumps(runtime_record),
-        key="tenant-projection|asset-a|agent-a|runtime",
+        key="tenant-projection|asset-a|agent-a|agent_runtime",
     )
     local_platform_stack.produce_kafka_text(
         "wm.platform.edge.configs.v1",
@@ -363,7 +381,7 @@ def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
     )
 
     runtime_message = local_platform_stack.wait_for_mqtt_json(
-        "wm/v1/agents/agent-a/config/runtime",
+        "wm/v1/agents/agent-a/config/agent-runtime",
         timeout=45,
     )
     source_message = local_platform_stack.wait_for_mqtt_json(
@@ -372,7 +390,7 @@ def test_redpanda_connect_projects_config_delivery_records_to_retained_mqtt(
     )
 
     assert runtime_message.retained is True
-    assert runtime_message.payload["message_type"] == "wm.edge.runtime-config.v1"
+    assert runtime_message.payload["message_type"] == "wm.edge.agent-runtime-config.v1"
     assert runtime_message.payload["tenant_id"] == "tenant-projection"
     assert runtime_message.payload["config_revision"] == "rev-projection-001"
     assert source_message.retained is True
@@ -447,7 +465,7 @@ def test_publish_edge_demo_cli_seeds_config_through_config_registry_api_by_defau
     assert "RETAINED_CONFIG_READY topics=2" in result.stdout
     assert "PUBLISHED_CONFIG_DELIVERY records=2" not in result.stdout
     runtime_message = local_config_delivery_stack.wait_for_mqtt_json(
-        "wm/v1/agents/demo-stand-local/config/runtime",
+        "wm/v1/agents/demo-stand-local/config/agent-runtime",
         timeout=45,
     )
     source_message = local_config_delivery_stack.wait_for_mqtt_json(
@@ -456,7 +474,7 @@ def test_publish_edge_demo_cli_seeds_config_through_config_registry_api_by_defau
     )
     if not runtime_message.retained:
         runtime_message = local_config_delivery_stack.wait_for_mqtt_json(
-            "wm/v1/agents/demo-stand-local/config/runtime",
+            "wm/v1/agents/demo-stand-local/config/agent-runtime",
             timeout=10,
         )
     if not source_message.retained:
@@ -466,7 +484,7 @@ def test_publish_edge_demo_cli_seeds_config_through_config_registry_api_by_defau
         )
 
     assert runtime_message.retained is True
-    assert runtime_message.payload["message_type"] == "wm.edge.runtime-config.v1"
+    assert runtime_message.payload["message_type"] == "wm.edge.agent-runtime-config.v1"
     assert runtime_message.payload["config_revision"] == "rev-demo-stand-001"
     assert source_message.retained is True
     assert source_message.payload["source_config_revision"] == (

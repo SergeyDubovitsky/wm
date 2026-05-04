@@ -23,7 +23,7 @@
 
 ## Разделы
 
-- `wm-edge-agent/` — контракты, которыми владеет `Edge Telemetry Agent`: bootstrap config, retained runtime/source configs, локальное SQLite-состояние, MQTT messages и MQTT topic tree.
+- `wm-edge-agent/` — контракты, которыми владеет `Edge Telemetry Agent`: bootstrap config, retained agent runtime/source configs, локальное SQLite-состояние, MQTT messages и MQTT topic tree.
 - `platform-ingestion/` — mapping `MQTT -> canonical Kafka record`, tenant/point enrichment и ingestion errors.
 - `kafka/` — Kafka topic names, keys, retention, value schemas и consumer group conventions.
 - `clickhouse/` — ClickHouse contract tables, migration-backed physical model, partition/order keys, rollups и retention policies.
@@ -34,5 +34,5 @@
 - Backward-compatible изменения допускаются внутри текущей версии только если старые consumer-ы продолжают работать.
 - Breaking changes требуют новой версии контракта.
 - `event_id` во всех edge/platform boundary contracts является непрозрачной непустой строкой для дедупликации, а не UUID-only типом.
-- `tenant_id` в MQTT telemetry payload является claim из server-issued runtime config; platform ingestion обязан валидировать claim.
+- `tenant_id` в MQTT telemetry payload является claim из server-issued agent runtime config; platform ingestion обязан валидировать claim.
 - `source_config_revision` является version marker для metadata source config.

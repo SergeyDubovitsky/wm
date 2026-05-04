@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://industrial-edge-web-monitoring.local/contracts/kafka/wm.platform.edge.config.delivery.v1.schema.json",
     "title": "wm.platform.edge.config.delivery.v1",
-    "description": "Kafka delivery envelope for MQTT retained edge runtime/source configuration projection.",
+    "description": "Kafka delivery envelope for MQTT retained edge agent-runtime/source configuration projection.",
     "type": "object",
     "additionalProperties": false,
     "required": [
@@ -43,7 +43,7 @@
         },
         "config_scope": {
             "type": "string",
-            "pattern": "^(runtime|source:[a-z0-9][a-z0-9_-]{0,127})$"
+            "pattern": "^(agent_runtime|source:[a-z0-9][a-z0-9_-]{0,127})$"
         },
         "source_id": {
             "type": [
@@ -61,7 +61,7 @@
         },
         "target_mqtt_topic": {
             "type": "string",
-            "description": "Retained MQTT topic to materialize: wm/v1/agents/{agent_id}/config/runtime or wm/v1/agents/{agent_id}/sources/{source_id}/config.",
+            "description": "Retained MQTT topic to materialize: wm/v1/agents/{agent_id}/config/agent-runtime or wm/v1/agents/{agent_id}/sources/{source_id}/config.",
             "minLength": 1
         },
         "mqtt_retain": {
@@ -83,7 +83,7 @@
         "payload_message_type": {
             "type": "string",
             "enum": [
-                "wm.edge.runtime-config.v1",
+                "wm.edge.agent-runtime-config.v1",
                 "wm.edge.source-config.v1"
             ]
         },
@@ -92,7 +92,7 @@
                 "object",
                 "null"
             ],
-            "description": "Runtime/source config payload for upsert. Null means MQTT retained delete/tombstone."
+            "description": "Agent-runtime/source config payload for upsert. Null means MQTT retained delete/tombstone."
         },
         "idempotency_key": {
             "type": "string",
@@ -108,7 +108,7 @@
             "if": {
                 "properties": {
                     "config_scope": {
-                        "const": "runtime"
+                        "const": "agent_runtime"
                     }
                 },
                 "required": [
@@ -124,7 +124,7 @@
                         "type": "null"
                     },
                     "payload_message_type": {
-                        "const": "wm.edge.runtime-config.v1"
+                        "const": "wm.edge.agent-runtime-config.v1"
                     }
                 }
             }

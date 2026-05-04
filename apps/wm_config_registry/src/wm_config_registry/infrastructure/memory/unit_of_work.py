@@ -7,10 +7,10 @@ from uuid import UUID
 
 from wm_config_registry.domain.entities import (
     Agent,
+    AgentRuntimeConfigRevision,
     Asset,
     ConfigOutboxRecord,
     Point,
-    RuntimeConfigRevision,
     Source,
     SourceConfigRevision,
     Tenant,
@@ -28,6 +28,12 @@ class InMemoryTenantRepository:
     async def get(self, tenant_id: str) -> Tenant | None:
         return self._items.get(tenant_id)
 
+    async def update(self, tenant: Tenant) -> None:
+        self._items[tenant.tenant_id] = tenant
+
+    async def delete(self, tenant_id: str) -> None:
+        self._items.pop(tenant_id, None)
+
     async def list(self) -> list[Tenant]:
         return sorted(self._items.values(), key=lambda tenant: tenant.tenant_id)
 
@@ -41,6 +47,12 @@ class InMemoryAssetRepository:
 
     async def get(self, tenant_id: str, asset_id: str) -> Asset | None:
         return self._items.get((tenant_id, asset_id))
+
+    async def update(self, asset: Asset) -> None:
+        self._items[(asset.tenant_id, asset.asset_id)] = asset
+
+    async def delete(self, tenant_id: str, asset_id: str) -> None:
+        self._items.pop((tenant_id, asset_id), None)
 
     async def list_for_tenant(self, tenant_id: str) -> list[Asset]:
         return sorted(
@@ -62,6 +74,12 @@ class InMemoryAgentRepository:
 
     async def get(self, tenant_id: str, asset_id: str, agent_id: str) -> Agent | None:
         return self._items.get((tenant_id, asset_id, agent_id))
+
+    async def update(self, agent: Agent) -> None:
+        self._items[(agent.tenant_id, agent.asset_id, agent.agent_id)] = agent
+
+    async def delete(self, tenant_id: str, asset_id: str, agent_id: str) -> None:
+        self._items.pop((tenant_id, asset_id, agent_id), None)
 
     async def list_for_asset(self, tenant_id: str, asset_id: str) -> list[Agent]:
         return sorted(
@@ -97,6 +115,25 @@ class InMemorySourceRepository:
     ) -> Source | None:
         return self._items.get((tenant_id, asset_id, agent_id, source_id))
 
+    async def update(self, source: Source) -> None:
+        self._items[
+            (
+                source.tenant_id,
+                source.asset_id,
+                source.agent_id,
+                source.source_id,
+            )
+        ] = source
+
+    async def delete(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> None:
+        self._items.pop((tenant_id, asset_id, agent_id, source_id), None)
+
     async def list_for_agent(
         self,
         tenant_id: str,
@@ -129,6 +166,12 @@ class InMemoryPointRepository:
 
     async def get_by_id(self, tenant_id: str, point_id: str) -> Point | None:
         return self._items.get((tenant_id, point_id))
+
+    async def update(self, point: Point) -> None:
+        self._items[(point.tenant_id, point.point_id)] = point
+
+    async def delete(self, tenant_id: str, point_id: str) -> None:
+        self._items.pop((tenant_id, point_id), None)
 
     async def get_by_key(
         self,
@@ -189,12 +232,12 @@ class InMemoryPointRepository:
 
 
 @dataclass
-class InMemoryRuntimeConfigRevisionRepository:
-    _items: dict[tuple[str, str, str, str], RuntimeConfigRevision] = field(
+class InMemoryAgentRuntimeConfigRevisionRepository:
+    _items: dict[tuple[str, str, str, str], AgentRuntimeConfigRevision] = field(
         default_factory=dict
     )
 
-    async def add(self, revision: RuntimeConfigRevision) -> None:
+    async def add(self, revision: AgentRuntimeConfigRevision) -> None:
         self._items[
             (
                 revision.tenant_id,
@@ -210,8 +253,21 @@ class InMemoryRuntimeConfigRevisionRepository:
         asset_id: str,
         agent_id: str,
         config_revision: str,
-    ) -> RuntimeConfigRevision | None:
+    ) -> AgentRuntimeConfigRevision | None:
         return self._items.get((tenant_id, asset_id, agent_id, config_revision))
+
+    async def has_any_for_agent(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+    ) -> bool:
+        return any(
+            revision.tenant_id == tenant_id
+            and revision.asset_id == asset_id
+            and revision.agent_id == agent_id
+            for revision in self._items.values()
+        )
 
 
 @dataclass
@@ -262,6 +318,21 @@ class InMemorySourceConfigRevisionRepository:
             key=lambda revision: revision.source_id,
         )
 
+    async def has_any_for_source(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> bool:
+        return any(
+            revision.tenant_id == tenant_id
+            and revision.asset_id == asset_id
+            and revision.agent_id == agent_id
+            and revision.source_id == source_id
+            for revision in self._items.values()
+        )
+
 
 @dataclass
 class InMemoryConfigOutboxRepository:
@@ -293,6 +364,34 @@ class InMemoryConfigOutboxRepository:
                 and record.config_revision == config_revision
             ),
             key=lambda record: record.config_scope,
+        )
+
+    async def has_any_for_agent(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+    ) -> bool:
+        return any(
+            record.tenant_id == tenant_id
+            and record.asset_id == asset_id
+            and record.agent_id == agent_id
+            for record in self._items.values()
+        )
+
+    async def has_any_for_source(
+        self,
+        tenant_id: str,
+        asset_id: str,
+        agent_id: str,
+        source_id: str,
+    ) -> bool:
+        return any(
+            record.tenant_id == tenant_id
+            and record.asset_id == asset_id
+            and record.agent_id == agent_id
+            and record.source_id == source_id
+            for record in self._items.values()
         )
 
     async def reserve_available(
@@ -400,7 +499,7 @@ class InMemoryUnitOfWork:
     agents: InMemoryAgentRepository
     sources: InMemorySourceRepository
     points: InMemoryPointRepository
-    runtime_config_revisions: InMemoryRuntimeConfigRevisionRepository
+    agent_runtime_config_revisions: InMemoryAgentRuntimeConfigRevisionRepository
     source_config_revisions: InMemorySourceConfigRevisionRepository
     config_outbox: InMemoryConfigOutboxRepository
     committed: bool = False
@@ -427,8 +526,8 @@ class InMemoryUnitOfWorkFactory:
     agents: InMemoryAgentRepository = field(default_factory=InMemoryAgentRepository)
     sources: InMemorySourceRepository = field(default_factory=InMemorySourceRepository)
     points: InMemoryPointRepository = field(default_factory=InMemoryPointRepository)
-    runtime_config_revisions: InMemoryRuntimeConfigRevisionRepository = field(
-        default_factory=InMemoryRuntimeConfigRevisionRepository
+    agent_runtime_config_revisions: InMemoryAgentRuntimeConfigRevisionRepository = field(
+        default_factory=InMemoryAgentRuntimeConfigRevisionRepository
     )
     source_config_revisions: InMemorySourceConfigRevisionRepository = field(
         default_factory=InMemorySourceConfigRevisionRepository
@@ -444,7 +543,7 @@ class InMemoryUnitOfWorkFactory:
             agents=self.agents,
             sources=self.sources,
             points=self.points,
-            runtime_config_revisions=self.runtime_config_revisions,
+            agent_runtime_config_revisions=self.agent_runtime_config_revisions,
             source_config_revisions=self.source_config_revisions,
             config_outbox=self.config_outbox,
         )

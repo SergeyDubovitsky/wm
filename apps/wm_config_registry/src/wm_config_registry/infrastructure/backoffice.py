@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import html
 import json
+from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from fastapi import FastAPI
 from sqladmin import Admin, BaseView, ModelView, expose
+from sqladmin.fields import SelectField
+from sqladmin.forms import get_model_form
 from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from wm_config_registry.application.errors import (
     AgentNotFoundError,
@@ -21,10 +26,12 @@ from wm_config_registry.application.errors import (
 from wm_config_registry.application.use_cases.agents import (
     CreateAgent,
     CreateAgentCommand,
+    ListAgents,
 )
 from wm_config_registry.application.use_cases.assets import (
     CreateAsset,
     CreateAssetCommand,
+    ListAssets,
 )
 from wm_config_registry.application.use_cases.config_outbox import (
     MarkConfigOutboxDeadLetter,
@@ -44,10 +51,12 @@ from wm_config_registry.application.use_cases.render_config import (
 from wm_config_registry.application.use_cases.sources import (
     CreateSource,
     CreateSourceCommand,
+    ListSources,
 )
 from wm_config_registry.application.use_cases.tenants import (
     CreateTenant,
     CreateTenantCommand,
+    ListTenants,
 )
 from wm_config_registry.domain.value_objects import SignalType, ValueType
 from wm_config_registry.infrastructure.postgres.models import (
@@ -61,6 +70,30 @@ from wm_config_registry.infrastructure.postgres.models import (
     TenantModel,
 )
 
+_CURRENT_BACKOFFICE_STATE: ContextVar[Any | None] = ContextVar(
+    "current_backoffice_state",
+    default=None,
+)
+
+
+class BackofficeStateContextMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        state = scope["app"].state
+        root_app = getattr(state, "root_app", None)
+        resolved_state = root_app.state if root_app is not None else state
+        token = _CURRENT_BACKOFFICE_STATE.set(resolved_state)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            _CURRENT_BACKOFFICE_STATE.reset(token)
+
 
 class BackofficeCrudModelView(ModelView):
     can_create = True
@@ -68,6 +101,7 @@ class BackofficeCrudModelView(ModelView):
     can_delete = True
     can_view_details = True
     can_export = True
+    form_include_pk = True
     page_size = 50
     page_size_options = [25, 50, 100]
 
@@ -89,7 +123,7 @@ class TenantBackofficeView(BackofficeCrudModelView, model=TenantModel):
     ]
 
     async def insert_model(self, request: Request, data: dict[str, object]) -> object:
-        tenant = await CreateTenant(request.app.state.unit_of_work_factory()).execute(
+        tenant = await CreateTenant(_state(request).unit_of_work_factory()).execute(
             CreateTenantCommand(
                 tenant_id=str(data["tenant_id"]),
                 name=str(data["name"]),
@@ -108,6 +142,8 @@ class AssetBackofficeView(BackofficeCrudModelView, model=AssetModel):
     name = "Asset"
     name_plural = "Assets"
     category = "Registry"
+    form_overrides = {"tenant_id": SelectField}
+    form_args = {"tenant_id": {"label": "Tenant"}}
     form_columns = [
         AssetModel.tenant_id,
         AssetModel.asset_id,
@@ -122,8 +158,13 @@ class AssetBackofficeView(BackofficeCrudModelView, model=AssetModel):
         AssetModel.updated_at,
     ]
 
+    async def scaffold_form(self, rules: list[str] | None = None) -> type:
+        form = await super().scaffold_form(rules)
+        form.tenant_id.kwargs["choices"] = await _tenant_select_choices()
+        return form
+
     async def insert_model(self, request: Request, data: dict[str, object]) -> object:
-        asset = await CreateAsset(request.app.state.unit_of_work_factory()).execute(
+        asset = await CreateAsset(_state(request).unit_of_work_factory()).execute(
             CreateAssetCommand(
                 tenant_id=str(data["tenant_id"]),
                 asset_id=str(data["asset_id"]),
@@ -142,10 +183,33 @@ class AssetBackofficeView(BackofficeCrudModelView, model=AssetModel):
         )
 
 
+@dataclass(frozen=True)
+class AssetSelection:
+    tenant_id: str
+    asset_id: str
+
+
+@dataclass(frozen=True)
+class AgentSelection:
+    tenant_id: str
+    asset_id: str
+    agent_id: str
+
+
+@dataclass(frozen=True)
+class SourceSelection:
+    tenant_id: str
+    asset_id: str
+    agent_id: str
+    source_id: str
+
+
 class AgentBackofficeView(BackofficeCrudModelView, model=AgentModel):
     name = "Agent"
     name_plural = "Agents"
     category = "Registry"
+    form_create_rules = ["asset_id", "agent_id", "name"]
+    form_edit_rules = ["tenant_id", "asset_id", "agent_id", "name"]
     form_columns = [
         AgentModel.tenant_id,
         AgentModel.asset_id,
@@ -160,11 +224,38 @@ class AgentBackofficeView(BackofficeCrudModelView, model=AgentModel):
         AgentModel.updated_at,
     ]
 
+    async def scaffold_form(self, rules: list[str] | None = None) -> type:
+        is_create_form = rules == self._form_create_rules
+        form = await get_model_form(
+            model=self.model,
+            session_maker=self.session_maker,  # type: ignore[arg-type]
+            only=self.form_create_rules if is_create_form else self._form_prop_names,
+            column_labels=self._column_labels,
+            form_args=self.form_args,
+            form_widget_args=self.form_widget_args,
+            form_class=self.form_base_class,
+            form_overrides={"asset_id": SelectField} if is_create_form else {},
+            form_ajax_refs=self._form_ajax_refs,
+            form_include_pk=self.form_include_pk,
+            form_converter=self.form_converter,
+        )
+        if is_create_form:
+            form.asset_id.kwargs["choices"] = await _asset_select_choices()
+            form.asset_id.kwargs["coerce"] = _asset_selection_from_choice
+            form.asset_id.kwargs["label"] = "Asset"
+        if rules:
+            self._validate_form_class(rules, form)
+        return form
+
     async def insert_model(self, request: Request, data: dict[str, object]) -> object:
-        agent = await CreateAgent(request.app.state.unit_of_work_factory()).execute(
+        asset_selection = _resolve_asset_selection(
+            data.get("tenant_id"),
+            data.get("asset_id"),
+        )
+        agent = await CreateAgent(_state(request).unit_of_work_factory()).execute(
             CreateAgentCommand(
-                tenant_id=str(data["tenant_id"]),
-                asset_id=str(data["asset_id"]),
+                tenant_id=asset_selection.tenant_id,
+                asset_id=asset_selection.asset_id,
                 agent_id=str(data["agent_id"]),
                 name=_optional_string(data.get("name")),
             )
@@ -185,6 +276,24 @@ class SourceBackofficeView(BackofficeCrudModelView, model=SourceModel):
     name = "Source"
     name_plural = "Sources"
     category = "Registry"
+    form_create_rules = [
+        "agent_id",
+        "source_id",
+        "source_type",
+        "enabled",
+        "name",
+        "description",
+    ]
+    form_edit_rules = [
+        "tenant_id",
+        "asset_id",
+        "agent_id",
+        "source_id",
+        "source_type",
+        "enabled",
+        "name",
+        "description",
+    ]
     form_columns = [
         SourceModel.tenant_id,
         SourceModel.asset_id,
@@ -205,12 +314,40 @@ class SourceBackofficeView(BackofficeCrudModelView, model=SourceModel):
         SourceModel.updated_at,
     ]
 
+    async def scaffold_form(self, rules: list[str] | None = None) -> type:
+        is_create_form = rules == self._form_create_rules
+        form = await get_model_form(
+            model=self.model,
+            session_maker=self.session_maker,  # type: ignore[arg-type]
+            only=self.form_create_rules if is_create_form else self._form_prop_names,
+            column_labels=self._column_labels,
+            form_args=self.form_args,
+            form_widget_args=self.form_widget_args,
+            form_class=self.form_base_class,
+            form_overrides={"agent_id": SelectField} if is_create_form else {},
+            form_ajax_refs=self._form_ajax_refs,
+            form_include_pk=self.form_include_pk,
+            form_converter=self.form_converter,
+        )
+        if is_create_form:
+            form.agent_id.kwargs["choices"] = await _agent_select_choices()
+            form.agent_id.kwargs["coerce"] = _agent_selection_from_choice
+            form.agent_id.kwargs["label"] = "Agent"
+        if rules:
+            self._validate_form_class(rules, form)
+        return form
+
     async def insert_model(self, request: Request, data: dict[str, object]) -> object:
-        source = await CreateSource(request.app.state.unit_of_work_factory()).execute(
+        agent_selection = _resolve_agent_selection(
+            data.get("tenant_id"),
+            data.get("asset_id"),
+            data.get("agent_id"),
+        )
+        source = await CreateSource(_state(request).unit_of_work_factory()).execute(
             CreateSourceCommand(
-                tenant_id=str(data["tenant_id"]),
-                asset_id=str(data["asset_id"]),
-                agent_id=str(data["agent_id"]),
+                tenant_id=agent_selection.tenant_id,
+                asset_id=agent_selection.asset_id,
+                agent_id=agent_selection.agent_id,
                 source_id=str(data["source_id"]),
                 source_type=str(data["source_type"]),
                 enabled=_optional_bool(data.get("enabled"), default=True),
@@ -241,6 +378,33 @@ class PointBackofficeView(BackofficeCrudModelView, model=PointModel):
     name = "Point"
     name_plural = "Points"
     category = "Registry"
+    form_create_rules = [
+        "source_id",
+        "point_id",
+        "point_key",
+        "point_ref",
+        "name",
+        "value_type",
+        "value_model",
+        "signal_type",
+        "unit",
+        "enabled",
+    ]
+    form_edit_rules = [
+        "tenant_id",
+        "asset_id",
+        "agent_id",
+        "source_id",
+        "point_id",
+        "point_key",
+        "point_ref",
+        "name",
+        "value_type",
+        "value_model",
+        "signal_type",
+        "unit",
+        "enabled",
+    ]
     form_columns = [
         PointModel.tenant_id,
         PointModel.asset_id,
@@ -268,13 +432,42 @@ class PointBackofficeView(BackofficeCrudModelView, model=PointModel):
         PointModel.updated_at,
     ]
 
+    async def scaffold_form(self, rules: list[str] | None = None) -> type:
+        is_create_form = rules == self._form_create_rules
+        form = await get_model_form(
+            model=self.model,
+            session_maker=self.session_maker,  # type: ignore[arg-type]
+            only=self.form_create_rules if is_create_form else self._form_prop_names,
+            column_labels=self._column_labels,
+            form_args=self.form_args,
+            form_widget_args=self.form_widget_args,
+            form_class=self.form_base_class,
+            form_overrides={"source_id": SelectField} if is_create_form else {},
+            form_ajax_refs=self._form_ajax_refs,
+            form_include_pk=self.form_include_pk,
+            form_converter=self.form_converter,
+        )
+        if is_create_form:
+            form.source_id.kwargs["choices"] = await _source_select_choices()
+            form.source_id.kwargs["coerce"] = _source_selection_from_choice
+            form.source_id.kwargs["label"] = "Source"
+        if rules:
+            self._validate_form_class(rules, form)
+        return form
+
     async def insert_model(self, request: Request, data: dict[str, object]) -> object:
-        point = await CreatePoint(request.app.state.unit_of_work_factory()).execute(
+        source_selection = _resolve_source_selection(
+            data.get("tenant_id"),
+            data.get("asset_id"),
+            data.get("agent_id"),
+            data.get("source_id"),
+        )
+        point = await CreatePoint(_state(request).unit_of_work_factory()).execute(
             CreatePointCommand(
-                tenant_id=str(data["tenant_id"]),
-                asset_id=str(data["asset_id"]),
-                agent_id=str(data["agent_id"]),
-                source_id=str(data["source_id"]),
+                tenant_id=source_selection.tenant_id,
+                asset_id=source_selection.asset_id,
+                agent_id=source_selection.agent_id,
+                source_id=source_selection.source_id,
                 point_id=str(data["point_id"]),
                 point_key=str(data["point_key"]),
                 point_ref=str(data["point_ref"]),
@@ -394,12 +587,12 @@ class RenderConfigBackofficeView(BaseView):
                 )
             command = _render_command(payload)
             rendered = await RenderAgentConfig(
-                request.app.state.unit_of_work_factory(),
-                request.app.state.config_payload_validator,
+                _state(request).unit_of_work_factory(),
+                _state(request).config_payload_validator,
             ).execute(command)
             await StoreRenderedAgentConfig(
-                request.app.state.unit_of_work_factory(),
-                request.app.state.config_payload_validator,
+                _state(request).unit_of_work_factory(),
+                _state(request).config_payload_validator,
             ).execute(rendered)
         except AgentNotFoundError as exc:
             return _render_config_error_response(str(exc), is_form=is_form, status=404)
@@ -446,7 +639,7 @@ class ConfigOutboxActionsBackofficeView(BaseView):
         try:
             now = datetime.now(UTC)
             record = await MarkConfigOutboxRetry(
-                request.app.state.unit_of_work_factory()
+                _state(request).unit_of_work_factory()
             ).execute(
                 MarkConfigOutboxRetryCommand(
                     outbox_id=UUID(str(payload["outbox_id"])),
@@ -474,7 +667,7 @@ class ConfigOutboxActionsBackofficeView(BaseView):
             )
         try:
             record = await MarkConfigOutboxDeadLetter(
-                request.app.state.unit_of_work_factory()
+                _state(request).unit_of_work_factory()
             ).execute(
                 MarkConfigOutboxDeadLetterCommand(
                     outbox_id=UUID(str(payload["outbox_id"])),
@@ -503,11 +696,310 @@ def mount_backoffice(app: FastAPI, *, engine: AsyncEngine) -> Admin:
         base_url="/backoffice",
         title="Web Monitoring Backoffice",
     )
+    admin.admin.state.root_app = app
+    admin.admin.add_middleware(BackofficeStateContextMiddleware)
     for view in BACKOFFICE_VIEWS:
         admin.add_view(view)
     for view in BACKOFFICE_CUSTOM_VIEWS:
         admin.add_view(view)
     return admin
+
+
+def _state(request: Request) -> Any:
+    state = request.app.state
+    if hasattr(state, "unit_of_work_factory"):
+        return state
+    root_app = getattr(state, "root_app", None)
+    if root_app is not None and hasattr(root_app.state, "unit_of_work_factory"):
+        return root_app.state
+    raise AttributeError("Backoffice request state is missing unit_of_work_factory")
+
+
+async def _tenant_select_choices() -> list[tuple[str, str]]:
+    state = _CURRENT_BACKOFFICE_STATE.get()
+    if state is None or not hasattr(state, "unit_of_work_factory"):
+        return []
+
+    tenants = await ListTenants(state.unit_of_work_factory()).execute()
+    return [
+        (tenant.tenant_id, _tenant_select_label(tenant.tenant_id, tenant.name))
+        for tenant in tenants
+    ]
+
+
+def _tenant_select_label(tenant_id: str, name: str) -> str:
+    if name == tenant_id:
+        return tenant_id
+    return f"{name} ({tenant_id})"
+
+
+async def _asset_select_choices() -> list[tuple[str, str]]:
+    state = _CURRENT_BACKOFFICE_STATE.get()
+    if state is None or not hasattr(state, "unit_of_work_factory"):
+        return []
+
+    tenants = await ListTenants(state.unit_of_work_factory()).execute()
+    choices: list[tuple[str, str]] = []
+    for tenant in tenants:
+        assets = await ListAssets(state.unit_of_work_factory()).execute(tenant.tenant_id)
+        for asset in assets:
+            choices.append(
+                (
+                    _asset_selection_choice_value(tenant.tenant_id, asset.asset_id),
+                    _asset_select_label(
+                        tenant.name,
+                        tenant.tenant_id,
+                        asset.name,
+                        asset.asset_id,
+                    ),
+                )
+            )
+    return choices
+
+
+def _asset_select_label(
+    tenant_name: str,
+    tenant_id: str,
+    asset_name: str,
+    asset_id: str,
+) -> str:
+    tenant_label = _tenant_select_label(tenant_id, tenant_name)
+    if asset_name == asset_id:
+        return f"{tenant_label} / {asset_id}"
+    return f"{tenant_label} / {asset_name} ({asset_id})"
+
+
+async def _agent_select_choices() -> list[tuple[str, str]]:
+    state = _CURRENT_BACKOFFICE_STATE.get()
+    if state is None or not hasattr(state, "unit_of_work_factory"):
+        return []
+
+    tenants = await ListTenants(state.unit_of_work_factory()).execute()
+    choices: list[tuple[str, str]] = []
+    for tenant in tenants:
+        assets = await ListAssets(state.unit_of_work_factory()).execute(tenant.tenant_id)
+        for asset in assets:
+            agents = await ListAgents(state.unit_of_work_factory()).execute(
+                tenant.tenant_id,
+                asset.asset_id,
+            )
+            for agent in agents:
+                choices.append(
+                    (
+                        _agent_selection_choice_value(
+                            tenant.tenant_id,
+                            asset.asset_id,
+                            agent.agent_id,
+                        ),
+                        _agent_select_label(
+                            tenant.name,
+                            tenant.tenant_id,
+                            asset.name,
+                            asset.asset_id,
+                            agent.name,
+                            agent.agent_id,
+                        ),
+                    )
+                )
+    return choices
+
+
+def _agent_select_label(
+    tenant_name: str,
+    tenant_id: str,
+    asset_name: str,
+    asset_id: str,
+    agent_name: str | None,
+    agent_id: str,
+) -> str:
+    asset_label = _asset_select_label(tenant_name, tenant_id, asset_name, asset_id)
+    if not agent_name or agent_name == agent_id:
+        return f"{asset_label} / {agent_id}"
+    return f"{asset_label} / {agent_name} ({agent_id})"
+
+
+async def _source_select_choices() -> list[tuple[str, str]]:
+    state = _CURRENT_BACKOFFICE_STATE.get()
+    if state is None or not hasattr(state, "unit_of_work_factory"):
+        return []
+
+    tenants = await ListTenants(state.unit_of_work_factory()).execute()
+    choices: list[tuple[str, str]] = []
+    for tenant in tenants:
+        assets = await ListAssets(state.unit_of_work_factory()).execute(tenant.tenant_id)
+        for asset in assets:
+            agents = await ListAgents(state.unit_of_work_factory()).execute(
+                tenant.tenant_id,
+                asset.asset_id,
+            )
+            for agent in agents:
+                sources = await ListSources(state.unit_of_work_factory()).execute(
+                    tenant.tenant_id,
+                    asset.asset_id,
+                    agent.agent_id,
+                )
+                for source in sources:
+                    choices.append(
+                        (
+                            _source_selection_choice_value(
+                                tenant.tenant_id,
+                                asset.asset_id,
+                                agent.agent_id,
+                                source.source_id,
+                            ),
+                            _source_select_label(
+                                tenant.name,
+                                tenant.tenant_id,
+                                asset.name,
+                                asset.asset_id,
+                                agent.name,
+                                agent.agent_id,
+                                source.name,
+                                source.source_id,
+                            ),
+                        )
+                    )
+    return choices
+
+
+def _source_select_label(
+    tenant_name: str,
+    tenant_id: str,
+    asset_name: str,
+    asset_id: str,
+    agent_name: str | None,
+    agent_id: str,
+    source_name: str | None,
+    source_id: str,
+) -> str:
+    agent_label = _agent_select_label(
+        tenant_name,
+        tenant_id,
+        asset_name,
+        asset_id,
+        agent_name,
+        agent_id,
+    )
+    if not source_name or source_name == source_id:
+        return f"{agent_label} / {source_id}"
+    return f"{agent_label} / {source_name} ({source_id})"
+
+
+def _asset_selection_choice_value(tenant_id: str, asset_id: str) -> str:
+    return json.dumps(
+        {"tenant_id": tenant_id, "asset_id": asset_id},
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _asset_selection_from_choice(value: str) -> AssetSelection:
+    payload = json.loads(value)
+    if not isinstance(payload, dict):
+        raise ValueError("Asset selection must be a JSON object")
+    return AssetSelection(
+        tenant_id=str(payload["tenant_id"]),
+        asset_id=str(payload["asset_id"]),
+    )
+
+
+def _agent_selection_choice_value(
+    tenant_id: str,
+    asset_id: str,
+    agent_id: str,
+) -> str:
+    return json.dumps(
+        {
+            "tenant_id": tenant_id,
+            "asset_id": asset_id,
+            "agent_id": agent_id,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _agent_selection_from_choice(value: str) -> AgentSelection:
+    payload = json.loads(value)
+    if not isinstance(payload, dict):
+        raise ValueError("Agent selection must be a JSON object")
+    return AgentSelection(
+        tenant_id=str(payload["tenant_id"]),
+        asset_id=str(payload["asset_id"]),
+        agent_id=str(payload["agent_id"]),
+    )
+
+
+def _source_selection_choice_value(
+    tenant_id: str,
+    asset_id: str,
+    agent_id: str,
+    source_id: str,
+) -> str:
+    return json.dumps(
+        {
+            "tenant_id": tenant_id,
+            "asset_id": asset_id,
+            "agent_id": agent_id,
+            "source_id": source_id,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _source_selection_from_choice(value: str) -> SourceSelection:
+    payload = json.loads(value)
+    if not isinstance(payload, dict):
+        raise ValueError("Source selection must be a JSON object")
+    return SourceSelection(
+        tenant_id=str(payload["tenant_id"]),
+        asset_id=str(payload["asset_id"]),
+        agent_id=str(payload["agent_id"]),
+        source_id=str(payload["source_id"]),
+    )
+
+
+def _resolve_asset_selection(
+    tenant_id: object | None,
+    asset_id: object | None,
+) -> AssetSelection:
+    if isinstance(asset_id, AssetSelection):
+        return asset_id
+    return AssetSelection(
+        tenant_id=str(tenant_id or ""),
+        asset_id=str(asset_id or ""),
+    )
+
+
+def _resolve_source_selection(
+    tenant_id: object | None,
+    asset_id: object | None,
+    agent_id: object | None,
+    source_id: object | None,
+) -> SourceSelection:
+    if isinstance(source_id, SourceSelection):
+        return source_id
+    return SourceSelection(
+        tenant_id=str(tenant_id or ""),
+        asset_id=str(asset_id or ""),
+        agent_id=str(agent_id or ""),
+        source_id=str(source_id or ""),
+    )
+
+
+def _resolve_agent_selection(
+    tenant_id: object | None,
+    asset_id: object | None,
+    agent_id: object | None,
+) -> AgentSelection:
+    if isinstance(agent_id, AgentSelection):
+        return agent_id
+    return AgentSelection(
+        tenant_id=str(tenant_id or ""),
+        asset_id=str(asset_id or ""),
+        agent_id=str(agent_id or ""),
+    )
 
 
 def _render_command(payload: dict[str, Any]) -> RenderAgentConfigCommand:

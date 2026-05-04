@@ -12,7 +12,7 @@
 Текущий `MVP baseline` в репозитории:
 
 - `Edge Telemetry Agent` с bootstrap-конфигом, загрузкой retained agent runtime/source config из `MQTT`, processing pipeline и `SQLite Delivery Outbox`
-- локальный platform slice `MQTT -> Redpanda Connect -> Kafka`
+- локальный platform slice `MQTT -> Redpanda Connect -> Apache Kafka`
 - versioned config bundle для `demo-stand`
 - contract registry, архитектурные документы и integration-тесты для этого потока
 
@@ -22,6 +22,9 @@ slices:
 - `Config Registry` на `FastAPI + PostgreSQL` с `tenant/asset/agent/source/point` CRUD, render config revisions и transactional outbox
 - Kafka-first config delivery path `PostgreSQL -> wm.platform.edge.configs.v1 -> Redpanda Connect -> retained MQTT agent runtime/source config`
 - локальный storage/read path `Kafka -> Kafka Connect -> ClickHouse`, `Grafana` datasource provisioning и read-model PoC
+- `Kafka Event Log` рассматривается как логический Kafka-compatible слой:
+  локальный broker runtime сейчас `Apache Kafka`, а `Redpanda broker` оставлен
+  для отдельного compatibility PoC.
 
 Целевая `Monitoring & Alarm Platform` проектируется для двух deployment modes:
 `self-hosted` и `cloud`.
@@ -110,7 +113,7 @@ uv run --group integration pytest \
 - `tests/integration/test_config_registry_postgres.py` — `Config Registry -> PostgreSQL`
   через Alembic migration и FastAPI tenant endpoints
 - `tests/integration/test_edge_agent_mqtt_publisher.py` — raw `paho` publisher smoke и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
-- `tests/integration/test_edge_agent_knx_to_mqtt.py` — lower-level wm-edge-agent smoke: `Kafka config delivery fixture -> retained MQTT config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+- `tests/integration/test_edge_agent_knx_to_mqtt.py` — lower-level wm-edge-agent smoke: `Kafka config delivery fixture -> retained MQTT config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Apache Kafka`
 - `tests/integration/test_kafka_to_clickhouse_storage.py` —
   `Kafka -> Kafka Connect -> ClickHouse raw landing -> contract table`,
   включая byte-for-byte проверку `payload_json` и storage DLQ для невалидных

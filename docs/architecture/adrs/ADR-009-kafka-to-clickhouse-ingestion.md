@@ -6,7 +6,7 @@
 ## Контекст
 
 Текущий `MVP baseline` уже реализует локальный ingestion slice
-`MQTT -> Redpanda Connect -> Kafka`. Следующий production-срез должен добавить
+`MQTT -> Redpanda Connect -> Apache Kafka`. Следующий production-срез должен добавить
 долговременное аналитическое хранение в `ClickHouse Telemetry Store`.
 
 Целевой поток платформы остается:

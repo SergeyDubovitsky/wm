@@ -26,11 +26,12 @@ ADR остаются журналом архитектурных решений.
 | `ADR-004-universal-agent-configuration.md` | accepted | Сейчас отвечает за identity model: `tenant_id`, `asset_id`, `agent_id`, `source_id`, `point_ref`, `point_key`. Agent runtime config path заменен `ADR-008`. |
 | `ADR-005-mqtt-event-transport.md` | accepted | Фиксирует MQTT 5 как edge transport, telemetry/status/config topics, QoS/retain policy и topic-derived routing. Детальные schemas в `docs/contracts/wm-edge-agent/`. |
 | `ADR-006-mvp-monorepo-structure.md` | accepted | Фиксирует monorepo для текущего этапа: apps, libs, architecture docs, contracts и infra меняются согласованно. |
-| `ADR-007-monitoring-platform-data-stores.md` | принято | Фиксирует целевые хранилища платформы: `ClickHouse` для telemetry/analytics и `PostgreSQL` для mutable platform state/IAM. |
+| `ADR-007-monitoring-platform-data-stores.md` | partially superseded | Фиксирует целевые хранилища платформы: `ClickHouse` для telemetry/analytics и `PostgreSQL` для mutable platform state/IAM. Broker runtime terminology уточнен в `ADR-012`. |
 | `ADR-008-server-issued-edge-runtime-configuration.md` | accepted | Фиксирует production agent runtime config path: локальный bootstrap + retained MQTT agent runtime/source configs; YAML bundle остается временным authoring/import path до `ADR-010`. |
 | `ADR-009-kafka-to-clickhouse-ingestion.md` | accepted | Фиксирует `ClickHouse Kafka Connect Sink` как baseline путь сохранения Kafka records в `ClickHouse` через raw landing tables и materialized views. |
 | `ADR-010-platform-configuration-backend.md` | accepted | Фиксирует первый backend-срез настроек: `Config Registry` на FastAPI async + SQLAlchemy + PostgreSQL, clean architecture и модель данных по edge config contracts. |
 | `ADR-011-internal-backoffice-admin-ui.md` | accepted | Фиксирует внутреннюю backoffice-админку на SQLAdmin для Config Registry; write operations обязаны идти через application use cases и transactional outbox. |
+| `ADR-012-kafka-redpanda-runtime-baseline.md` | accepted | Разделяет логический `Kafka Event Log` и broker runtime; оставляет локальный MVP на Apache Kafka + Redpanda Connect + Kafka Connect, а Redpanda broker фиксирует как PoC-кандидат. |
 
 ## Быстрый выбор ADR
 
@@ -45,6 +46,7 @@ ADR остаются журналом архитектурных решений.
 | Как Kafka records сохраняются в ClickHouse? | `ADR-009`, затем `docs/contracts/kafka/` и `docs/contracts/clickhouse/` |
 | Как проектировать backend хранения настроек платформы? | `ADR-010` |
 | Как быстро дать внутреннюю админку для настроек? | `ADR-011` |
+| Что выбираем между Apache Kafka, Redpanda broker, Redpanda Connect и Kafka Connect? | `ADR-012` |
 | Почему monorepo? | `ADR-006` |
 
 ## Поддержка

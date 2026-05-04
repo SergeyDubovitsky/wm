@@ -13,7 +13,7 @@
 
 Проект уже достиг `MVP baseline`: текущий реализованный baseline включает
 `Edge Telemetry Agent`, retained agent runtime/source config path и local platform
-slice `MQTT -> Redpanda Connect -> Kafka`. Более широкая platform-часть ниже в
+slice `MQTT -> Redpanda Connect -> Apache Kafka`. Более широкая platform-часть ниже в
 документе остается целевой post-MVP эволюцией.
 
 Поверх этого baseline в текущей ветке уже реализованы первые локальные
@@ -107,7 +107,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 На уровне `C2` сейчас зафиксированы:
 
 - `Edge Telemetry Agent`: `Bootstrap Configuration`, `Collector Runtime`, `Local State Store`, `Delivery Worker`
-- `Monitoring & Alarm Platform`: `MQTT Ingestion Gateway`, `Redpanda Connect`, `Redpanda`, `Kafka Event Log`, `Source Config Snapshot Projector`, `Telemetry Consumers`, `Streaming Analytics`, `Telemetry Store`, `Platform Store`, `Alarm Rule Engine`, `Platform API`, `Platform Frontend`, `Keycloak`, `Grafana`, `Notification Service`
+- `Monitoring & Alarm Platform`: `MQTT Ingestion Gateway`, `Redpanda Connect`, `Kafka-compatible Broker Runtime`, `Kafka Event Log`, `Source Config Snapshot Projector`, `Telemetry Consumers`, `Streaming Analytics`, `Telemetry Store`, `Platform Store`, `Alarm Rule Engine`, `Platform API`, `Platform Frontend`, `Keycloak`, `Grafana`, `Notification Service`
 
 ### Поток данных в Monitoring & Alarm Platform
 
@@ -120,8 +120,8 @@ Source of truth для `C1/C2` и следующих уровней декомп
 5. `Edge Telemetry Agent` в текущем runtime baseline публикует telemetry events по `MQTT 5.0`; source connection status, config status и agent LWT/status остаются target contracts следующей runtime-фазы.
 6. `MQTT Ingestion Gateway` принимает MQTT-поток, валидирует payload и восстанавливает routing context.
 7. `Redpanda Connect` подписывается на MQTT topics через `mqtt` input.
-8. `Redpanda Connect` применяет mapping/transform pipeline по контракту `wm.platform-ingestion.mqtt-to-kafka.v1`, валидирует `tenant_id` claim и пишет canonical records в `Redpanda` через `redpanda` output.
-9. `Redpanda` хранит и обслуживает `Kafka Event Log` по контракту `wm.kafka.topics.v1`.
+8. `Redpanda Connect` применяет mapping/transform pipeline по контракту `wm.platform-ingestion.mqtt-to-kafka.v1`, валидирует `tenant_id` claim и пишет canonical records в Kafka-compatible broker через `redpanda` output component.
+9. `Kafka-compatible Broker Runtime` хранит и обслуживает `Kafka Event Log` по контракту `wm.kafka.topics.v1`. Локальный MVP использует `Apache Kafka`; `Redpanda broker` остается candidate после отдельного compatibility PoC.
 10. `Telemetry Consumers` читают Kafka topics и записывают raw/canonical telemetry events, source config snapshots, source connection history и agent status history в `Telemetry Store` на базе `ClickHouse` по контракту `wm.clickhouse.telemetry-store.v1`.
 11. `Streaming Analytics` читает Kafka topics, при необходимости читает исторический контекст из `Telemetry Store`, рассчитывает агрегаты и производные признаки, записывает результаты в `Telemetry Store` и передает derived events в `Alarm Rule Engine`.
 12. `Alarm Rule Engine` обрабатывает telemetry и derived events по правилам, пишет immutable alarm history в `Telemetry Store`, хранит current alarm state и operator workflow state в `Platform Store` на базе `PostgreSQL` и инициирует уведомления.
@@ -133,7 +133,7 @@ Source of truth для `C1/C2` и следующих уровней декомп
 
 - `Telemetry Store` — `ClickHouse`, authoritative analytical store для append-only telemetry events, source config snapshots, source connection history, agent status history, derived events, aggregates, rollups и immutable alarm history.
 - `Platform Store` — `PostgreSQL`, transactional store для assets, agents, sources, point registry, alarm rules, notification policies, current alarm state, acknowledgements, mutes, audit и Keycloak persistence.
-- `Redpanda` и `Kafka Event Log` являются streaming/replay слоем и не заменяют долговременное хранилище платформы.
+- `Kafka-compatible Broker Runtime` и `Kafka Event Log` являются streaming/replay слоем и не заменяют долговременное хранилище платформы.
 
 Source of truth для ingestion, Kafka topics, ClickHouse contracts и migrations
 находится в

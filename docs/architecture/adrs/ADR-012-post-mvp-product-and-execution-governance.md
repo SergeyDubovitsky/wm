@@ -1,6 +1,6 @@
 # ADR-012: Post-MVP product, pilot and execution governance
 
-Дата: 2026-05-05  
+Дата: 2026-05-05
 Статус: accepted
 
 ## Контекст
@@ -214,4 +214,3 @@ semantics.
   списку из этого ADR.
 - Внешние участники не имеют доступа к internal roadmap/security/commercial/IP
   материалам в `YouTrack`.
-

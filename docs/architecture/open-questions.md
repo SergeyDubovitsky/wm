@@ -78,6 +78,13 @@
 
 ## Следующий срез Monitoring & Alarm Platform
 
+Кандидат для ближайшего совместного обсуждения Platform / Observability:
+решить, должен ли первый срез после `Config Registry` быть read-only
+`latest/history` telemetry API поверх уже существующих ClickHouse read models
+`telemetry_latest_v1` и `telemetry_events_dedup_v1`. Если команда выбирает
+этот путь, alarm workflow, auth/RBAC, config rollout, operator UI и
+write-back/control остаются отдельными открытыми вопросами и будущими решениями.
+
 | Вопрос | Почему это важно | Степень блокировки |
 | --- | --- | --- |
 | Какие конкретные API/use cases входят в первый tenant-facing `Platform API` после `Config Registry`: telemetry read, alarm workflow, config rollout или auth/user boundary? | `ADR-013` фиксирует `Config Registry` как текущий backend-срез и `Platform API` как future boundary, но точный API contract следующего backend-инкремента требует отдельного ADR | Высокая |

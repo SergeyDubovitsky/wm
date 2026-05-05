@@ -92,7 +92,7 @@ Internal `YouTrack` — source of truth для текущих задач, при
 Базовый workflow выполняется из корня репозитория:
 
 ```bash
-cp .env.example .env
+test -f .env || cp .env.example .env
 uv sync
 uv run --package wm-edge-agent pytest apps/wm_edge_agent/tests
 uv run --package wm-knx-demo pytest apps/wm_knx_demo/tests
@@ -208,11 +208,13 @@ npm run build
 Быстрый старт:
 
 ```bash
-cp .env.example .env
+test -f .env || cp .env.example .env
 ./infra/local/up-platform.sh
 ```
 
-`up-platform.sh` запускается из корня репозитория, сам использует root `.env`,
+Если `.env` уже существует, не перезаписывайте его: перенесите недостающие
+ключи из `.env.example` вручную. `up-platform.sh` запускается из корня
+репозитория, сам использует root `.env`,
 пересобирает локальные image для `wm-config-registry`, `grafana` и
 `kafka-connect`, выполняет Alembic migrations для `Config Registry` и только
 потом поднимает полный local platform slice.

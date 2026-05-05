@@ -23,6 +23,10 @@
 - проверить поток
   `KNX-shaped telemetry -> wm_edge_agent -> MQTT -> Kafka -> ClickHouse landing`
 
+В терминах `ADR-012` этот stack не использует Redpanda broker: `Kafka Event
+Log` обслуживает локальный `Apache Kafka`, а `Redpanda Connect` используется
+только как connector runtime для MQTT/Kafka projection.
+
 ## Что поднимается
 
 - `mqtt-broker` — локальный `Eclipse Mosquitto`
@@ -328,7 +332,7 @@ uv run --group integration pytest \
   raw `PahoMqttPublisher -> MQTT` и CLI-path `enqueue-demo-event -> deliver-once -> MQTT`
 - `test_edge_agent_knx_to_mqtt.py` проверяет lower-level wm-edge-agent путь:
   тестовая fixture seed-ит Kafka config delivery records, дальше проверяется
-  `retained agent runtime/source config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Kafka`
+  `retained agent runtime/source config -> ObservationProcessor -> SQLite outbox -> DeliveryWorker -> MQTT -> Redpanda Connect -> Apache Kafka`
 - `test_kafka_to_clickhouse_storage.py` проверяет путь
   `Kafka -> Kafka Connect -> ClickHouse raw landing -> contract table`,
   byte-for-byte сохранение Kafka value в `payload_json` и storage DLQ для

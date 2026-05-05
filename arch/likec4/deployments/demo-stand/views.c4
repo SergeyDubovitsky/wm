@@ -14,7 +14,7 @@ views 'Deployments / Demo Stand' {
 
     deployment view deployment-demo-stand-current-implementation {
         title 'Deployment - Demo Stand Current Implementation'
-        description 'Текущая реализация demo-стенда: `wm_edge_agent` работает на Developer Workstation, публикует telemetry events в локальный MQTT broker, Redpanda Connect перекладывает их в Kafka, Kafka Connect Sink пишет в ClickHouse, а Grafana читает ClickHouse read models.'
+        description 'Текущая реализация demo-стенда: `wm_edge_agent` работает на Developer Workstation, публикует telemetry events в локальный MQTT broker, Redpanda Connect перекладывает их в локальный Apache Kafka, Kafka Connect Sink пишет в ClickHouse, а Grafana читает ClickHouse read models.'
 
         include demo-stand.**
         include whitelisted-remote-host.**

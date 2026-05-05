@@ -1,4 +1,4 @@
-# ADR-012: Post-MVP product, pilot and execution governance
+# ADR-013: Post-MVP product, pilot and execution governance
 
 Дата: 2026-05-05
 Статус: accepted

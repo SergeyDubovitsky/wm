@@ -17,7 +17,7 @@
 - `Edge Telemetry Agent`
 - server-issued agent runtime config через retained `MQTT`
 - reliable telemetry delivery через `MQTT`
-- локальный ingestion slice `MQTT -> Redpanda Connect -> Kafka`
+- локальный ingestion slice `MQTT -> Redpanda Connect -> Apache Kafka`
 - versioned config bundle и integration-тесты для этого контура
 
 Поверх этого baseline в текущей ветке уже реализованы первые platform-foundation
@@ -64,6 +64,9 @@
 - Local development stack: MQTT broker, Apache Kafka, Redpanda Connect
   ingestion/config projection pipelines, PostgreSQL, ClickHouse, Kafka Connect
   и provisioned Grafana.
+- `Kafka Event Log` зафиксирован как логический Kafka-compatible event stream:
+  локальный broker runtime сейчас `Apache Kafka`, а `Redpanda broker` остается
+  candidate после отдельного compatibility PoC.
 - `docs/contracts/` как канонический каталог схем, topic names, Kafka topics,
   ClickHouse contract tables и boundary rules.
 
@@ -71,7 +74,7 @@
 
 - Расширение `Monitoring & Alarm Platform` от текущего `MVP baseline` до полной
   production-инсталляции: production `MQTT Ingestion Gateway`,
-  production Kafka-compatible broker, `Telemetry Consumers`,
+  production Kafka-compatible broker runtime, `Telemetry Consumers`,
   `Streaming Analytics`, `Telemetry Store`, `Platform Store`,
   `Alarm Rule Engine`, `Platform API`, `Platform Frontend`, `Keycloak`,
   `Grafana` и `Notification Service`. Локально уже есть foundation-срезы
@@ -156,11 +159,11 @@
 4. Для identity model: `ADR-004`.
 5. Для storage/platform design: `ADR-007`, затем `docs/contracts/clickhouse/`
    и `docs/contracts/kafka/`.
-6. Для deployment parity `self-hosted`/`cloud`: `ADR-009`, затем `ADR-012` для
+6. Для deployment parity `self-hosted`/`cloud`: `ADR-009`, затем `ADR-013` для
    cloud-first pilot и local Docker infra policy.
 7. Для backend хранения настроек платформы: `ADR-010`.
 8. Для post-MVP product/pilot governance, `OPC UA` read-only track и internal
-   `YouTrack`: `ADR-012`.
+   `YouTrack`: `ADR-013`.
 9. Для KNX-first MVP behavior: `ADR-001`, `ADR-002`, `ADR-003`.
 
 Если ADR и `docs/contracts/` расходятся по полям сообщения, topic/table names

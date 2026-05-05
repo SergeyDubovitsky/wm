@@ -25,9 +25,10 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `Point State Cache` — persistent cache последнего наблюденного и опубликованного состояния точки, sequence и качества, используемый для фильтрации изменений и warm restart.
 - `Delivery Outbox` — локальная очередь telemetry events, ожидающих надежной доставки или retry во внешний transport.
 - `status topic` — transport-specific `MQTT` сообщение о состоянии southbound source или самого publisher, например `status/connection` и `status/lwt`.
-- `Kafka Event Log` — логический Kafka-compatible event stream внутри `Monitoring & Alarm Platform`: topics для telemetry events, source config snapshots, source connection events, agent status events, ingestion errors и derived events.
-- `Redpanda Connect` — connector pipeline, который читает MQTT topics через `mqtt` input, выполняет mapping/transform и пишет records в `Redpanda` через `redpanda` output.
-- `Redpanda` — Kafka-compatible broker внутри `Monitoring & Alarm Platform`, который хранит и обслуживает `Kafka Event Log`, retention, consumer groups и replay.
+- `Kafka Event Log` — логический Kafka-compatible event stream внутри `Monitoring & Alarm Platform`: topics для telemetry events, source config snapshots, source connection events, agent status events, ingestion errors и derived events. Не означает конкретный broker product.
+- `Kafka-compatible broker runtime` — конкретная реализация broker-а, которая обслуживает `Kafka Event Log` через Kafka API. Локальный MVP использует `Apache Kafka`; `Redpanda broker` остается production/self-hosted candidate после отдельного compatibility PoC.
+- `Redpanda Connect` — connector pipeline, который читает MQTT topics через `mqtt` input, выполняет mapping/transform и пишет records в Kafka-compatible broker через `redpanda` input/output components.
+- `Redpanda broker` — Kafka-compatible broker product, который может стать runtime implementation для `Kafka Event Log` после отдельного ADR/PoC; в текущем локальном MVP broker runtime — `Apache Kafka`.
 - `Telemetry Store` — authoritative analytical store на базе `ClickHouse` для append-only telemetry events, source config snapshots, source connection history, agent status history, derived events, aggregates, rollups и immutable alarm history.
 - `Platform Store` — transactional store на базе `PostgreSQL` для конфигурации объектов, агентов, источников и точек, правил, notification policies, current alarm state, acknowledgements, mutes, audit и persistence Keycloak.
 - `ClickHouse` — выбранная аналитическая БД платформы для high-volume time-series/event history и Grafana/API historical queries.

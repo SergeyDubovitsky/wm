@@ -12,7 +12,7 @@
 | Что система делает сейчас | `current-state.md` |
 | Термины и границы понятий | `glossary.md` |
 | Какие вопросы еще открыты | `open-questions.md` |
-| Что принято после MVP по pilot/cloud/OPC UA/YouTrack | `adrs/ADR-012-post-mvp-product-and-execution-governance.md` |
+| Что принято после MVP по pilot/cloud/OPC UA/YouTrack | `adrs/ADR-013-post-mvp-product-and-execution-governance.md` |
 | Целевую архитектуру и runtime-сценарии | `solution-architecture.md` |
 | Почему были приняты ключевые решения | `adrs/README.md`, затем конкретный ADR |
 | Точные контракты сообщений, topics и таблиц | `../contracts/README.md` |

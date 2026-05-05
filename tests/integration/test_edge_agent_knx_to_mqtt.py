@@ -27,6 +27,8 @@ DEMO_BUNDLE_PATH = REPO_ROOT / "environments" / "demo-stand" / "wm_edge_agent" /
 KAFKA_SCHEMAS_ROOT = REPO_ROOT / "docs" / "contracts" / "kafka" / "schemas"
 
 
+@pytest.mark.integration_smoke
+@pytest.mark.integration_storage
 def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
     local_storage_stack,
     tmp_path: Path,
@@ -139,7 +141,10 @@ def test_demo_knx_edge_delivery_flow_reaches_mqtt_kafka_and_clickhouse(
         assert received_payloads[0]["value"] == 24.8
 
         kafka_key, kafka_payload = local_storage_stack.consume_kafka_json(
-            "wm.platform.telemetry.events.v1"
+            "wm.platform.telemetry.events.v1",
+            expected_key=(
+                f"{bundle.tenant_id}|{bundle.asset_id}|knx_main|{point.point_key}"
+            ),
         )
         _assert_schema_subset(
             kafka_payload,
@@ -217,7 +222,10 @@ def test_mqtt_to_kafka_ingestion_routes_unresolved_telemetry_to_error_topic(
     )
 
     kafka_key, kafka_payload = local_platform_stack.consume_kafka_json(
-        "wm.platform.ingestion.errors.v1"
+        "wm.platform.ingestion.errors.v1",
+        expected_key=(
+            f"{bundle.asset_id}|{bundle.agent_id}|knx_main|wm.telemetry.event.v1"
+        ),
     )
     _assert_schema_subset(
         kafka_payload,
@@ -277,7 +285,8 @@ def test_mqtt_to_kafka_status_ingestion_does_not_require_config_cache(
     )
 
     source_key, source_payload = local_platform_stack.consume_kafka_json(
-        "wm.platform.source.connections.v1"
+        "wm.platform.source.connections.v1",
+        expected_key="demo-tenant|demo-stand-01|demo-stand-local|knx_main",
     )
     _assert_schema_subset(
         source_payload,
@@ -288,7 +297,8 @@ def test_mqtt_to_kafka_status_ingestion_does_not_require_config_cache(
     assert source_payload["state"] == "connected"
 
     agent_key, agent_payload = local_platform_stack.consume_kafka_json(
-        "wm.platform.agent.status.v1"
+        "wm.platform.agent.status.v1",
+        expected_key="demo-tenant|demo-stand-01|demo-stand-local",
     )
     _assert_schema_subset(
         agent_payload,
@@ -399,7 +409,9 @@ def _seed_config_delivery_records(*, local_stack, bundle) -> None:
         json.dumps(runtime_record, ensure_ascii=True, separators=(",", ":")),
         key=f"{bundle.tenant_id}|{bundle.asset_id}|{bundle.agent_id}|agent_runtime",
     )
-    runtime_message = local_stack.wait_for_mqtt_json(scope.agent_runtime_config_topic())
+    runtime_message = local_stack.wait_for_retained_mqtt_json(
+        scope.agent_runtime_config_topic()
+    )
     assert runtime_message.retained is True
     assert runtime_message.payload["config_revision"] == bundle.config_revision
 
@@ -423,7 +435,7 @@ def _seed_config_delivery_records(*, local_stack, bundle) -> None:
                 f"|source:{source.source_id}"
             ),
         )
-        source_message = local_stack.wait_for_mqtt_json(source_topic)
+        source_message = local_stack.wait_for_retained_mqtt_json(source_topic)
         assert source_message.retained is True
         assert source_message.payload["source_config_revision"] == (
             source.source_config_revision

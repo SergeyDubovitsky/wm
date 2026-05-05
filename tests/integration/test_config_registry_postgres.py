@@ -27,9 +27,12 @@ from wm_config_registry.infrastructure.postgres.unit_of_work import (
 from wm_config_registry.main import create_app
 from wm_config_registry.settings import ConfigRegistrySettings
 
+pytestmark = pytest.mark.integration
+
 CONTRACT_DIR = Path("docs/contracts/wm-edge-agent/schemas")
 
 
+@pytest.mark.integration_smoke
 def test_config_registry_persists_tenants_in_postgres(
     local_config_registry_postgres_stack,
 ) -> None:

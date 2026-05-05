@@ -68,16 +68,18 @@ deployment {
 
             local-platform-host = host 'Local Platform Stack' {
                 technology 'Docker Compose / infra/local'
-                description 'Локальный platform slice для smoke/integration: MQTT -> Redpanda Connect -> Kafka -> Kafka Connect Sink -> ClickHouse read models -> Grafana.'
+                description 'Локальный platform slice для smoke/integration: MQTT -> Redpanda Connect -> Apache Kafka -> Kafka Connect Sink -> ClickHouse read models -> Grafana.'
 
                 redpanda-connect = instanceOf monitoring-alarm-platform.redpanda-connect 'Local Redpanda Connect'
                 kafka-event-log = instanceOf monitoring-alarm-platform.kafka-event-log 'Local Kafka'
+                kafka-broker-runtime = instanceOf monitoring-alarm-platform.kafka-broker-runtime 'Local Apache Kafka Broker'
                 telemetry-consumers = instanceOf monitoring-alarm-platform.telemetry-consumers 'Local Kafka Connect Sink'
                 telemetry-store = instanceOf monitoring-alarm-platform.telemetry-store 'Local ClickHouse'
                 grafana = instanceOf monitoring-alarm-platform.grafana 'Local Grafana'
 
                 redpanda-connect -> local-mqtt-broker 'Подписывается на MQTT telemetry/status topics и перекладывает их в Kafka topics'
-                redpanda-connect -> kafka-event-log 'Пишет platform Kafka records'
+                redpanda-connect -> kafka-broker-runtime 'Пишет platform Kafka records'
+                kafka-broker-runtime -> kafka-event-log 'Хранит и обслуживает Kafka topics'
                 telemetry-consumers -> kafka-event-log 'Читает Kafka topics для storage path'
                 telemetry-consumers -> telemetry-store 'Пишет raw landing, contract tables и read models в ClickHouse'
                 grafana -> telemetry-store 'Читает ClickHouse read models telemetry_latest_v1, telemetry_1m_v1, telemetry_1h_v1'
@@ -113,7 +115,7 @@ deployment {
                 yaml-config-bundle = instanceOf monitoring-alarm-platform.yaml-config-bundle
                 wm-config-registry-outbox-worker = instanceOf monitoring-alarm-platform.wm-config-registry-outbox-worker
                 redpanda-connect = instanceOf monitoring-alarm-platform.redpanda-connect
-                redpanda = instanceOf monitoring-alarm-platform.redpanda
+                kafka-broker-runtime = instanceOf monitoring-alarm-platform.kafka-broker-runtime
                 kafka-event-log = instanceOf monitoring-alarm-platform.kafka-event-log
                 source-config-snapshot-projector = instanceOf monitoring-alarm-platform.source-config-snapshot-projector
                 telemetry-consumers = instanceOf monitoring-alarm-platform.telemetry-consumers
@@ -129,8 +131,8 @@ deployment {
                 redpanda-connect -> kafka-event-log 'Читает edge config delivery records'
                 redpanda-connect -> mqtt-ingestion-gateway 'Материализует retained agent runtime/source configs'
                 redpanda-connect -> mqtt-ingestion-gateway 'Подписывается на MQTT telemetry events и status topics'
-                redpanda-connect -> redpanda 'Пишет canonical events через Redpanda output'
-                redpanda -> kafka-event-log 'Хранит и обслуживает Kafka topics'
+                redpanda-connect -> kafka-broker-runtime 'Пишет canonical events через redpanda output component'
+                kafka-broker-runtime -> kafka-event-log 'Хранит и обслуживает Kafka topics'
                 source-config-snapshot-projector -> kafka-event-log 'Читает wm.platform.edge.configs.v1 и пишет wm.platform.source.configs.v1'
                 telemetry-consumers -> kafka-event-log 'Читает Kafka topics'
                 telemetry-consumers -> telemetry-store 'Записывает canonical telemetry, service events и source config snapshots в ClickHouse'

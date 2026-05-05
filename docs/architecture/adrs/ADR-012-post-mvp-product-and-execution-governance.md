@@ -46,7 +46,7 @@
 - cloud web monitoring;
 - сначала сбор и отображение данных;
 - затем история, минимальный alarm lifecycle и нормальные operator screens;
-- без write/control path из web UI/API;
+- без управляющих команд из web-monitoring UI/API;
 - без обязательного on-prem/self-hosted deployment на первом этапе.
 
 ### Deployment
@@ -93,12 +93,17 @@ semantics.
 
 В первый `OPC UA` ingestion slice не входят:
 
-- write/control commands;
+- управляющие команды из web-monitoring UI/API;
 - `OPC UA server` mode внутри web-monitoring platform;
 - `OPC UA Historical Access`;
 - `OPC DA`;
 - попытка моделировать `OPC UA` как простой delivery transport вместо
   southbound protocol.
+
+Под `write` в этом ADR понимаются именно управляющие команды в промышленный
+контур, инициированные web-monitoring UI/API. Это не запрещает штатные
+platform writes: сохранение telemetry/status records, config revisions,
+outbox records, audit records, alarm state и operator workflow state.
 
 `Modbus TCP` остается возможным future adapter, но не является выбранным
 следующим protocol track.
@@ -208,8 +213,8 @@ semantics.
   которые приняты этим ADR.
 - В документах явно различаются local Docker infra, cloud-first pilot и future
   self-hosted/on-prem deployment.
-- `OPC UA` описан как read-only southbound ingestion, а не как write/control
-  path или `OPC UA server` mode web-monitoring platform.
+- `OPC UA` описан как read-only southbound ingestion без управляющих команд из
+  web-monitoring UI/API, а не как `OPC UA server` mode web-monitoring platform.
 - В internal `YouTrack` создан или обновлен backlog по минимальному backfill
   списку из этого ADR.
 - Внешние участники не имеют доступа к internal roadmap/security/commercial/IP

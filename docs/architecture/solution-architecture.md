@@ -50,7 +50,7 @@ read-model surface.
 
 - автоматическое и полное discovery всех сущностей, тегов и моделей данных без исходной карты адресов
 - бизнес-логика управления оборудованием
-- write/control path из web-monitoring UI/API
+- управляющие команды из web-monitoring UI/API
 - долгосрочное хранение телеметрии на edge-узле
 - полноценная SCADA/HMI для управляющего контура
 - расширенная аналитика и отчетность вне базового monitoring/alarm-контура
@@ -78,7 +78,8 @@ Source of truth для `C1/C2` и следующих уровней декомп
 ## Основные архитектурные принципы
 
 - Edge-first. Сборщик работает в сети объекта и не зависит от постоянной доступности внешнего контура.
-- Read-only by default. В production data path web-monitoring контура сервис читает и наблюдает сигналы, но не управляет ими.
+- Read-only by default. В production data path web-monitoring контура сервис
+  читает и наблюдает сигналы, но не отправляет управляющие команды из web UI/API.
 - Server-issued config. Все известные точки, `value_model`, параметры чтения и правила публикации приходят в wm-edge-agent как retained agent runtime/source configs; целевой поток доставки: PostgreSQL config revisions -> config outbox -> Kafka -> Redpanda Connect -> MQTT retained topics.
 - Hybrid acquisition. Основной поток данных приходит из event/listen режима там, где он поддерживается; активное чтение включается только для whitelist endpoints.
 - Loose coupling. Протокольная интеграция, правила фильтрации и доставка во внешний контур разделены по компонентам.
@@ -311,7 +312,10 @@ production-контуре как слой визуализации.
 
 - сервис располагается в локальной сети объекта, рядом с полевыми шлюзами и контроллерами
 - прямой внешний доступ к промышленным southbound-интерфейсам не используется как штатный production-сценарий
-- в проде запрещены управляющие `write` операции из web-monitoring data path
+- в проде запрещены управляющие команды из web-monitoring UI/API
+- запрет на управляющие команды не относится к техническим platform writes:
+  telemetry/status storage, config revisions, outbox, audit и alarm workflow
+  state
 - если для отдельного проекта вводится внешний `OPC`-мост с write-path в `KNX`, он должен рассматриваться как отдельный сервис вне текущего web-monitoring контура
 - токены/секреты доставки не хранятся plain text в retained source config или YAML config bundle, а передаются через secret refs или отдельный защищенный secret flow
 

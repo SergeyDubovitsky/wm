@@ -102,7 +102,10 @@
 В production data path система является read-only monitoring/alarm контуром:
 
 - wm-edge-agent читает и наблюдает сигналы;
-- управляющий write-path не входит в web-monitoring UI/API;
+- управляющие команды из web-monitoring UI/API не входят в первый продуктовый
+  scope;
+- технические platform writes для telemetry/status storage, config revisions,
+  outbox, audit и alarm workflow state остаются частью платформы;
 - полноценная `SCADA/HMI` не входит в текущий объем;
 - автоматическое полное discovery всех тегов и информационных моделей не
   входит в текущий объем;

@@ -43,7 +43,8 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `JWT` — access token, выпускаемый Keycloak и валидируемый будущими tenant-facing API локально по OIDC discovery/JWKS.
 - `API Gateway` — application-level gateway перед несколькими backend API; решение по нему выносится в отдельный ADR.
 - `southbound-адаптеры` — адаптеры и драйверы, через которые `wm_edge_agent` подключается вниз по стеку к полевым протоколам и локальным источникам данных, например `KNX`, `OPC UA`, `Modbus`, `SCADA`.
-- `OPC UA read-only ingestion` — следующий выбранный post-MVP protocol track: `wm_edge_agent` работает как `OPC UA client`, только считывает данные из `OPC UA server` и мапит nodes в существующую `source/point` model без write/control path.
+- `OPC UA read-only ingestion` — следующий выбранный post-MVP protocol track: `wm_edge_agent` работает как `OPC UA client`, только считывает данные из `OPC UA server` и мапит nodes в существующую `source/point` model без управляющих команд из web-monitoring UI/API.
+- `write/control path` — в web-monitoring документации означает только управляющие команды в промышленный контур из web UI/API; не относится к техническим platform writes вроде telemetry/status storage, config revisions, outbox, audit или alarm workflow state.
 - `northbound delivery` — доставка данных вверх по стеку из `wm_edge_agent` в `Monitoring & Alarm Platform` через внешний transport, например `MQTT`.
 
 ## Конфигурационная модель

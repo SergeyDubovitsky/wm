@@ -12,6 +12,9 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `Edge Telemetry Agent` — продуктово-архитектурное имя периферийной системы; текущий реализованный модуль в коде — `apps/wm_edge_agent` / package `wm_edge_agent`.
 - `Monitoring & Alarm Platform` — наша центральная система, которая может разворачиваться как `self-hosted` инсталляция или в облаке/интернете, принимает события, хранит телеметрию, вычисляет `alarm` и предоставляет UI/API.
 - `deployment parity` — архитектурный принцип проекта: `self-hosted` и `cloud` считаются двумя deployment modes одной платформы и не должны расходиться по baseline contracts, основному data path и acceptance semantics без отдельного ADR.
+- `cloud-first pilot` — первый post-MVP пилот центральной платформы в российском облаке (`VK Cloud` или `Yandex Cloud`); self-hosted/on-prem остается future deployment mode после cloud validation.
+- `local Docker infra` — локальный `Docker Compose` контур разработки, integration/smoke тестов, onboarding и воспроизведения инцидентов; не production target первого пилота.
+- `internal YouTrack` — внутренний execution backlog проекта для задач, приоритетов, статусов и follow-up; не должен быть доступен первым заказчикам/партнерам с видимостью internal roadmap, commercial terms, IP/security decisions или raw backlog.
 
 ## Домен и доставка
 
@@ -40,7 +43,9 @@ LikeC4-модель в `arch/likec4/` и markdown-документы в `docs/ar
 - `Keycloak` — IAM-компонент платформы: пользователи, группы, роли, OIDC clients, sessions и JWT issuance.
 - `JWT` — access token, выпускаемый Keycloak и валидируемый будущими tenant-facing API локально по OIDC discovery/JWKS.
 - `API Gateway` — application-level gateway перед несколькими backend API; решение по нему выносится в отдельный ADR.
-- `southbound-адаптеры` — адаптеры и драйверы, через которые `wm_edge_agent` подключается вниз по стеку к полевым протоколам и локальным источникам данных, например `KNX`, `Modbus`, `OPC UA`, `SCADA`.
+- `southbound-адаптеры` — адаптеры и драйверы, через которые `wm_edge_agent` подключается вниз по стеку к полевым протоколам и локальным источникам данных, например `KNX`, `OPC UA`, `Modbus`, `SCADA`.
+- `OPC UA read-only ingestion` — следующий выбранный post-MVP protocol track: `wm_edge_agent` работает как `OPC UA client`, только считывает данные из `OPC UA server` и мапит nodes в существующую `source/point` model без управляющих команд из web-monitoring UI/API.
+- `write/control path` — в web-monitoring документации означает только управляющие команды в промышленный контур из web UI/API; не относится к техническим platform writes вроде telemetry/status storage, config revisions, outbox, audit или alarm workflow state.
 - `northbound delivery` — доставка данных вверх по стеку из `wm_edge_agent` в `Monitoring & Alarm Platform` через внешний transport, например `MQTT`.
 
 ## Конфигурационная модель

@@ -5,7 +5,7 @@ Workspace member for the edge telemetry runtime.
 ## Commands
 
 ```bash
-cp .env.example .env
+test -f .env || cp .env.example .env
 uv sync
 uv run --package wm-edge-agent pytest apps/wm_edge_agent/tests
 uv run --package wm-edge-agent wm-edge-agent --help

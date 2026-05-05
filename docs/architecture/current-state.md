@@ -39,6 +39,9 @@
   пишет события в Kafka-compatible event log и хранилища, строит alarm/UI/API.
 - `Monitoring & Alarm Platform` должна поддерживать два deployment modes:
   `self-hosted` и `cloud`, без расхождения по основным contracts и data path.
+- Первый post-MVP пилот запускается cloud-first в российском облаке (`VK Cloud`
+  или `Yandex Cloud`), потому что on-prem/self-hosted инфраструктура первых
+  заказчиков пока не готова.
 
 ## Что реализовано сейчас
 
@@ -89,8 +92,11 @@
   source of truth уже переехал в `Config Registry`/`PostgreSQL`, а versioned
   YAML bundle остается import/bootstrap path; полноценный внешний UI и workflow
   публикации остаются следующими шагами.
-- Полные southbound-адаптеры для `Modbus`, `OPC UA`, `DB` и других источников.
-  Текущий практический срез остается `KNX-first`.
+- Расширение southbound-адаптеров. Текущий практический срез остается
+  `KNX-first`, а следующий выбранный protocol track — `OPC UA read-only
+  ingestion`: `wm_edge_agent` работает как `OPC UA client` и только считывает
+  данные из `OPC UA server`. `Modbus TCP`, `DB` и другие источники остаются
+  future adapters.
 - Production security hardening: TLS/certificates/ACL/secrets lifecycle,
   конкретные broker policies, production observability и support workflows.
 
@@ -99,7 +105,10 @@
 В production data path система является read-only monitoring/alarm контуром:
 
 - wm-edge-agent читает и наблюдает сигналы;
-- управляющий write-path не входит в web-monitoring UI/API;
+- управляющие команды из web-monitoring UI/API не входят в первый продуктовый
+  scope;
+- технические platform writes для telemetry/status storage, config revisions,
+  outbox, audit и alarm workflow state остаются частью платформы;
 - полноценная `SCADA/HMI` не входит в текущий объем;
 - автоматическое полное discovery всех тегов и информационных моделей не
   входит в текущий объем;
@@ -111,10 +120,16 @@
 
 - `self-hosted` и `cloud` считаются двумя вариантами поставки одной и той же
   `Monitoring & Alarm Platform`, а не двумя разными архитектурами;
+- первый pilot target для центральной платформы — cloud-first в российском
+  облаке; self-hosted/on-prem остается целевым mode после cloud validation и
+  готовности инфраструктуры заказчика;
 - baseline contracts, основной ingestion/data path и acceptance criteria должны
   совпадать между deployment modes;
 - cloud-managed optimization допустима только если она не создает отдельный
   cloud-only contract path и не ломает parity с `self-hosted`.
+- локальная `Docker Compose` infra является обязательным dev/test baseline для
+  integration-тестов, smoke-тестов, onboarding и воспроизведения инцидентов, но
+  не считается production target первого пилота.
 
 Отдельный пилот `KNX -> OPC` может иметь write-path из внешнего OPC-клиента,
 но это отдельный сервисный контур, не основной web-monitoring data path.
@@ -131,6 +146,7 @@
 | Контракты данных и topic/table names | `docs/contracts/` |
 | Edge guide-документация | `apps/wm_edge_agent/docs/` |
 | Demo/agent runtime config bundle | `environments/demo-stand/wm_edge_agent/` |
+| Execution backlog, приоритеты и статусы | internal `YouTrack` |
 
 ## ADR Reading Guide
 
@@ -143,9 +159,12 @@
 4. Для identity model: `ADR-004`.
 5. Для storage/platform design: `ADR-007`, затем `docs/contracts/clickhouse/`
    и `docs/contracts/kafka/`.
-6. Для deployment parity `self-hosted`/`cloud`: `ADR-009`.
+6. Для deployment parity `self-hosted`/`cloud`: `ADR-009`, затем `ADR-013` для
+   cloud-first pilot и local Docker infra policy.
 7. Для backend хранения настроек платформы: `ADR-010`.
-8. Для KNX-first MVP behavior: `ADR-001`, `ADR-002`, `ADR-003`.
+8. Для post-MVP product/pilot governance, `OPC UA` read-only track и internal
+   `YouTrack`: `ADR-013`.
+9. Для KNX-first MVP behavior: `ADR-001`, `ADR-002`, `ADR-003`.
 
 Если ADR и `docs/contracts/` расходятся по полям сообщения, topic/table names
 или schema details, приоритет у `docs/contracts/`. ADR объясняет решение, но не
@@ -157,9 +176,9 @@
 темы сейчас:
 
 - production MQTT broker, TLS, ACL и secrets handling;
-- production scope `Config Registry` и `Platform API` поверх текущего
-  foundation-среза;
 - limits и lifecycle для retained agent runtime/source config;
 - эволюция YAML config bundle из import/bootstrap path в полностью platform-led
   authoring workflow;
+- concrete `VK Cloud` vs `Yandex Cloud` choice, managed-service packaging and
+  secrets backend for the cloud-first pilot;
 - production host/deployment model для edge runtime.

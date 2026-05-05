@@ -6,7 +6,7 @@ patterns.
 ## Commands
 
 ```bash
-cp .env.example .env
+test -f .env || cp .env.example .env
 uv sync
 uv run --package wm-knx-demo wm-knx-demo --help
 uv run --env-file .env --package wm-knx-demo wm-knx-demo read-signals --help

@@ -7,7 +7,11 @@
 
 Цель решения: развернуть на объекте `Edge Telemetry Agent`, который подключается к полевым протоколам и локальным системам автоматизации, получает телеметрию, нормализует значения, фильтрует шум, буферизует события при недоступности внешнего контура и отправляет данные в `Monitoring & Alarm Platform` в `self-hosted` инсталляции или в облаке/интернете.
 
-Целевой контур должен поддерживать не только `KNX`, но и `Modbus`, `OPC UA`, а также другие PLC/SCADA-интеграции через southbound-адаптеры.
+Целевой контур должен поддерживать не только `KNX`, но и `OPC UA`, `Modbus`, а
+также другие PLC/SCADA-интеграции через southbound-адаптеры. Следующий
+выбранный post-MVP protocol track после `KNX` — `OPC UA read-only ingestion`:
+`wm_edge_agent` работает как `OPC UA client` и только считывает данные из
+`OPC UA server`.
 
 Текущий практический фокус проекта: демо-стенд `KNX` как первый реализуемый адаптер и MVP без управляющих действий в production data path.
 
@@ -20,6 +24,10 @@ slice `MQTT -> Redpanda Connect -> Apache Kafka`. Более широкая plat
 platform-foundation slices: `Config Registry` на `PostgreSQL`, Kafka-first
 config delivery projection, `ClickHouse Telemetry Store` path и `Grafana`
 read-model surface.
+
+Первый post-MVP пилот запускается cloud-first в российском облаке (`VK Cloud`
+или `Yandex Cloud`). On-prem/self-hosted остается целевым deployment mode
+продукта, но не является target первого пилота.
 
 ## Границы решения
 
@@ -42,6 +50,7 @@ read-model surface.
 
 - автоматическое и полное discovery всех сущностей, тегов и моделей данных без исходной карты адресов
 - бизнес-логика управления оборудованием
+- управляющие команды из web-monitoring UI/API
 - долгосрочное хранение телеметрии на edge-узле
 - полноценная SCADA/HMI для управляющего контура
 - расширенная аналитика и отчетность вне базового monitoring/alarm-контура
@@ -69,16 +78,24 @@ Source of truth для `C1/C2` и следующих уровней декомп
 ## Основные архитектурные принципы
 
 - Edge-first. Сборщик работает в сети объекта и не зависит от постоянной доступности внешнего контура.
-- Read-only by default. В production data path web-monitoring контура сервис читает и наблюдает сигналы, но не управляет ими.
+- Read-only by default. В production data path web-monitoring контура сервис
+  читает и наблюдает сигналы, но не отправляет управляющие команды из web UI/API.
 - Server-issued config. Все известные точки, `value_model`, параметры чтения и правила публикации приходят в wm-edge-agent как retained agent runtime/source configs; целевой поток доставки: PostgreSQL config revisions -> config outbox -> Kafka -> Redpanda Connect -> MQTT retained topics.
 - Hybrid acquisition. Основной поток данных приходит из event/listen режима там, где он поддерживается; активное чтение включается только для whitelist endpoints.
 - Loose coupling. Протокольная интеграция, правила фильтрации и доставка во внешний контур разделены по компонентам.
 - Fail-safe degradation. При потере backend события не теряются сразу, а уходят в локальный Delivery Outbox.
 - Deployment parity. `self-hosted` и `cloud` рассматриваются как два deployment mode одной платформы; baseline contracts, основной data path и operational model должны оставаться максимально одинаковыми.
+- Cloud-first pilot. Первый пилот идет в российском облаке; self-hosted/on-prem
+  не должен получать отдельную архитектуру и возвращается как deployment mode
+  после cloud validation.
+- Local Docker as product infrastructure. Локальный `Docker Compose` stack
+  обязателен для разработки, integration/smoke тестов, onboarding и
+  воспроизведения проблем.
 
 ## Функциональные требования
 
-- принимать входящие данные через southbound-адаптеры, включая `KNX`, `Modbus`, `OPC UA`
+- принимать входящие данные через southbound-адаптеры, включая `KNX`,
+  `OPC UA` read-only ingestion, future `Modbus` и другие источники
 - выполнять `read_on_start` для явно разрешенных status/sensor endpoints
 - поддерживать периодическое чтение только для отдельных endpoints
 - различать `command`, `feedback`, `status`, `sensor`
@@ -93,11 +110,14 @@ Source of truth для `C1/C2` и следующих уровней декомп
 
 ## Нефункциональные требования
 
-- развертывание на отдельном узле в локальной сети объекта
+- развертывание edge runtime на отдельном узле или управляемом runtime рядом с
+  локальными источниками данных
 - работа без локального edge broker на объекте
 - восстановление после кратковременной потери сети и southbound-соединения
 - предсказуемое поведение после перезапуска за счет `read_on_start`, SQLite Point State Cache и Delivery Outbox
-- стандартный запуск через `docker compose` с возможностью добавить `systemd`-обертку позже
+- локальный `docker compose` stack как обязательный dev/test baseline
+- production launcher для edge runtime уточняется отдельно; `systemd`-обертка
+  остается возможным hardening-вариантом
 - `MQTT 5.0` как primary transport MVP без переписывания ядра сбора
 
 ## Логическая архитектура
@@ -164,7 +184,11 @@ Source of truth для ingestion, Kafka topics, ClickHouse contracts и migratio
 - один edge-узел в той же L2/L3-сети, что и полевые шлюзы/контроллеры
 - `Edge Telemetry Agent` работает на этом узле как локальный edge runtime
 - `Monitoring & Alarm Platform` работает как центральная система в `self-hosted` инсталляции или в облаке/интернете
-- стандартный launcher для первых этапов: `docker compose`
+- первый post-MVP пилот центральной платформы работает cloud-first в российском
+  облаке (`VK Cloud` или `Yandex Cloud`)
+- on-prem/self-hosted deployment не входит в первый пилот, но остается целевым
+  mode после cloud validation
+- локальный `docker compose` stack остается обязательным dev/test baseline
 - конфиги монтируются read-only
 - `SQLite Local State Store` хранится на локальном диске edge-узла
 - наружу открыт только исходящий `MQTT/TLS` к monitoring broker
@@ -172,6 +196,9 @@ Source of truth для ingestion, Kafka topics, ClickHouse contracts и migratio
 
 ### Deployment modes центральной платформы
 
+- `cloud-first pilot`: первый пилот разворачивается в `VK Cloud` или
+  `Yandex Cloud`; provider-specific детали не должны менять contracts, topics,
+  schemas, migrations или acceptance tests.
 - `self-hosted`: платформа разворачивается в инфраструктуре заказчика или в
   управляемом нами isolated environment, но использует те же contracts,
   ingestion pattern и storage boundaries.
@@ -285,7 +312,10 @@ production-контуре как слой визуализации.
 
 - сервис располагается в локальной сети объекта, рядом с полевыми шлюзами и контроллерами
 - прямой внешний доступ к промышленным southbound-интерфейсам не используется как штатный production-сценарий
-- в проде запрещены управляющие `write` операции из web-monitoring data path
+- в проде запрещены управляющие команды из web-monitoring UI/API
+- запрет на управляющие команды не относится к техническим platform writes:
+  telemetry/status storage, config revisions, outbox, audit и alarm workflow
+  state
 - если для отдельного проекта вводится внешний `OPC`-мост с write-path в `KNX`, он должен рассматриваться как отдельный сервис вне текущего web-monitoring контура
 - токены/секреты доставки не хранятся plain text в retained source config или YAML config bundle, а передаются через secret refs или отдельный защищенный secret flow
 

@@ -23,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEMO_BUNDLE_PATH = REPO_ROOT / "environments" / "demo-stand" / "wm_edge_agent" / "config.bundle.yaml"
 
 
+@pytest.mark.integration_smoke
 def test_edge_agent_mqtt_publisher_sends_publication_to_local_broker(
     local_stack,
     monkeypatch: pytest.MonkeyPatch,

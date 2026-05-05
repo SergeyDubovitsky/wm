@@ -47,6 +47,10 @@ members = [
 addopts = ["--import-mode=importlib"]
 markers = [
     "integration: end-to-end checks for dockerized local infrastructure",
+    "integration_smoke: fast smoke subset of dockerized integration checks",
+    "integration_storage: Kafka to ClickHouse storage integration checks",
+    "integration_config_delivery: Config Registry to Kafka/MQTT delivery checks",
+    "integration_grafana: Grafana and ClickHouse dashboard integration checks",
 ]
 
 [tool.ruff]

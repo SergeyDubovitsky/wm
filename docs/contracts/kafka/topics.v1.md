@@ -4,9 +4,11 @@
 Статус: working draft
 
 Этот контракт фиксирует Kafka-compatible topics `Monitoring & Alarm Platform`.
-В production целевым broker-ом может быть `Redpanda`, API совместим с Kafka.
-Локальный integration slice использует `Apache Kafka` как broker и
-`Redpanda Connect` как connector pipeline `MQTT -> Kafka`.
+`Kafka Event Log` является логическим Kafka-compatible event stream, а не
+конкретным broker product. Локальный integration slice использует
+`Apache Kafka` как broker runtime и `Redpanda Connect` как connector pipeline
+`MQTT -> Kafka`. `Redpanda broker` остается candidate для production/self-hosted
+runtime после compatibility PoC, зафиксированного в `ADR-012`.
 
 ## Topics
 

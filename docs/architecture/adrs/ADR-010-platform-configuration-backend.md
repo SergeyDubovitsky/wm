@@ -595,7 +595,7 @@ Config Registry
   -> PostgreSQL config_outbox
   -> Config Event Publisher
   -> Kafka wm.platform.edge.configs.v1
-  -> Redpanda Connect Kafka input
+  -> Redpanda Connect redpanda input component
   -> MQTT retained topics
   -> Edge Telemetry Agent
 ```
@@ -694,7 +694,7 @@ Kafka wm.platform.edge.configs.v1
 - `GET /tenants/{tenant_id}/assets/{asset_id}/agents/{agent_id}/config-revisions`
 
 Материализация Kafka config delivery records в MQTT retained topics выполняется
-локальным Redpanda Connect pipeline `redpanda-connect-config-projection`.
+  локальным Redpanda Connect pipeline `redpanda-connect-config-projection`.
 Первый backend-срез фиксирует Kafka delivery contract, outbox и local
 projection, но не хранит timestamp MQTT projection: факт применения
 конфигурации wm-edge-agent-ом будет приходить отдельно через

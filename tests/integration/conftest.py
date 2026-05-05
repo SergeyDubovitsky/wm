@@ -15,9 +15,11 @@ import urllib.request
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import paho.mqtt.client as mqtt
 import pytest
+from confluent_kafka import Consumer, KafkaException, Producer
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "infra" / "local" / "compose.yaml"
@@ -197,6 +199,39 @@ class LocalMqttStack(LocalComposeStack):
                 client.disconnect()
             client.loop_stop()
 
+    def wait_for_retained_mqtt_json(
+        self,
+        topic: str,
+        *,
+        predicate: Callable[[MqttJsonMessage], bool] | None = None,
+        timeout: float = 30.0,
+    ) -> MqttJsonMessage:
+        deadline = time.monotonic() + timeout
+        last_message: MqttJsonMessage | None = None
+        last_error = "MQTT retained message has not arrived yet."
+
+        while time.monotonic() < deadline:
+            remaining = max(0.1, deadline - time.monotonic())
+            try:
+                message = self.wait_for_mqtt_json(topic, timeout=min(5.0, remaining))
+            except AssertionError as exc:
+                last_error = str(exc)
+                continue
+            if message.retained and (predicate is None or predicate(message)):
+                return message
+            last_message = message
+            if not message.retained:
+                last_error = "last JSON object was live, not retained"
+            else:
+                last_error = "last retained JSON object did not match predicate"
+
+        raise AssertionError(
+            f"MQTT topic {topic!r} did not receive a retained JSON object within "
+            f"{timeout:.0f}s. Last error: {last_error}. "
+            f"Last message: {last_message}\n\n"
+            f"Compose logs:\n{self.logs()}"
+        )
+
 
 @dataclass(frozen=True)
 class MqttJsonMessage:
@@ -296,53 +331,60 @@ class LocalPlatformStack(LocalMqttStack):
         self,
         topic: str,
         *,
+        expected_key: str | None = None,
+        predicate: Callable[[str, dict[str, object]], bool] | None = None,
         timeout: float = 30.0,
     ) -> tuple[str, dict[str, object]]:
         deadline = time.monotonic() + timeout
-        last_output = ""
+        last_error = "Kafka message has not arrived yet."
+        last_key = ""
+        last_payload: object | None = None
+        consumer = Consumer(
+            {
+                "bootstrap.servers": f"127.0.0.1:{self.kafka_port}",
+                "group.id": f"{self.project_name}-{topic}-{uuid.uuid4().hex}",
+                "auto.offset.reset": "earliest",
+                "enable.auto.commit": False,
+            }
+        )
 
-        while time.monotonic() < deadline:
-            result = self.compose(
-                "exec",
-                "-T",
-                "kafka",
-                "/opt/kafka/bin/kafka-console-consumer.sh",
-                "--bootstrap-server",
-                "kafka:19092",
-                "--topic",
-                topic,
-                "--from-beginning",
-                "--max-messages",
-                "1",
-                "--timeout-ms",
-                "5000",
-                "--property",
-                "print.key=true",
-                "--property",
-                "key.separator=\t",
-                check=False,
-                timeout=20,
-            )
-            output = result.stdout.strip()
-            last_output = "\n".join(
-                part for part in (result.stdout, result.stderr) if part
-            ).strip()
-            for line in reversed(output.splitlines()):
-                if "\t" in line:
-                    key, _, payload_json = line.partition("\t")
-                else:
-                    key = ""
-                    payload_json = line
-                try:
-                    return key, json.loads(payload_json)
-                except json.JSONDecodeError:
-                    # Kafka CLI may print warnings to stdout before the record.
+        try:
+            consumer.subscribe([topic])
+            while time.monotonic() < deadline:
+                msg = consumer.poll(timeout=0.5)
+                if msg is None:
                     continue
-            time.sleep(1)
+                if msg.error():
+                    last_error = str(msg.error())
+                    continue
+
+                key = msg.key().decode("utf-8") if msg.key() is not None else ""
+                last_key = key
+                if expected_key is not None and key != expected_key:
+                    last_error = f"last key {key!r} did not match {expected_key!r}"
+                    continue
+                try:
+                    payload = json.loads(msg.value().decode("utf-8"))
+                except (AttributeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    last_error = f"{type(exc).__name__}: {exc}"
+                    continue
+                last_payload = payload
+                if not isinstance(payload, dict):
+                    last_error = f"JSON payload is {type(payload).__name__}, not object"
+                    continue
+                if predicate is not None and not predicate(key, payload):
+                    last_error = "last JSON object did not match predicate"
+                    continue
+                return key, payload
+        except KafkaException as exc:
+            last_error = str(exc)
+        finally:
+            consumer.close()
 
         raise AssertionError(
             f"Kafka topic {topic!r} did not receive a JSON record within "
-            f"{timeout:.0f}s.\n\nLast consumer output:\n{last_output}\n\n"
+            f"{timeout:.0f}s. Last error: {last_error}. "
+            f"Last key: {last_key!r}. Last payload: {last_payload!r}\n\n"
             f"Compose logs:\n{self.logs()}"
         )
 
@@ -354,38 +396,34 @@ class LocalPlatformStack(LocalMqttStack):
         key: str | None = None,
         timeout: int = 30,
     ) -> None:
-        args = [
-            "exec",
-            "-T",
-            "kafka",
-            "/opt/kafka/bin/kafka-console-producer.sh",
-            "--bootstrap-server",
-            "kafka:19092",
-            "--topic",
-            topic,
-        ]
-        input_text = value + "\n"
-        if key is not None:
-            args.extend(
-                [
-                    "--property",
-                    "parse.key=true",
-                    "--property",
-                    "key.separator=\t",
-                ]
-            )
-            input_text = f"{key}\t{value}\n"
-
-        result = self.compose(
-            *args,
-            input=input_text,
-            check=False,
-            timeout=timeout,
+        error: list[str] = []
+        producer = Producer(
+            {
+                "bootstrap.servers": f"127.0.0.1:{self.kafka_port}",
+                "client.id": f"{self.project_name}-producer",
+            }
         )
-        if result.returncode != 0:
+
+        def delivery_report(err: object, _msg: object) -> None:
+            if err is not None:
+                error.append(str(err))
+
+        producer.produce(
+            topic,
+            key=key.encode("utf-8") if key is not None else None,
+            value=value.encode("utf-8"),
+            callback=delivery_report,
+        )
+        remaining = producer.flush(timeout)
+        producer.poll(0)
+        if remaining:
             raise AssertionError(
-                f"Kafka producer failed for topic {topic!r}.\n\n"
-                f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
+                f"Kafka producer still had {remaining} queued message(s) for "
+                f"topic {topic!r} after {timeout}s."
+            )
+        if error:
+            raise AssertionError(
+                f"Kafka producer failed for topic {topic!r}: {'; '.join(error)}"
             )
 
 
@@ -503,6 +541,47 @@ class LocalStorageStack(LocalPlatformStack):
                 "Kafka Connect connector bootstrap failed.\n\n"
                 f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
             )
+
+    def wait_for_kafka_connect_connector(
+        self,
+        connector_name: str = "wm-clickhouse-telemetry-store-v1",
+        *,
+        timeout: float = 120.0,
+    ) -> None:
+        deadline = time.monotonic() + timeout
+        url = (
+            f"http://127.0.0.1:{self.kafka_connect_rest_port}"
+            f"/connectors/{connector_name}/status"
+        )
+        last_error = "Kafka Connect connector status is not reachable yet."
+
+        while time.monotonic() < deadline:
+            try:
+                with urllib.request.urlopen(url, timeout=5) as response:
+                    status = json.loads(response.read().decode())
+                connector = status.get("connector", {})
+                tasks = status.get("tasks", [])
+                connector_running = connector.get("state") == "RUNNING"
+                task_states = [
+                    task.get("state")
+                    for task in tasks
+                    if isinstance(task, dict)
+                ]
+                tasks_running = bool(task_states) and all(
+                    state == "RUNNING" for state in task_states
+                )
+                if connector_running and tasks_running:
+                    return
+                last_error = json.dumps(status, sort_keys=True)
+            except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+            time.sleep(1)
+
+        raise AssertionError(
+            f"Kafka Connect connector {connector_name!r} did not become running "
+            f"within {timeout:.0f}s. Last status: {last_error}\n\n"
+            f"Compose logs:\n{self.logs()}"
+        )
 
     def wait_for_clickhouse_value(
         self,
@@ -856,7 +935,7 @@ def publish_json_message(
         client.loop_stop()
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def local_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalMqttStack:
     if not _docker_is_available():
         pytest.skip("Docker Compose is required for MQTT integration tests.")
@@ -902,7 +981,7 @@ def local_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalMqttStack:
         stack.compose("down", "-v", "--remove-orphans", check=False, timeout=300)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatformStack:
     if not _docker_is_available():
         pytest.skip("Docker Compose is required for platform integration tests.")
@@ -977,7 +1056,7 @@ def local_platform_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalPlatf
         stack.compose("down", "-v", "--remove-orphans", check=False, timeout=300)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorageStack:
     if not _docker_is_available():
         pytest.skip("Docker Compose is required for storage integration tests.")
@@ -1040,7 +1119,6 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
     )
 
     try:
-        stack.compose("build", "kafka-connect", timeout=1200)
         stack.compose(
             "up",
             "-d",
@@ -1063,6 +1141,7 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
         stack.apply_clickhouse_migrations()
         stack.wait_for_kafka_connect()
         stack.apply_kafka_connect_connector()
+        stack.wait_for_kafka_connect_connector()
         yield stack
     except subprocess.CalledProcessError as exc:
         raise AssertionError(
@@ -1073,7 +1152,7 @@ def local_storage_stack(tmp_path_factory: pytest.TempPathFactory) -> LocalStorag
         stack.compose("down", "-v", "--remove-orphans", check=False, timeout=300)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def local_grafana_clickhouse_stack(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> LocalGrafanaClickHouseStack:
@@ -1113,7 +1192,6 @@ def local_grafana_clickhouse_stack(
     )
 
     try:
-        stack.compose("build", "grafana", timeout=1200)
         stack.compose("up", "-d", "clickhouse", "grafana", timeout=900)
         stack.wait_for_clickhouse()
         stack.apply_clickhouse_migrations()
@@ -1128,7 +1206,7 @@ def local_grafana_clickhouse_stack(
         stack.compose("down", "-v", "--remove-orphans", check=False, timeout=300)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def local_config_registry_postgres_stack(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> LocalConfigRegistryPostgresStack:
@@ -1175,7 +1253,7 @@ def local_config_registry_postgres_stack(
         stack.compose("down", "-v", "--remove-orphans", check=False, timeout=300)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def local_config_delivery_stack(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> LocalConfigDeliveryStack:
@@ -1241,7 +1319,6 @@ def local_config_delivery_stack(
     )
 
     try:
-        stack.compose("build", "wm-config-registry", timeout=1200)
         stack.compose(
             "up",
             "-d",

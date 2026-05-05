@@ -36,7 +36,7 @@
 - Текущий проект уже достиг `MVP baseline`: `KNX/wm_edge_agent -> MQTT -> Kafka`
   ingestion slice работает в репозитории и покрыт integration-тестами.
 - Полная `Monitoring & Alarm Platform` как `MQTT Ingestion Gateway`,
-  `Redpanda Connect`, `Redpanda`, `Kafka Event Log`, `Telemetry Consumers`, `Streaming Analytics`,
+  `Redpanda Connect`, `Kafka-compatible Broker Runtime`, `Kafka Event Log`, `Telemetry Consumers`, `Streaming Analytics`,
   `Telemetry Store`, `Platform Store`, `Alarm Rule Engine`, `Platform API`, `Platform Frontend`,
   `Keycloak`, `Grafana` и `Notification Service` остается следующей фазой
   развития поверх текущего `MVP`.
@@ -77,6 +77,7 @@
 | --- | --- | --- |
 | Какой следующий production-ready scope нужен поверх текущего `Config Registry` foundation: authz и internal/backoffice hardening, rollout/approval workflow config revisions, или уже внешний tenant-facing `Platform API` contract? | Первый backend-срез уже реализован локально. Теперь важно не повторно обсуждать стартовый scope, а зафиксировать следующий эксплуатационный инкремент | Высокая |
 | Где фиксируется `Redpanda Connect` pipeline config: в platform repository, IaC, Redpanda Cloud-managed pipeline или отдельном operations bundle? | MQTT input, mapping/transform и redpanda output становятся частью production data path, поэтому конфигурация pipeline должна быть версионирована и управляться так же строго, как edge source config | Высокая |
+| Нужно ли переходить с локального `Apache Kafka` broker runtime на `Redpanda broker`? | `ADR-012` оставляет Apache Kafka локальным baseline и требует отдельный compatibility PoC для Redpanda broker, чтобы не смешивать broker migration с connector/runtime cleanup | Средняя |
 | Нужно ли менять draft Kafka topics, retention и consumer groups после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/kafka/topics.v1.md`, но реальные partition counts и retention могут потребовать корректировки после измерений | Средняя |
 | Нужно ли менять draft ClickHouse DDL, rollups и TTL после нагрузочного PoC? | Базовый контракт зафиксирован в `docs/contracts/clickhouse/telemetry-store.v1.md`, но production performance schema должна быть подтверждена на данных целевого масштаба | Средняя |
 | Какой минимальный lifecycle `alarm` нужен в первом релизе: severity, acknowledge, clear, mute, escalation? | Это определяет границу между просто monitoring dashboard и реальной alarm-platform | Высокая |

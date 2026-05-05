@@ -31,6 +31,7 @@ ADR остаются журналом архитектурных решений.
 | `ADR-009-kafka-to-clickhouse-ingestion.md` | accepted | Фиксирует `ClickHouse Kafka Connect Sink` как baseline путь сохранения Kafka records в `ClickHouse` через raw landing tables и materialized views. |
 | `ADR-010-platform-configuration-backend.md` | accepted | Фиксирует первый backend-срез настроек: `Config Registry` на FastAPI async + SQLAlchemy + PostgreSQL, clean architecture и модель данных по edge config contracts. |
 | `ADR-011-internal-backoffice-admin-ui.md` | accepted | Фиксирует внутреннюю backoffice-админку на SQLAdmin для Config Registry; write operations обязаны идти через application use cases и transactional outbox. |
+| `ADR-012-post-mvp-product-and-execution-governance.md` | accepted | Фиксирует post-MVP product/pilot direction: cloud-first российский пилот, local Docker infra для разработки, `OPC UA` read-only ingestion и internal-only `YouTrack` execution backlog. |
 
 ## Быстрый выбор ADR
 
@@ -45,6 +46,7 @@ ADR остаются журналом архитектурных решений.
 | Как Kafka records сохраняются в ClickHouse? | `ADR-009`, затем `docs/contracts/kafka/` и `docs/contracts/clickhouse/` |
 | Как проектировать backend хранения настроек платформы? | `ADR-010` |
 | Как быстро дать внутреннюю админку для настроек? | `ADR-011` |
+| Что принято после MVP baseline по пилоту, cloud/local infra, `OPC UA` и `YouTrack`? | `ADR-012` |
 | Почему monorepo? | `ADR-006` |
 
 ## Поддержка

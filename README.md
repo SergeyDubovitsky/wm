@@ -23,8 +23,16 @@ slices:
 - Kafka-first config delivery path `PostgreSQL -> wm.platform.edge.configs.v1 -> Redpanda Connect -> retained MQTT agent runtime/source config`
 - локальный storage/read path `Kafka -> Kafka Connect -> ClickHouse`, `Grafana` datasource provisioning и read-model PoC
 
-Целевая `Monitoring & Alarm Platform` проектируется для двух deployment modes:
-`self-hosted` и `cloud`.
+Первый post-MVP пилот идет cloud-first в российском облаке; приоритетные
+кандидаты — `VK Cloud` или `Yandex Cloud`.
+
+Локальная Docker-инфра остается обязательной для разработки, integration-тестов,
+smoke-тестов, onboarding и воспроизведения инцидентов. Она не является
+production target первого пилота, но должна оставаться близкой к cloud/self-hosted
+baseline по contracts, migrations и operational semantics.
+
+Целевая `Monitoring & Alarm Platform` продолжает проектироваться для двух
+deployment modes: `self-hosted` и `cloud`.
 
 Для них сохраняется общий baseline:
 
@@ -62,11 +70,19 @@ workspace packages с `src/`, тестами и импортируемым API, 
 
 ## Task Tracking
 
-Source of truth для текущих задач, приоритетов и статуса выполнения — `YouTrack`.
+Internal `YouTrack` — source of truth для текущих задач, приоритетов и статуса
+выполнения.
 
-- `YouTrack` хранит execution backlog и прогресс работ
-- git-документация хранит архитектуру, ADR, открытые вопросы и future ideas
-- живые execution plans не поддерживаются в репозитории, чтобы не расходиться с `YouTrack`
+- internal `YouTrack` хранит execution backlog, приоритеты, статусы,
+  follow-up задачи и future analysis
+- external customers/partners не должны иметь доступ к internal roadmap,
+  commercial terms, product/IP strategy, security decisions и raw backlog
+- customer feedback переносится в internal `YouTrack` вручную или через
+  отдельный customer-facing project/helpdesk/view без internal fields
+- git-документация хранит архитектуру, ADR, product boundaries, открытые вопросы
+  и future ideas
+- живые execution plans не поддерживаются в репозитории, чтобы не расходиться с
+  internal `YouTrack`
 
 ## Python Workspace
 
